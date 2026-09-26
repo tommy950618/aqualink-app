@@ -1,0 +1,12 @@
+{
+  "name": "hoop-arena-3x3",
+  "private": true,
+  "version": "0.1.0",
+  "description": "2K-style 3v3 half-court basketball game in three.js. Static site, no build step.",
+  "type": "module",
+  "scripts": {
+    "start": "python3 -m http.server 8080",
+    "test": "node test/acceptance.cjs"
+  },
+  "license": "MIT"
+}
