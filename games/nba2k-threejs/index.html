@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0b0d14">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="format-detection" content="telephone=no">
+  <title data-i18n="app.title">HOOP ARENA 3x3</title>
+  <link rel="stylesheet" href="./css/style.css">
+</head>
+<body>
+  <div id="app">
+    <canvas id="gl"></canvas>
+
+    <!-- Read-only overlay: never receives pointer events -->
+    <div id="hud" aria-live="polite">
+      <div id="scoreBug">
+        <div class="teams">
+          <span id="chipA" class="chip"><span id="possA" class="arrow">▶</span><span id="abbrA" class="abbr">HBT</span><span id="scoreA" class="score">0</span></span>
+          <span id="chipB" class="chip"><span id="abbrB" class="abbr">RRF</span><span id="scoreB" class="score">0</span><span id="possB" class="arrow">◀</span></span>
+        </div>
+        <div class="clocks">
+          <span id="period">第1节</span>
+          <span id="gameClock">02:00</span>
+          <span id="shotClock">14</span>
+        </div>
+      </div>
+      <div id="caption"></div>
+      <div id="banner"></div>
+      <div id="meter">
+        <div id="meterBand"></div>
+        <div id="meterFill"></div>
+        <div id="meterFlash"></div>
+      </div>
+      <div id="stamina"><div id="staminaFill"></div></div>
+    </div>
+
+    <!-- Touch controls -->
+    <div id="controls">
+      <div id="stickZone"></div>
+      <div id="stickRing"><div id="stickKnob"></div></div>
+      <div id="cluster" class="offense">
+        <button type="button" id="btnSprint" class="cbtn"><span class="glyph">»</span><span class="label" data-i18n="btn.sprint">冲刺</span></button>
+        <button type="button" id="btnSecondary" class="cbtn"><span class="glyph">➜</span><span class="label" data-i18n="btn.pass">传球</span></button>
+        <button type="button" id="btnTertiary" class="cbtn"><span class="glyph">⇄</span><span class="label" data-i18n="btn.cross">变向</span></button>
+        <button type="button" id="btnPrimary" class="cbtn"><span class="glyph">●</span><span class="label" data-i18n="btn.shoot">投篮</span></button>
+      </div>
+      <button type="button" id="btnPause"><span class="glyph">❚❚</span><span class="sr" data-i18n="btn.pause">暂停</span></button>
+    </div>
+
+    <!-- Menus -->
+    <div id="menus">
+      <section id="menuMain" class="panel">
+        <h1 class="title" data-i18n="app.title">街头篮球场 3x3</h1>
+        <div class="rows">
+          <div class="row">
+            <span class="lbl" data-i18n="menu.team">选择球队</span>
+            <div class="seg">
+              <button type="button" class="opt team" data-team="0">海城潮汐</button>
+              <button type="button" class="opt team" data-team="1">赤岩火狐</button>
+            </div>
+          </div>
+          <div class="row">
+            <span class="lbl" data-i18n="menu.difficulty">难度</span>
+            <div class="seg">
+              <button type="button" class="opt" data-setting="difficulty" data-value="easy" data-i18n="diff.easy">简单</button>
+              <button type="button" class="opt" data-setting="difficulty" data-value="normal" data-i18n="diff.normal">普通</button>
+              <button type="button" class="opt" data-setting="difficulty" data-value="hard" data-i18n="diff.hard">困难</button>
+            </div>
+          </div>
+          <div class="row">
+            <span class="lbl" data-i18n="menu.quarter">每节时长</span>
+            <div class="seg">
+              <button type="button" class="opt" data-setting="quarter" data-value="60" data-i18n="menu.min" data-i18n-params='{"n":1}'>1 分钟</button>
+              <button type="button" class="opt" data-setting="quarter" data-value="120" data-i18n="menu.min" data-i18n-params='{"n":2}'>2 分钟</button>
+              <button type="button" class="opt" data-setting="quarter" data-value="180" data-i18n="menu.min" data-i18n-params='{"n":3}'>3 分钟</button>
+              <button type="button" class="opt" data-setting="quarter" data-value="300" data-i18n="menu.min" data-i18n-params='{"n":5}'>5 分钟</button>
+            </div>
+          </div>
+          <div class="row two">
+            <span class="lbl" data-i18n="menu.language">语言</span>
+            <div class="seg"><button type="button" class="opt lang" data-action="lang">简体中文</button></div>
+            <span class="lbl" data-i18n="menu.sound">音效</span>
+            <div class="seg"><button type="button" class="opt sound" data-action="sound" data-i18n="common.on">开</button></div>
+          </div>
+        </div>
+        <button type="button" id="btnStart" class="primary" data-i18n="menu.start">开始比赛</button>
+      </section>
+
+      <section id="menuPause" class="panel hidden">
+        <h2 class="title" data-i18n="menu.pause">暂停</h2>
+        <button type="button" id="btnResume" class="primary" data-i18n="menu.resume">继续</button>
+        <h3 class="sub" data-i18n="menu.settings">设置</h3>
+        <div class="rows">
+          <div class="row two">
+            <span class="lbl" data-i18n="menu.language">语言</span>
+            <div class="seg"><button type="button" class="opt lang" data-action="lang">简体中文</button></div>
+            <span class="lbl" data-i18n="menu.sound">音效</span>
+            <div class="seg"><button type="button" class="opt sound" data-action="sound" data-i18n="common.on">开</button></div>
+          </div>
+          <div class="row">
+            <span class="lbl" data-i18n="menu.difficulty">难度</span>
+            <div class="seg">
+              <button type="button" class="opt" data-setting="difficulty" data-value="easy" data-i18n="diff.easy">简单</button>
+              <button type="button" class="opt" data-setting="difficulty" data-value="normal" data-i18n="diff.normal">普通</button>
+              <button type="button" class="opt" data-setting="difficulty" data-value="hard" data-i18n="diff.hard">困难</button>
+            </div>
+          </div>
+        </div>
+        <button type="button" id="btnQuit" class="secondary" data-i18n="menu.quit">返回主菜单</button>
+      </section>
+
+      <section id="menuOver" class="panel hidden">
+        <h2 id="overWinner" class="title">平局</h2>
+        <div id="finalScore" class="final">0 : 0</div>
+        <table id="boxScore">
+          <thead>
+            <tr>
+              <th data-i18n="stats.name">球员</th>
+              <th data-i18n="stats.pts">得分</th>
+              <th data-i18n="stats.fg">投篮</th>
+              <th data-i18n="stats.tp">三分</th>
+              <th data-i18n="stats.reb">篮板</th>
+              <th data-i18n="stats.stl">抢断</th>
+              <th data-i18n="stats.blk">盖帽</th>
+            </tr>
+          </thead>
+          <tbody id="boxRows"></tbody>
+        </table>
+        <div class="actions">
+          <button type="button" id="btnRematch" class="primary" data-i18n="menu.rematch">再来一局</button>
+          <button type="button" id="btnQuitOver" class="secondary" data-i18n="menu.quit">返回主菜单</button>
+        </div>
+      </section>
+    </div>
+
+    <div id="halftime" class="overlay hidden">
+      <div class="big" data-i18n="banner.halftime">半场</div>
+      <div id="halftimeScore" class="final">0 : 0</div>
+      <div class="hint" data-i18n="menu.tapToSkip">点击跳过</div>
+    </div>
+
+    <div id="rotateHint" class="hidden">
+      <span class="glyph">⟳</span>
+      <span data-i18n="hint.landscape">横屏体验更佳</span>
+      <button type="button" id="btnRotateDismiss" data-i18n="hint.dismiss">知道了</button>
+    </div>
+
+    <div id="ctxLost" class="overlay hidden">
+      <button type="button" id="btnReload" class="primary" data-i18n="hint.ctxLost">图形上下文丢失，点击重新加载</button>
+    </div>
+
+    <div id="nowebgl" class="overlay hidden">
+      <div class="big" data-i18n="hint.nowebgl">您的浏览器不支持 WebGL</div>
+    </div>
+  </div>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
