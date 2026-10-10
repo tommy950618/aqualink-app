@@ -9,7 +9,8 @@
  * sole lift, D-CHR-7). Parts (`partId` per vertex, `PART`): upper (superellipse sections over the foot, open at the
  * collar), sole side wall (outsole + midsole bands), sole bottom, collar lining, sole top lip (not on the low LOD).
  * UVs are LOCAL per part (0..1); the kit assembler remaps them into the atlas rects of `kitPainter.KIT_LAYOUT`:
- *   upper  u = s (heel 0 → toe 1), v = section parameter t (0 medial bottom → 0.5 top line → 1 lateral bottom);
+ *   upper  u = s (heel 0 → toe 1), v = height fraction h of the section: 0.5·h medial, 1 − 0.5·h lateral (0 medial
+ *          bottom → 0.5 top line / collar → 1 lateral bottom), so "lower 45 %" is v < 0.225 or v > 0.775 everywhere;
  *   wall   u = perimeter fraction, v = 0 outsole bottom → 0.25 outsole top → 1 midsole top;
  *   bottom planar (u = s, v = 0.5 + q / (2·maxHalfWidth)); lining / lip: constant swatch coordinates.
  * Skinning ([CHR §7.6]): s < sBall − 0.06 → foot 1; s > sBall + 0.03 → ball 1; linear in between; high and mid-high
@@ -41,8 +42,14 @@ export const SNEAKER_BONES = Object.freeze({
 });
 
 const SUPER_N = 2.6;          // superellipse exponent of the upper sections
-const THROAT_S0 = 0.22;       // collar opening ends / tongue starts
-const THROAT_TONGUE_S = 0.30; // tongue top Hc + 0.010 here
+// Leg opening. [CHR §7.6] opens the lacing throat at s 0.22 with the tongue top (Hc + 0.010) at s 0.30; on the baked
+// feet the shin column at collar height spans s ≈ 0.09–0.32, so a closed tongue at s 0.22–0.30 cuts through the
+// leg. The collar opening therefore runs to s 0.34 (≈ 11 cm long, a real high-top opening) and the tongue rises to
+// Hc + 0.010 at its front edge; the lacing throat (eyestays, painted) still spans s 0.22–0.62.
+const THROAT_S0 = 0.34;       // collar opening ends / tongue front edge
+const THROAT_TONGUE_S = 0.36; // tongue top Hc + 0.010 here
+const HEEL_LEAN = 0.16;       // heel counter leans forward 0.16 m per m of height (follows the Achilles)
+const COLLAR_FLARE = 0.20;    // collar walls widen up to +20 % at the collar line so ankle / sock stay inside
 const COLLAR_DIP_S = 0.18;    // ankle-side dip of the collar line
 const LINING_IN = 0.003, LINING_DOWN = 0.015;
 const FLARE = 0.003;          // sole side wall beyond the outline
@@ -104,7 +111,9 @@ export function sneakerProfile(foot, cut, side) {
   const VS = [0, 0.36 * Wh, 0.50 * Wh, 0.47 * Wb, 0.50 * Wb, 0.44 * Wb, 0.30 * Wb, 0];
   const Hc = COLLAR_H[c];
   const dip = c === 'low' ? 0.020 : 0.012;
-  const w = (s) => Math.max(0, catmull(KS, VS, s));
+  // heel / ankle region 12 % wider than the knots (fading out by s 0.45): the baked heels are up to ±3.9 cm wide at
+  // ankle height while 0.5·Wh ≈ 3.6 cm, and the sock shell (+2.5 mm) must stay inside the counter
+  const w = (s) => Math.max(0, catmull(KS, VS, s)) * (1 + 0.12 * (1 - smooth(0.25, 0.45, s)));
   // medial arch: ×0.92 for s 0.30–0.50 (ramped over 0.05 at both ends)
   const archK = (s) => 1 - 0.08 * smooth(0.25, 0.30, s) * (1 - smooth(0.50, 0.55, s));
   const wLat = (s) => w(s);
@@ -117,7 +126,7 @@ export function sneakerProfile(foot, cut, side) {
   const collar = (s) => Hc - dip * Math.exp(-(((s - COLLAR_DIP_S) / 0.07) ** 2));
   const top = (s) => {
     if (s < THROAT_S0) return collar(s);
-    if (s <= THROAT_TONGUE_S) return lin([THROAT_S0, THROAT_TONGUE_S], [Hc + 0.004, Hc + 0.010], s);
+    if (s <= THROAT_TONGUE_S) return lin([THROAT_S0, THROAT_TONGUE_S], [Hc + 0.006, Hc + 0.010], s);
     return lin([THROAT_TONGUE_S, 0.62, 0.75, 0.85, 0.95, 1.0], [Hc + 0.010, 0.080, 0.065, 0.052, 0.038, 0.025], s) + spring(s);
   };
   const point = (s, q, y, out) => {
@@ -181,10 +190,15 @@ export function buildSneaker(feet, cut, side, lod, opts) {
       const psi = (t - 0.5) * Math.PI;                          // −π/2 medial bottom … 0 top … +π/2 lateral bottom
       const sp = Math.sin(psi), cp = Math.cos(psi);
       const sx = Math.sign(sp) * Math.pow(Math.abs(sp), e), sy = Math.pow(Math.abs(cp), e);
-      const q = c + (sx < 0 ? wm : wl) * sx;
       const y = ym + (topY - ym) * sy;
-      pr.point(s, q, y, tmp);
-      push(tmp[0], tmp[1], tmp[2], s, t, PART.UPPER, s, (y - ym) / Math.max(1e-6, pr.Hc - ym));
+      const flare = isOpen || s < THROAT_S0 + 0.08 ? 1 + COLLAR_FLARE * smooth(0.3, 1, (y - ym) / Math.max(1e-6, pr.Hc - ym)) * (1 - smooth(0.2, THROAT_S0 + 0.08, s)) : 1;
+      const q = c + (sx < 0 ? wm : wl) * sx * flare;
+      // heel lean: the back of the upper moves forward with height, fading out by the end of the opening
+      const sl = s + HEEL_LEAN * (y - ym) * (1 - smooth(0, THROAT_S0, s)) / pr.L;
+      pr.point(sl, q, y, tmp);
+      // v = height fraction of the section (collar line for open sections): medial half 0 → 0.5, lateral 0.5 → 1
+      const hfr = isOpen ? (y - ym) / Math.max(1e-6, pr.collar(s) - ym) : sy;
+      push(tmp[0], tmp[1], tmp[2], s, j < half ? 0.5 * hfr : 1 - 0.5 * hfr, PART.UPPER, s, (y - ym) / Math.max(1e-6, pr.Hc - ym));
     }
   }
   for (let i = 0; i < N - 1; i++) {
