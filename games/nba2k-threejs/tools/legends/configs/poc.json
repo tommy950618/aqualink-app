@@ -1,0 +1,94 @@
+{
+  "name": "poc",
+  "output": "../../../test/scratch/legends-poc/assets",
+  "lods": [
+    {
+      "ratio": 0.5,
+      "lockHead": true
+    },
+    {
+      "ratio": 0.25,
+      "lockHead": true
+    },
+    {
+      "ratio": 0.12
+    }
+  ],
+  "players": [
+    {
+      "id": "tall",
+      "label": "Test A: 2.29 m East-Asian-weighted slim male",
+      "height": 2.29,
+      "macro": {
+        "gender": 1,
+        "ageYears": 26,
+        "muscle": 0.55,
+        "weight": 0.3,
+        "height": "auto",
+        "proportions": 0.8,
+        "race": {
+          "asian": 0.85,
+          "caucasian": 0.1,
+          "african": 0.05
+        }
+      },
+      "targets": {},
+      "appearance": {
+        "skin": "#d9b08c",
+        "iris": "#2a1a10",
+        "hair": {
+          "shell": "hair",
+          "color": "#0d0a08",
+          "style": "short-straight"
+        },
+        "eyebrows": true,
+        "beard": null,
+        "accessories": []
+      }
+    },
+    {
+      "id": "athlete",
+      "label": "Test B: 1.88 m African-weighted athletic male",
+      "height": 1.88,
+      "macro": {
+        "gender": 1,
+        "ageYears": 28,
+        "muscle": 0.85,
+        "weight": 0.55,
+        "height": "auto",
+        "proportions": 1,
+        "race": {
+          "african": 0.9,
+          "caucasian": 0.1,
+          "asian": 0
+        }
+      },
+      "targets": {
+        "nose/nose-flaring-decr-incr": 0.5,
+        "nose/nose-scale-horiz-decr-incr": 0.3,
+        "mouth/mouth-lowerlip-volume-decr-incr": 0.3,
+        "chin/chin-prominent-decr-incr": 0.3,
+        "head/head-square": 0.4,
+        "eyebrows/eyebrows-trans-backward-forward": 0.3
+      },
+      "appearance": {
+        "skin": "#5a3a28",
+        "iris": "#3a2414",
+        "hair": {
+          "shell": "hair",
+          "color": "#0d0a08",
+          "style": "buzz"
+        },
+        "eyebrows": true,
+        "beard": {
+          "shell": "beard",
+          "color": "#0d0a08"
+        },
+        "accessories": [
+          "headband",
+          "sleeve_r"
+        ]
+      }
+    }
+  ]
+}

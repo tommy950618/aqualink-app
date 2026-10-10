@@ -1,0 +1,17 @@
+{
+  "name": "legends-bake-tools",
+  "private": true,
+  "type": "module",
+  "description": "Offline bake of CC0 MakeHuman bodies for the game. Runtime needs nothing from here.",
+  "scripts": {
+    "fetch": "node fetch.mjs configs/poc.json",
+    "bake": "node bake.mjs configs/poc.json",
+    "fetch:legends": "node fetch.mjs legends.config.json",
+    "bake:legends": "node bake.mjs legends.config.json",
+    "measure:legends": "node measure.mjs ../../test/scratch/legends-poc/assets/legends.json",
+    "calibrate:legends": "node calibrate.mjs legends.config.json --write"
+  },
+  "optionalDependencies": {
+    "meshoptimizer": "0.22.0"
+  }
+}
