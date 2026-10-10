@@ -8,37 +8,53 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="format-detection" content="telephone=no">
-  <title data-i18n="app.title">HOOP ARENA 3x3</title>
+  <title data-i18n="app.title">传奇对决 3v3</title>
   <link rel="stylesheet" href="./css/style.css">
+  <link rel="modulepreload" href="./vendor/three.module.js">
+  <link rel="modulepreload" href="./src/game.js">
+  <link rel="modulepreload" href="./src/ai.js">
+  <link rel="modulepreload" href="./src/audio.js">
+  <link rel="modulepreload" href="./src/player.js">
+  <link rel="modulepreload" href="./src/i18n.js">
+  <link rel="modulepreload" href="./src/anim/clips/common.js">
+  <link rel="modulepreload" href="./src/anim/animator.js">
+  <link rel="modulepreload" href="./src/ui/hud.js">
+  <link rel="modulepreload" href="./src/shot.js">
+  <link rel="modulepreload" href="./src/anim/locomotion.js">
+  <link rel="modulepreload" href="./src/legends/character.js">
+  <link rel="modulepreload" href="./src/render/arena.js">
+  <link rel="preload" href="./assets/legends/legends.json" as="fetch" crossorigin="anonymous">
+  <link rel="preload" href="./assets/legends/legends.shared.bin" as="fetch" crossorigin="anonymous">
 </head>
 <body>
-  <div id="app">
+  <div id="app" data-screen="loading" data-overlay="">
     <canvas id="gl"></canvas>
+    <div id="safeProbe" aria-hidden="true"></div>
 
-    <!-- Read-only overlay: never receives pointer events -->
+    <!-- HUD: read-only overlay, never receives pointer events -->
     <div id="hud" aria-live="polite">
       <div id="scoreBug">
-        <div class="teams">
-          <span id="chipA" class="chip"><span id="possA" class="arrow">▶</span><span id="abbrA" class="abbr">HBT</span><span id="scoreA" class="score">0</span></span>
-          <span id="chipB" class="chip"><span id="abbrB" class="abbr">RRF</span><span id="scoreB" class="score">0</span><span id="possB" class="arrow">◀</span></span>
-        </div>
-        <div class="clocks">
-          <span id="period">第1节</span>
-          <span id="gameClock">02:00</span>
-          <span id="shotClock">14</span>
-        </div>
+        <span id="barA" class="bar"></span>
+        <span id="chipA" class="chip"><span id="abbrA" class="abbr">暗夜</span><i id="possA" class="poss"></i></span>
+        <span id="scoreA" class="score">0</span>
+        <span class="clocks"><span id="period">第1节</span><span id="gameClock">02:00</span></span>
+        <span id="scoreB" class="score">0</span>
+        <span id="chipB" class="chip"><span id="abbrB" class="abbr">烈阳</span><i id="possB" class="poss"></i></span>
+        <span id="barB" class="bar"></span>
+        <span id="shotClock">14</span>
       </div>
       <div id="caption"></div>
-      <div id="banner"></div>
-      <div id="meter">
-        <div id="meterBand"></div>
-        <div id="meterFill"></div>
-        <div id="meterFlash"></div>
-      </div>
-      <div id="stamina"><div id="staminaFill"></div></div>
+      <div id="tip"></div>
+      <div id="meter"><div id="meterBand"></div><div id="meterFill"></div><div id="meterPts">2</div><div id="meterFlash"></div></div>
+      <div id="offA" class="offInd"><span class="tri"></span><span class="num"></span></div>
+      <div id="offB" class="offInd"><span class="tri"></span><span class="num"></span></div>
+      <div id="offC" class="offInd"><span class="tri"></span><span class="num"></span></div>
+      <div id="passTarget"></div>
+      <div id="nameTag"><div class="tagIn"><span id="nameTagText"></span><div id="nameStam"><div id="nameStamFill"></div></div></div></div>
+      <div id="banner"><span id="bannerVal"></span><span id="bannerName" class="hidden"></span></div>
     </div>
 
-    <!-- Touch controls -->
+    <!-- Touch controls (input.js) -->
     <div id="controls">
       <div id="stickZone"></div>
       <div id="stickRing"><div id="stickKnob"></div></div>
@@ -51,95 +67,94 @@
       <button type="button" id="btnPause"><span class="glyph">❚❚</span><span class="sr" data-i18n="btn.pause">暂停</span></button>
     </div>
 
+    <!-- Title and lineup screens (transparent over the 3D scene) -->
+    <div id="screens">
+      <section id="screenTitle">
+        <div class="logo"><div class="logoZh" data-i18n="brand.zh">传奇对决</div><div class="logoEn" data-i18n="brand.sub">LEGENDS 3V3</div></div>
+        <div class="titleBtns">
+          <button type="button" id="btnStart" class="primary" data-i18n="title.play">开始游戏</button>
+          <button type="button" id="btnQuick" class="secondary" data-i18n="title.quick">快速比赛</button>
+          <button type="button" id="btnSettings" class="secondary" data-i18n="title.settings">设置</button>
+        </div>
+        <button type="button" id="btnLang" class="langChip" data-action="lang"><span data-i18n="title.lang">中 / EN</span></button>
+        <div class="legal" data-i18n="legal.note">非商业粉丝作品 · 球员姓名与形象归其本人所有</div>
+      </section>
+      <section id="screenLineup"></section>
+    </div>
+
+    <!-- Intro and replay presentation -->
+    <div id="present">
+      <div id="presentTap"></div>
+      <div id="vignette"></div>
+      <div id="lbTop"><span id="replayTag" data-i18n="replay.tagFull">回放 REPLAY</span></div>
+      <div id="lbBot"></div>
+      <div id="wipe"><span id="wipeTag" data-i18n="replay.tagFull">回放 REPLAY</span></div>
+      <div id="lowerThird">
+        <div id="ltTeam" class="hidden"></div>
+        <div class="ltCard"><div id="ltNum"></div><div class="ltText"><div id="ltName"></div><div id="ltOther"></div><div id="ltLine"></div></div></div>
+      </div>
+      <div id="matchup"><span id="muA" class="mu"></span><span id="muVs" data-i18n="intro.vs">VS</span><span id="muB" class="mu"></span></div>
+      <button type="button" id="skipBtn"><span id="skipLbl" data-i18n="intro.skip">跳过</span><span class="ff">▶▶</span></button>
+      <div id="toast"></div>
+    </div>
+
     <!-- Menus -->
     <div id="menus">
-      <section id="menuMain" class="panel">
-        <h1 class="title" data-i18n="app.title">街头篮球场 3x3</h1>
-        <div class="rows">
-          <div class="row">
-            <span class="lbl" data-i18n="menu.team">选择球队</span>
-            <div class="seg">
-              <button type="button" class="opt team" data-team="0">海城潮汐</button>
-              <button type="button" class="opt team" data-team="1">赤岩火狐</button>
-            </div>
-          </div>
-          <div class="row">
-            <span class="lbl" data-i18n="menu.difficulty">难度</span>
-            <div class="seg">
-              <button type="button" class="opt" data-setting="difficulty" data-value="easy" data-i18n="diff.easy">简单</button>
-              <button type="button" class="opt" data-setting="difficulty" data-value="normal" data-i18n="diff.normal">普通</button>
-              <button type="button" class="opt" data-setting="difficulty" data-value="hard" data-i18n="diff.hard">困难</button>
-            </div>
-          </div>
-          <div class="row">
-            <span class="lbl" data-i18n="menu.quarter">每节时长</span>
-            <div class="seg">
-              <button type="button" class="opt" data-setting="quarter" data-value="60" data-i18n="menu.min" data-i18n-params='{"n":1}'>1 分钟</button>
-              <button type="button" class="opt" data-setting="quarter" data-value="120" data-i18n="menu.min" data-i18n-params='{"n":2}'>2 分钟</button>
-              <button type="button" class="opt" data-setting="quarter" data-value="180" data-i18n="menu.min" data-i18n-params='{"n":3}'>3 分钟</button>
-              <button type="button" class="opt" data-setting="quarter" data-value="300" data-i18n="menu.min" data-i18n-params='{"n":5}'>5 分钟</button>
-            </div>
-          </div>
-          <div class="row two">
-            <span class="lbl" data-i18n="menu.language">语言</span>
-            <div class="seg"><button type="button" class="opt lang" data-action="lang">简体中文</button></div>
-            <span class="lbl" data-i18n="menu.sound">音效</span>
-            <div class="seg"><button type="button" class="opt sound" data-action="sound" data-i18n="common.on">开</button></div>
-          </div>
+      <section id="menuSettings" class="panel sheet">
+        <div class="sheetHead">
+          <button type="button" id="btnSettingsBack" class="iconBtn" data-i18n-aria="settings.close">‹</button>
+          <h2 class="title" data-i18n="settings.title">设置</h2>
         </div>
-        <button type="button" id="btnStart" class="primary" data-i18n="menu.start">开始比赛</button>
+        <div id="settingsRows" class="rows scroll"></div>
+        <div id="settingsNote" class="note hidden" data-i18n="settings.reloadNote">贴图尺寸将在下次启动时生效</div>
       </section>
 
-      <section id="menuPause" class="panel hidden">
+      <section id="menuPause" class="panel">
         <h2 class="title" data-i18n="menu.pause">暂停</h2>
         <button type="button" id="btnResume" class="primary" data-i18n="menu.resume">继续</button>
-        <h3 class="sub" data-i18n="menu.settings">设置</h3>
-        <div class="rows">
-          <div class="row two">
-            <span class="lbl" data-i18n="menu.language">语言</span>
-            <div class="seg"><button type="button" class="opt lang" data-action="lang">简体中文</button></div>
-            <span class="lbl" data-i18n="menu.sound">音效</span>
-            <div class="seg"><button type="button" class="opt sound" data-action="sound" data-i18n="common.on">开</button></div>
-          </div>
-          <div class="row">
-            <span class="lbl" data-i18n="menu.difficulty">难度</span>
-            <div class="seg">
-              <button type="button" class="opt" data-setting="difficulty" data-value="easy" data-i18n="diff.easy">简单</button>
-              <button type="button" class="opt" data-setting="difficulty" data-value="normal" data-i18n="diff.normal">普通</button>
-              <button type="button" class="opt" data-setting="difficulty" data-value="hard" data-i18n="diff.hard">困难</button>
-            </div>
-          </div>
-        </div>
+        <div id="pauseRows" class="rows scroll"></div>
         <button type="button" id="btnQuit" class="secondary" data-i18n="menu.quit">返回主菜单</button>
       </section>
 
-      <section id="menuOver" class="panel hidden">
-        <h2 id="overWinner" class="title">平局</h2>
-        <div id="finalScore" class="final">0 : 0</div>
-        <table id="boxScore">
-          <thead>
-            <tr>
-              <th data-i18n="stats.name">球员</th>
-              <th data-i18n="stats.pts">得分</th>
-              <th data-i18n="stats.fg">投篮</th>
-              <th data-i18n="stats.tp">三分</th>
-              <th data-i18n="stats.reb">篮板</th>
-              <th data-i18n="stats.stl">抢断</th>
-              <th data-i18n="stats.blk">盖帽</th>
-            </tr>
-          </thead>
-          <tbody id="boxRows"></tbody>
-        </table>
+      <section id="menuOver" class="panel">
+        <h2 id="overWinner" class="title">暗夜队 获胜</h2>
+        <div id="finalScore" class="final"><span id="overNameA" class="fn"></span><span id="overScore">0 : 0</span><span id="overNameB" class="fn"></span></div>
+        <div class="boxWrap scroll">
+          <table id="boxScore">
+            <thead>
+              <tr>
+                <th data-i18n="stats.name">球员</th>
+                <th data-i18n="stats.pts">得分</th>
+                <th data-i18n="stats.fg">投篮</th>
+                <th data-i18n="stats.tp">三分</th>
+                <th data-i18n="stats.reb">篮板</th>
+                <th data-i18n="stats.ast">助攻</th>
+                <th data-i18n="stats.stl">抢断</th>
+                <th data-i18n="stats.blk">盖帽</th>
+              </tr>
+            </thead>
+            <tbody id="boxRows"></tbody>
+          </table>
+        </div>
         <div class="actions">
           <button type="button" id="btnRematch" class="primary" data-i18n="menu.rematch">再来一局</button>
-          <button type="button" id="btnQuitOver" class="secondary" data-i18n="menu.quit">返回主菜单</button>
+          <button type="button" id="btnLineup" class="secondary" data-i18n="over.lineup">更换阵容</button>
+          <button type="button" id="btnQuitOver" class="secondary" data-i18n="over.menu">主菜单</button>
         </div>
       </section>
+
+      <div id="mvpCard" class="hidden">
+        <div class="mvpTag" data-i18n="over.mvp">MVP</div>
+        <div id="mvpName"></div>
+        <div id="mvpOther"></div>
+        <div id="mvpLine"></div>
+      </div>
     </div>
 
-    <div id="halftime" class="overlay hidden">
+    <div id="halftime" class="overlay">
       <div class="big" data-i18n="banner.halftime">半场</div>
       <div id="halftimeScore" class="final">0 : 0</div>
+      <div id="halfLeaders"></div>
       <div class="hint" data-i18n="menu.tapToSkip">点击跳过</div>
     </div>
 
@@ -149,12 +164,31 @@
       <button type="button" id="btnRotateDismiss" data-i18n="hint.dismiss">知道了</button>
     </div>
 
-    <div id="ctxLost" class="overlay hidden">
+    <div id="ctxLost" class="overlay">
       <button type="button" id="btnReload" class="primary" data-i18n="hint.ctxLost">图形上下文丢失，点击重新加载</button>
     </div>
 
-    <div id="nowebgl" class="overlay hidden">
+    <div id="nowebgl" class="overlay">
       <div class="big" data-i18n="hint.nowebgl">您的浏览器不支持 WebGL</div>
+    </div>
+
+    <!-- Loading screen: static, visible before any script runs -->
+    <div id="loading" role="status">
+      <div class="ldLogo"><div class="logoZh" data-i18n="brand.zh">传奇对决</div><div class="logoEn" data-i18n="brand.sub">LEGENDS 3V3</div></div>
+      <div id="loadBar" role="progressbar" aria-valuemin="0" aria-valuemax="100"><div id="loadFill"></div></div>
+      <div id="loadStatus">正在启动引擎… 0 %</div>
+      <div id="loadTip">摇杆移动，投篮键按住松开出手</div>
+      <div class="legal" data-i18n="legal.note">非商业粉丝作品 · 球员姓名与形象归其本人所有</div>
+    </div>
+    <div id="loadError" class="hidden">
+      <div class="errPanel">
+        <h2 id="loadErrTitle" data-i18n="loadError.title">加载失败</h2>
+        <div id="loadErrDetail">—</div>
+        <div class="actions">
+          <button type="button" id="btnRetry" class="primary" data-i18n="loadError.retry">重试</button>
+          <button type="button" id="btnSimple" class="secondary" data-i18n="loadError.simple">简化模式</button>
+        </div>
+      </div>
     </div>
   </div>
 
