@@ -221,7 +221,7 @@ export async function runViewer(root, opts = {}) {
         a.setJump(h, air, tm && tm.slam > 0 ? { slam: Math.max(0.1, Math.sqrt(2 * h / G) - 0.03), hang: tm.params.hang || 0.15 } : undefined);
       }
       if ((e.code === EV.RELEASE || e.code === EV.SLAM) && e.layer === 0) {
-        a.renderSocket(SOCK.ball, state.bp);
+        a.querySocket(SOCK.ball, state.bp);            // the sim launch point (exactly what gameplay launches from)
         state.ballFree = true;
         // cosmetic arc toward the rim (viewer only; gameplay owns the real launch)
         const dx = RIM_POS.x - o.pos.x, dz = RIM_POS.z - o.pos.z, d = Math.hypot(dx, dz) || 1, tf = 0.25 + 0.12 * d;
@@ -301,7 +301,11 @@ export async function runViewer(root, opts = {}) {
   let orbit = 0;
   function placeCamera(a) {
     const h = a.rig.metrics.height || 2.0;
-    const tx = a.rx, tz = a.rz, ty = 0.55 * h;
+    const tx = a.rx, tz = a.rz;
+    // near the rim (finishes) the camera frames body and rim together
+    const dRim = Math.hypot(a.rx - RIM_POS.x, a.rz - RIM_POS.z);
+    const kRim = hoop.visible ? Math.max(0, Math.min(1, (3.5 - dRim) / 1.5)) : 0;
+    const ty = 0.55 * h + kRim * (0.5 * (RIM_POS.y + 0.2) - 0.275 * h);
     const yaw = a.ryaw;
     let ang, dist = 2.6 + 0.9 * h, el = 0.15;
     if (P.cam === 'side') ang = yaw + Math.PI / 2;
@@ -310,6 +314,7 @@ export async function runViewer(root, opts = {}) {
     else if (P.cam === 'orbit') { orbit += 0.004; ang = orbit; }
     else ang = yaw + 0.6;
     if (state.mode === 'loco') { dist += 1.0; }
+    dist += 1.2 * kRim;
     camera.position.set(tx + Math.sin(ang) * dist * Math.cos(el), ty + Math.sin(el) * dist + 0.25, tz + Math.cos(ang) * dist * Math.cos(el));
     camera.lookAt(tx, ty, tz);
   }

@@ -50,6 +50,47 @@ export function remap(src, dst) {
   };
 }
 
+/**
+ * Airborne pelvis line of a jumping clip (applied by defineJump): gameplay owns the height in the air (jumpY) and the
+ * sampler draws the pelvis offset on the straight line between its take-off and landing values (SAMPLE_AIR_LINEAR).
+ * At the take-off the legs are extended with the toes pointed, so the pelvis is up on the toes (dy +0.05; the tables'
+ * −0.02…−0.04 would sink the toes into the floor); the touchdown is on soft, nearly straight legs (dy −0.03) and the
+ * keyed landing crouch moves to land + 0.08 (the knees absorb after the contact). Keys must carry `ev` inline.
+ */
+export function airLine(keys, dur) {
+  const out = keys.map(([t, k]) => [t, { ...k }]);
+  const has = (k, n) => k.ev === n || (Array.isArray(k.ev) && k.ev.includes(n));
+  let iTO = -1, iL = -1;
+  out.forEach(([, k], i) => { if (iTO < 0 && has(k, 'takeoff')) iTO = i; if (has(k, 'land')) iL = i; });
+  if (iTO < 0 || iL < 0) return out;
+  const kTO = out[iTO][1];
+  kTO.P = kTO.P ? kTO.P.slice() : [null, null, null, null, null, null];
+  kTO.P[1] = 0.05;
+  // the heels rise before the toe-off: a foot still planted 0.06 s before the takeoff switches to a toe lock
+  const tTO = out[iTO][0];
+  for (const g of ['Rft', 'Lft']) {
+    let last = null;
+    for (const [t, k] of out) if (t < tTO - 0.06 - 1e-6 && k[g] !== undefined) last = k[g];
+    if (last && last[3] === 'f') out.push([tTO - 0.06, { [g]: [last[0], last[1], last[2], 't'] }]);
+  }
+  const [tL, kL] = out[iL];
+  if (tL + 0.08 < dur - 0.02 && (kL.P || kL.RL || kL.LL)) {
+    const absorb = {};
+    if (kL.P) absorb.P = kL.P.slice();
+    if (kL.RL) absorb.RL = kL.RL;
+    if (kL.LL) absorb.LL = kL.LL;
+    out.push([tL + 0.08, absorb]);
+  }
+  kL.P = kL.P ? kL.P.slice() : [null, null, null, null, null, null];
+  kL.P[1] = -0.03;
+  if (kL.RL) kL.RL = [12, 6, 2, 18, 5, 0];
+  if (kL.LL) kL.LL = [12, 6, 2, 18, 5, 0];
+  return out;
+}
+
+/** defineClip for jumping clips that are not built by jumpTail: applies airLine to the keys first. */
+export function defineJump(def) { return defineClip({ ...def, keys: airLine(def.keys, def.dur) }); }
+
 /** Deep-copies keys, mapping each key time with `map` and (optionally) scaling R / foot positions by posScale. */
 export function retime(keys, map, posScale = 1) {
   return keys.map(([t, k]) => {
@@ -98,6 +139,57 @@ export function relBall(keys) {
     return [t, { ...k, Bp: [r[0] + x * c + z * s, y, r[1] - x * s + z * c] }];
   });
 }
+
+// ---------------------------------------------------------------------------------------------------------------
+// Fitted grips (measured on the baked rig with the scratch fitters of test/scratch/wp3c: the ball1 sockets of both
+// hands meet within 3 cm, so the 'both' ball mode puts the ball between the palms and the release never pops)
+// ---------------------------------------------------------------------------------------------------------------
+
+/**
+ * Guide arm at the set point per player: the nearest arm to the form's guide array (spec §4.9.2) whose ball socket
+ * meets the shooting hand's within 4 cm. The form arrays themselves leave the guide hand 0.2–0.35 m off the ball on
+ * the baked rig (the ball would sit between the hands and pop to the shooting hand at the release input).
+ */
+export const GUIDE_SET = Object.freeze({
+  kobe: Object.freeze([141, 11, 41, 92, 15, -20, 0]), jordan: Object.freeze([127, -14, 17, 80, 10, -15, 0]),
+  lebron: Object.freeze([141, -13, 42, 71, 47, -15, 0]), giannis: Object.freeze([144, -4, 57, 76, 36, -20, 0]),
+  yao: Object.freeze([129, -13, 25, 86, 15, -20, 0]), kyrie: Object.freeze([132, 7, 26, 100, 15, -20, 0]),
+});
+/** Guide arm at the set point (fitted, see GUIDE_SET). */
+export const guideSet = (p) => GUIDE_SET[p];
+
+/** Symmetric two-hand grips ([RA = LA]; ball between the palms on the midline). */
+export const GRIP2 = Object.freeze({
+  rise: Object.freeze([150, -5, 21, 40, 40, -30, 0]),          // ball rising overhead (two-hand dunk takeoff)
+  chinY: Object.freeze([40, 40, 58, 128, 15, -25, 0]),         // Yao chinned, elbows out 40 (spec abd 60 leaves the hands apart)
+  chinOut: Object.freeze([50, 28, 40, 120, 20, -25, 0]),       // chinned, elbows out (post turnarounds)
+  hipTight: Object.freeze([40, 15, 30, 110, 20, -25, 0]),      // ball tight at the hip / chest in a spin, elbows in
+  cock: Object.freeze([178, 5, 20, 95, 30, -20, 0]),           // ball behind the head (power dunk cock)
+  overhead: Object.freeze([170, -5, 16, 35, 30, -20, 0]),      // ball held overhead (put-back catch, drop step)
+  slam: Object.freeze([170, 0, 10, 0, -60, -20, 0]),           // two-hand slam: arms up, ball over the rim
+  passLoad: Object.freeze([165, -5, 13, 70, 30, -30, 0]),      // overhead pass, ball behind the head
+  skip: Object.freeze([175, -5, 20, 35, 12, -40, 0]),          // arms straight overhead (skip overhead)
+  scoop: Object.freeze([55, -5, 15, 15, -30, -10, 0]),         // loose-ball scoop at the floor
+  catchChest: Object.freeze([60, 0, 20, 37, -40, 0, 0]),       // catch target at the chest
+  catchHigh: Object.freeze([140, -5, 18, 30, -60, 0, 0]),      // catch above 1.6 m
+  catchLow: Object.freeze([20, 0, 20, 40, -40, 0, 0]),         // catch below 0.8 m
+});
+/**
+ * One-hand slam (ball released over the rim): arm up with the wrist cocked back so the ball sits above the palm, the
+ * spine bent 15° toward the dunking arm and the clavicle raised (spec §4.9.4 reachDunk). The spec's slam array
+ * [120,10,0,5,90,70,0] is the hammer follow-through (HAMMER1, 0.06 s later).
+ */
+export const SLAM1 = Object.freeze({ RA: Object.freeze([172, 5, 20, 0, 60, -50, 0]), S: Object.freeze([4, 0, -15]), RC: Object.freeze([10, 0]) });
+export const HAMMER1 = Object.freeze([125, 10, 0, 5, 90, 60, 0]);
+/** Ball low across the left knee (rip / jab): both ball sockets meet (the profile's right arm stays on the right). */
+export const RIP_LOW = Object.freeze({ RA: Object.freeze([15, -10, 60, 45, 92, -10, 0]), LA: Object.freeze([20, 10, 50, 40, 20, -10, 0]) });
+/** Ball swept to the left hip (rip), guide fitted to the right hand. */
+export const RIP_HIP_L = Object.freeze({ RA: Object.freeze([10, 15, 50, 60, 40, -10, 0]), LA: Object.freeze([5, -7, 37, 55, 60, -10, 0]) });
+/** Jab ball sway 0.20 to the right (Kobe's jab series), right arm fitted to the left hand. */
+export const JAB_SWAY = Object.freeze({ RA: Object.freeze([17, 35, 40, 105, 40, -25, 0]), LA: Object.freeze([40, 20, 60, 85, 0, -15, 0]) });
+/** Kobe's triple threat from the jab series (left arm fitted). */
+export const JAB_HOLD = Object.freeze({ RA: Object.freeze([15, 25, 20, 75, 40, -25, 0]), LA: Object.freeze([42, -15, 60, 48, 66, -15, 0]) });
+export const HAMMER2 = Object.freeze([150, 15, 0, 10, 90, 60, 0]);
 
 // ---------------------------------------------------------------------------------------------------------------
 // Faces
@@ -152,7 +244,7 @@ export function jumperTimes(p, variant) {
 
 /** Guide-arm pose 0.10 s after the release by the form's "guide after release" ([ANIM §5.2]). */
 export function guideAfter(p) {
-  const g = FORMS[p].guide;
+  const g = GUIDE_SET[p];
   switch (FORMS[p].guideAfter.mode) {
     case 'peel': return [g[0], g[1] + 20, g[2] - 20, g[3] - 30, g[4] - 30, 0, 0];     // peels 10 cm, thumb up
     case 'open': return [g[0] - 5, g[1] + 25, g[2] - 25, g[3] - 25, g[4] - 20, 0, 0]; // opens 15 cm sideways
@@ -165,7 +257,7 @@ export function guideAfter(p) {
 
 /** The guide arm at the release key ([ANIM §5.3]: flex+5, abd+15, int−15, elbow−20, pron−20). */
 function guideRel(p) {
-  const g = GUIDE(p);
+  const g = GUIDE_SET[p];
   return [g[0] + 5, g[1] + 15, g[2] - 15, g[3] - 20, g[4] - 20, 0, 0];
 }
 
@@ -185,12 +277,14 @@ export function jumpTail(p, T, o = {}) {
   const keys = [];
   const setFirst = T.tSet < T.TO - 1e-9;
   // takeoff: legs extend, trunk rises; the rising arms only when the set comes later (Giannis sets first)
+  // takeoff: legs extended, toes pointed (ankle 35°): the pelvis is up on the toes (+0.05) — with the table's −0.02 the
+  // pointed toes would sink into the floor at the take-off frame
   const kTO = { RL: LEG.takeoff, LL: LEG.takeoff, Rft: null, Lft: null, ev: 'takeoff' };
-  if (o.trunkTO !== false) Object.assign(kTO, { P: [0, -0.02, 0, 2, null, null], S: [3, null, null], N: [-4, null, null] });
+  if (o.trunkTO !== false) Object.assign(kTO, { P: [0, 0.05, 0, 2, null, null], S: [3, null, null], N: [-4, null, null] });
   if (!setFirst && o.armsTO !== false) Object.assign(kTO, { RA: [80, 8, 20, 115, 80, -55, 0], LA: [75, 15, 40, 110, 0, -20, 0] });
   keys.push([T.TO, kTO]);
   keys.push([T.apex, { ev: 'apex' }]);
-  const kSet = { RA: SET(p), LA: GUIDE(p), RF: 'shoot', LF: 'grip', N: F.head, ev: 'set' };
+  const kSet = { RA: SET(p), LA: GUIDE_SET[p], RF: 'shoot', LF: 'grip', N: F.head, ev: 'set' };
   if (!setFirst) Object.assign(kSet, { P: [0, 0, 0, -lean / 2, 0, 0], S: [-lean / 2, 0, 0] });
   keys.push([T.tSet, kSet]);
   // air legs (fade split / scissor) once the feet are off the floor
@@ -206,10 +300,13 @@ export function jumpTail(p, T, o = {}) {
   if (T.tRel + 0.10 < T.tLand) keys.push([T.tRel + 0.10, { RA: FOLLOW(p), RF: 'snap', LA: guideAfter(p) }]);
   else keys.push([T.tRel + 0.10, { RA: FOLLOW(p), RF: 'snap' }]);
   const lR = o.land ? o.land.R : [-0.20, -(o.drift || 0)], lL = o.land ? o.land.L : [0.20, -(o.drift || 0) - 0.03];
+  // touchdown on soft, nearly straight legs; the knees absorb over the next 0.08 s (the air-segment pelvis line runs
+  // from the take-off value to this one, so the body stays extended through the release)
   keys.push([T.tLand, {
-    P: [0, -0.10, 0, 8, 0, 0], S: [6, 0, 0], RL: LEG.land, LL: LEG.land, Rft: [lR[0], lR[1], yaw, 'f'], Lft: [lL[0], lL[1], yaw, 'f'],
+    P: [0, -0.03, 0, 4, 0, 0], S: [4, 0, 0], RL: [12, 6, 2, 18, 5, 0], LL: [12, 6, 2, 18, 5, 0], Rft: [lR[0], lR[1], yaw, 'f'], Lft: [lL[0], lL[1], yaw, 'f'],
     ...(o.R ? { R: o.R } : {}), ev: 'land',
   }]);
+  if (T.tLand + 0.08 < T.tEnd - 0.03) keys.push([T.tLand + 0.08, { P: [0, -0.10, 0, 8, 0, 0], S: [6, 0, 0], RL: LEG.land, LL: LEG.land }]);
   // follow-through hold ends (≥ land; clips whose spec duration is shorter than release + hold end it 0.03 s early)
   keys.push([Math.min(T.tEnd - 0.03, Math.max(T.tLand, T.tRel + fh)), { RA: [F.relFlex - 5, 4, 15, 0, 95, F.followWrist, 0] }]);
   keys.push([T.tEnd, {
@@ -356,7 +453,7 @@ export function makeLayup(p, variant) {
   }]);
   keys.push([T.dur, { P: [0, -0.04, 0, 4, 0, 0], S: [4, 0, 0], N: [0, 0, 0], ...SHORT.DOWN, RF: 'relax', LF: 'relax', E: { jawOpen: 0 } }]);
   if (p === 'jordan') keys.push(...faceKeysJordan(0, T.land, T.dur));
-  return defineClip({
+  return defineJump({
     id: 'lay.' + variant, dur: T.dur, mask: 'full', root: 'motion', entry: 'replace', tempo: false, jump: { h: T.h, gScale: T.g },
     meter: 'key', hand: 'R', cancel: T.land + 0.10, blendIn: 0.08, blendOut: 0.20, target: 'takeoff',
     params: { cat: 'layup', meterFrom: 0, tIdeal: T.rel - 0.05, gatherWindow: T.gatherWindow },
@@ -375,21 +472,28 @@ export function makeLayup(p, variant) {
 export function tplHook(A) {
   const m = remap([0, 0.60, 0.79, 1.02, 1.50], [0, A.TO, A.rel, A.land, A.end]);
   const keys = [
-    [0, { P: [0, -0.12, 0, 6, 0, 0], S1: [5, 0, 0], S2: [5, 0, 0], S3: [5, 0, 0], N: [-8, 30, 0], RA: [40, 60, 30, 110, 15, -25, 0], LA: [40, 60, 30, 110, 15, -25, 0],
+    [0, { P: [0, -0.12, 0, 6, 0, 0], S1: [5, 0, 0], S2: [5, 0, 0], S3: [5, 0, 0], N: [-8, 30, 0], RA: GRIP2.chinY, LA: GRIP2.chinY,
       RL: [35, 8, 0, 45, -10, 0], LL: [35, 8, 0, 45, -10, 0], Rft: [-0.38, 0, 0, 'f'], Lft: [0.37, 0, 0, 'f'], B: 'both', RF: 'grip', LF: 'grip', look: 'none', R: [0, 0, 0] }],
     // one hard right-hand dribble outside the right foot with a shoulder bump into the defender
     [0.03, { B: 'path', Bp: [-0.42, 0.95, 0.20], RA: [30, 40, 20, 80, 70, 0, 0], S2: [-8, null, null], P: [null, null, -0.05, null, null, null] }],
     [0.10, { Bp: [-0.68, 0.12, 0.0], ev: A.contact ? ['bounce', 'contact'] : 'bounce' }],
-    [0.20, { B: 'both', Bp: [-0.25, 1.05, 0.25], RA: [40, 60, 30, 110, 15, -25, 0], S2: [5, 0, 0], P: [0, -0.12, 0, 6, 0, 0], Lft: null, LL: [40, 10, 0, 55, 0, 0], R: [0, 0, 0] }],
-    // left foot steps 0.55 toward the middle, 0.15 toward the rim; root turns 70° CCW (left shoulder to the rim)
-    [0.40, { Lft: [0.92, -0.15, 70, 'f'], LL: [35, 8, 0, 45, -10, 0], R: [0.30, -0.08, 70], ...SHORT.HIP_R, Rft: null, RL: [30, 10, 0, 50, 5, 0], ev: 'plantL' }],
-    [0.55, { Rft: [0.73, 0.25, 70, 'f'], RL: [40, 8, 0, 50, -12, 0], LL: [40, 8, 0, 50, -12, 0], RA: [110, 60, -20, 130, 60, -40, 0], LA: [90, 40, 30, 110, 0, -20, 0], N: [-12, 30, 0], ev: 'gather' }],
-    [0.60, { LA: [50, 75, 0, 95, 0, 0, 0], RA: [30, 95, 0, 90, 60, -40, 0], RL: LEG.takeoff, LL: LEG.takeoff, Rft: null, Lft: null, P: [0, -0.03, 0, 2, 0, 0], ev: 'takeoff' }],
+    [0.20, { B: 'both', Bp: [-0.25, 1.05, 0.25], RA: GRIP2.chinY, S2: [5, 0, 0], P: [0, -0.12, 0, 6, 0, 0], Lft: null, LL: [40, 10, 0, 55, 0, 0], R: [0, 0, 0] }],
+    // left foot steps toward the middle and the rim (spec 0.55 / 0.15, pulled in to 0.74 / −0.12 so the planted leg stays
+    // inside its reach under the fixed root R [0.30, −0.08, 70]); root turns 70° CCW (left shoulder to the rim)
+    [0.40, { Lft: [0.74, -0.12, 70, 'f'], LL: [35, 8, 0, 45, -10, 0], R: [0.30, -0.08, 70], ...SHORT.HIP_R, Rft: null, RL: [30, 10, 0, 50, 5, 0], ev: 'plantL' }],
+    [0.48, { ...SHORT.CHEST }],
+    // the right hand takes the ball alone as it swings to the ear (the left only steadies it, no two-hand grip)
+    [0.50, { B: 'R' }],
+    // ball at the right ear in the right hand (under-behind); the left hand only steadies it beside the head
+    [0.55, { Rft: [0.64, 0.17, 70, 'f'], RL: [40, 8, 0, 50, -12, 0], LL: [40, 8, 0, 50, -12, 0], RA: [110, 60, -20, 130, 60, -40, 0], LA: [90, 40, 30, 110, 0, -20, 0], N: [-12, 30, 0], B: 'R', LF: 'relax',
+      P: [0, -0.10, 0, 6, 0, 0], ev: 'gather' }],   // hips stay loaded on the gather step; the rise is the take-off
+    [0.565, { Rft: [0.64, 0.17, 70, 't'], Lft: [0.74, -0.12, 70, 't'] }],   // heels rise: the push-off is from the toes
+    [0.60, { LA: [50, 75, 0, 95, 0, 0, 0], RA: [30, 95, 0, 90, 60, -40, 0], RL: LEG.takeoff, LL: LEG.takeoff, Rft: null, Lft: null, P: [0, -0.03, 0, 2, 0, 0], B: 'R', LF: 'relax', ev: 'takeoff' }],
     [0.70, { RA: [20, 135, 0, 50, 60, -25, 0], N: [-20, 20, 10], RL: [12, 4, 0, 18, 30, 0], LL: [12, 4, 0, 18, 30, 0] }],
     [0.73, { RA: [12, 160, 0, 20, 60, -10, 0] }],
     [0.79, { RA: [10, 170, 0, 10, 60, 30, 0], B: 'free', ev: 'release' }],
     [0.86, { RA: [10, 172, 0, 8, 60, 60, 0], RF: 'snap', LA: [30, 55, 0, 50, 0, 0, 0] }],
-    [1.02, { RL: [25, 6, 0, 30, -8, 0], LL: [25, 6, 0, 30, -8, 0], Rft: [0.73, 0.25, 70, 'f'], Lft: [0.92, -0.15, 70, 'f'], P: [0, -0.08, 0, 5, 0, 0], LA: [20, 45, 0, 30, 0, 0, 0], ev: 'land' }],
+    [1.02, { RL: [25, 6, 0, 30, -8, 0], LL: [25, 6, 0, 30, -8, 0], Rft: [0.64, 0.17, 70, 'f'], Lft: [0.74, -0.12, 70, 'f'], P: [0, -0.08, 0, 5, 0, 0], LA: [20, 45, 0, 30, 0, 0, 0], ev: 'land' }],
     [1.20, { RA: [10, 165, 0, 10, 60, 55, 0] }],
     [1.27, { S: [4, 0, 0] }],
     [1.50, { S: [4, 20, 0], P: [0, -0.03, 0, 3, 0, 0], N: [-5, 0, 0], ...SHORT.DOWN, RF: 'relax', LF: 'relax' }],
@@ -448,8 +552,8 @@ export function tplReverseLay(A) {
     [0, { P: [0, -0.10, 0, 10, 0, -12], S: [12, 0, -10], N: [-10, 0, 0], RA: ARM.dribRun, LA: [35, 20, 0, 40, 10, 0, 0], B: 'drib', RF: 'grip',
       RL: [30, 6, 0, 45, 10, 0], LL: [-5, 4, 0, 25, 25, 0], Rft: null, Lft: null, look: 'rim', R: [0, 0, 0] }],
     [0.20, { B: 'both', ...SHORT.CHEST, LF: 'grip', Lft: [0.10, 0.60, 0, 'f'], LL: [30, 6, 0, 40, -8, 0], P: [0, -0.10, 0, 8, 0, -8], ev: ['gather', 'plantL'] }],
-    [0.33, { Rft: [-0.10, 1.40, 0, 'f'], RL: [45, 8, 0, 60, -15, 0], LL: [45, 8, 0, 60, -15, 0], Lft: null, N: [-30, 20, 0], P: [0, -0.15, 0, 10, 0, 0], ev: 'plantR' }],
-    [0.37, { Rft: null, RL: LEG.takeoff, LL: [40, 5, 0, 70, 30, 0], P: [0, -0.03, 0, 0, 0, 0], RA: [120, 10, 10, 60, 20, -30, 0], R: [0, 1.40, 0], ev: 'takeoff' }],
+    [0.33, { Rft: [-0.10, 1.40, 0, 'f'], RL: [45, 8, 0, 60, -15, 0], LL: [45, 8, 0, 60, -15, 0], Lft: null, N: [-30, 20, 0], P: [0, -0.15, 0, 10, 0, 0], ...SHORT.CHEST, ev: 'plantR' }],
+    [0.37, { Rft: null, RL: LEG.takeoff, LL: [40, 5, 0, 70, 30, 0], P: [0, -0.03, 0, 0, 0, 0], RA: [120, 10, 10, 60, 20, -30, 0], LA: [60, 30, 20, 60, 0, 0, 0], B: 'R', LF: 'relax', R: [0, 1.40, 0], ev: 'takeoff' }],
     [0.50, { S: [-10, 40, 0], N: [-35, 40, 0], RA: [175, 10, 0, 15, -60, -40, 0], B: 'R', LF: 'relax', LA: [60, 40, 0, 40, 0, 0, 0] }],
     [0.60, { LA: [80, 60, 0, 30, 0, 0, 0] }],
     [0.675, { RA: [178, 12, 0, 10, -20, 20, -20], B: 'free', ev: 'release' }],
@@ -471,7 +575,9 @@ export function tplEuro(A, mode) {
   const sc = A.steps;
   const Rk = [[0, { R: [0, 0, 0] }], [0.83, { R: [0, A.toDist, 0] }]];
   const zAt = (t) => rootAt(Rk, t)[1];
-  const z1 = zAt(0.33) + 0.35 * sc, z2 = zAt(0.60) + 0.30 * sc;   // heel strikes ahead of the hips
+  // heel strikes ahead of the hips; the second (take-off) step lands further ahead so the planted left leg still
+  // reaches the foot when the hips have travelled on to the take-off at 0.83
+  const z1 = zAt(0.33) + 0.45 * sc, z2 = zAt(0.60) + 0.50 * sc;
   const keys = [
     [0, { P: [0, -0.13, 0, 8, 0, 0], S1: [8, 0, 0], S2: [8, 0, 0], S3: [6, 0, 0], N: [-20, 0, 0], B: 'drib', RA: ARM.dribRun,
       LA: [35, 20, 0, 40, 10, 0, 0], RF: 'grip', RL: [35, 6, 0, 45, 10, 0], LL: [-10, 4, 0, 25, 30, 0], Rft: null, Lft: null, look: 'rim' }],
@@ -482,7 +588,7 @@ export function tplEuro(A, mode) {
     [0.45, { RL: [30, 10, 0, 40, 10, 0], LL: [40, 5, 0, 30, 10, 0], Rft: null }],
     [0.60, { Lft: [0.65 * sc, z2, 20, 'f'], LL: [55, 8, 0, 65, -12, 0], RL: [30, 8, 0, 60, 20, 0], P: [0.10, -0.24, 0, 8, 0, 0],
       S1: [null, null, 6], S2: [null, null, 6], S3: [null, null, 4], N: [-15, 0, 0], ev: 'plantL' }],
-    [0.80, { RA: [100, 10, 40, 120, 40, -30, 0], LA: [120, 35, 0, 100, 20, -30, 0], LL: [55, 8, 0, 75, -18, 0], RL: [90, 5, 0, 100, 20, 0] }],
+    [0.80, { RA: [100, 10, 40, 120, 40, -30, 0], LA: [118, 30, 5, 112, 20, -30, 0], LL: [55, 8, 0, 75, -18, 0], RL: [90, 5, 0, 100, 20, 0] }],
     [0.83, { Lft: null, LL: [-10, 3, 0, 10, 40, 0], RL: [95, 5, 0, 100, 30, 0], S1: [0, 0, 0], S2: [0, 0, 0], S3: [0, 0, 0], P: [0, -0.03, 0, 0, 0, 0], ev: 'takeoff' }],
   ];
   const post = [];
@@ -492,12 +598,15 @@ export function tplEuro(A, mode) {
       ...[
         [1.00, { B: 'R', RA: [170, 20, -30, 70, 0, -40, 0], LA: [150, 30, 0, 30, -30, 0, 0], N: [-15, 0, 0], E: { roar: 0.4 } }],
         [1.20, { RA: [175, 20, -30, 90, 0, -40, 0], S: [-6, 0, 0] }],
-        [1.31, { RA: [130, 10, 0, 5, 90, 60, 0], B: 'free', S: [15, 0, 0], E: { roar: 1.0 }, ev: 'slam' }],
-        [1.34, { RF: 'claw', RL: [60, 10, 0, 70, 20, 0], LL: [60, 10, 0, 70, 20, 0], ev: 'rimGrab' }],
-        [1.54, { RA: [150, 15, 0, 40, 60, 0, 0], ev: 'rimRelease' }],
+        [1.27, { RA: [175, 12, 0, 20, 40, -45, 0], S: [-2, 0, -8] }],
+        [1.31, { ...SLAM1, B: 'free', E: { roar: 1.0 }, ev: 'slam' }],
+        [1.37, { RA: [160, 8, 10, 15, 90, 40, 0], S: [10, 0, -5], RC: [0, 0], RL: [60, 10, 0, 70, 20, 0], LL: [60, 10, 0, 70, 20, 0] }],
         [1.91, { RL: LEG.dunkLand, LL: LEG.dunkLand, Rft: [-0.25, 0, 0, 'f'], Lft: [0.25, 0, 0, 'f'], P: [0, -0.15, 0, 12, 0, 0], ev: 'land' }],
         [2.21, { P: [0, -0.06, 0, 6, 0, 0], S: [6, 0, 0], N: [0, 0, 0], ...SHORT.DOWN, RF: 'relax', LF: 'relax', E: { roar: 0.3 } }],
       ].map(([t, k]) => [m(t), k]),
+      // the rim grab / release sit exactly 0.03 s / 0.03 + hang after the slam (gameplay profile)
+      [A.slam + 0.03, { RF: 'claw', ev: 'rimGrab' }],
+      [A.slam + 0.03 + A.hang, { RA: [150, 15, 0, 40, 60, 0, 0], RF: 'relax', ev: 'rimRelease' }],
     );
   } else {
     const m = remap([0.83, 1.20, 1.596, 1.90], [A.TO, A.rel, A.land, A.end]);
@@ -532,11 +641,11 @@ export function tplEuro(A, mode) {
 export function tplUpUnder(A) {
   const m = remap([0, 0.40, 0.57, 0.75, 1.00], [0, A.TO, A.rel, A.land, A.end]);
   const keys = [
-    [0, { RA: [110, 60, -20, 130, 60, -40, 0], LA: [90, 40, 30, 110, 0, -20, 0], B: 'both', RF: 'grip', LF: 'grip', P: [0, -0.10, 0, 6, 0, 0],
+    [0, { RA: [110, 60, -20, 130, 60, -40, 0], LA: [90, 40, 30, 110, 0, -20, 0], B: 'R', RF: 'grip', LF: 'relax', P: [0, -0.10, 0, 6, 0, 0],
       S: [8, 0, 0], N: [-10, 0, 0], Rft: null, Lft: [0.37, 0, 0, 't'], RL: [30, 10, 0, 50, 10, 0], LL: [35, 8, 0, 45, -10, 0], look: 'rim', R: [0, 0, 0] }],
-    [0.10, { ...SHORT.CHEST, S2: [20, null, null], N: [-15, 0, 0], RL: [40, 5, 0, 60, 15, 0] }],
+    [0.10, { ...SHORT.CHEST, S2: [20, null, null], N: [-15, 0, 0], RL: [40, 5, 0, 60, 15, 0], B: 'both' }],
     [0.20, { Rft: [-0.05, 0.60, 0, 'f'], RL: [40, 6, 0, 50, -15, 0], P: [0, -0.16, 0, 14, 0, 0], ev: 'plantR' }],
-    [0.30, { Lft: null, LL: [60, 8, 0, 90, 15, 0], RA: [100, 15, 15, 90, 0, -30, 0], LA: [95, 15, 30, 90, 0, -20, 0] }],
+    [0.30, { Lft: null, LL: [60, 8, 0, 90, 15, 0], RA: [100, 15, 15, 90, 0, -30, 0], LA: [95, 15, 30, 90, 0, -20, 0], B: 'R' }],
     [0.40, { Rft: null, RL: LEG.takeoff, LL: [80, 5, 0, 90, 30, 0], P: [0, -0.03, 0, 2, 0, 0], S: [2, 0, 0], RA: [140, 10, 10, 40, -50, -10, 0], LA: [60, 30, 30, 60, 0, 0, 0], B: 'R', LF: 'relax', R: [0, 0.60, 0], ev: 'takeoff' }],
     [0.57, { RA: [160, 10, 0, 10, -70, 15, 0], B: 'free', RF: 'relax', ev: 'release' }],
     [0.65, { RA: [158, 10, 0, 8, -70, 30, 0] }],
@@ -581,10 +690,12 @@ export function makeLayFamily(p, variant) {
       [0, { P: [0, -0.10, 0, 12, 0, 0], S: [15, 0, 0], N: [-10, 0, 0], ...SHORT.CHEST, B: 'both', RF: 'grip', LF: 'grip', Rft: null, Lft: null,
         RL: [40, 6, 0, 60, 20, 0], LL: [10, 6, 0, 40, 25, 0], look: 'rim', R: [0, 0, 0], ev: 'gather' }],
       [tS, { P: [0, -0.20, 0, 16, 0, 0], S: [18, 0, 0], Rft: [-0.25, 0.45, 5, 'f'], Lft: [0.25, 0.45, -5, 'f'], RL: LEG.dunkPlant, LL: LEG.dunkPlant,
-        RA: [55, 45, 35, 125, 15, -25, 0], LA: [55, 45, 35, 125, 15, -25, 0], ev: ['plantL', 'plantR'] }],
+        RA: GRIP2.chinOut, LA: GRIP2.chinOut, ev: ['plantL', 'plantR'] }],
+      // the grip holds through the deepest load; the right hand takes the ball alone as both arms start to swing
+      [(tS + TO) / 2, { RA: GRIP2.chinOut, LA: GRIP2.chinOut, B: 'R' }],
       [TO, { P: [0, -0.03, 0, 2, 0, 0], S: [4, 0, 0], N: [-15, 0, 0], RL: LEG.dunkTakeoff, LL: LEG.dunkTakeoff, Rft: null, Lft: null,
-        RA: [110, 15, 15, 70, 50, -35, 0], LA: [90, 50, 0, 30, -20, 0, 0], ev: 'takeoff' }],
-      [TO + 0.08, { B: 'R', LA: ARM.powerShield, RA: ARM.layCarry, LF: 'spread', RL: [25, 8, 0, 40, 30, 0], LL: [25, 8, 0, 40, 30, 0] }],
+        RA: [110, 15, 15, 70, 50, -35, 0], LA: [90, 50, 0, 30, -20, 0, 0], B: 'R', LF: 'spread', ev: 'takeoff' }],
+      [TO + 0.08, { LA: ARM.powerShield, RA: ARM.layCarry, RL: [25, 8, 0, 40, 30, 0], LL: [25, 8, 0, 40, 30, 0] }],
       [apex, { ev: 'apex' }],
       [rel, { RA: ARM.layRelease, B: 'free', E: { jawOpen: 0.4 }, ev: 'release' }],
       [rel + 0.10, { RA: ARM.layFlick, RF: 'snap' }],
@@ -601,7 +712,7 @@ export function makeLayFamily(p, variant) {
   if (variant === 'reverse') keys.push([land, { R: [0, 2.0, 0] }]);
   if (variant === 'upUnder') keys.push([land, { R: [0, 0.60, 0] }]);
   if (variant === 'power') keys.push([0.12 * s, { R: [0, 0.45, 0] }], [TO, { R: [0, 0.55, 0] }], [land, { R: [0, 0.6, 0] }]);
-  return defineClip({
+  return defineJump({
     id: 'lay.' + variant, dur, mask: 'full', root: 'motion', entry: 'replace', tempo: false, jump: { h, gScale: g }, meter: 'key',
     hand: 'R', cancel: land + 0.10, blendIn: 0.08, blendOut: 0.20, ...extra,
     params: { cat: 'layup', meterFrom: src.meterFrom * s, tIdeal: rel - 0.05, gatherWindow: src.gw },
@@ -647,9 +758,12 @@ export function makeDunk(p, type) {
       [tL, { Lft: [0.10, rootAt(Rk, tL)[1] + 0.30, 0, 'f'], P: [0, -0.14, 0, -8, 0, 0], S: [-4, 0, 0], LL: [30, 5, 0, 45, -15, 0], RL: [50, 5, 0, 90, 20, 0], ev: 'plantL' }],
       [TO, { Lft: null, LL: [-10, 3, 0, 10, 40, 0], RL: [95, 5, 0, 100, 30, 0], LA: [120, 20, 20, 20, 0, 0, 0], P: [0, -0.03, 0, 0, 0, 0], E: f0, ev: 'takeoff' }],
       [TO + 0.05, { RL: [100, 5, 0, 100, 30, 0] }],
-      [Math.min(TO + 0.20, slam - 0.06), { RA: ARM.dunkCock1, S: [-15, 0, 0], N: [-15, 0, 0], LL: [20, 5, 0, 40, 30, 0], E: { jawOpen: 0.5 } }],
-      [slam, { RA: ARM.dunkSlam1, S: [20, 0, 0], B: 'free', E: f1, ev: 'slam' }],
+      // ball cocked behind the right ear, then thrown over the rim; the hammer follows the release
+      [Math.min(TO + 0.20, slam - 0.08), { RA: [175, 20, -15, 110, 0, -40, 0], S: [-15, 0, 0], N: [-15, 0, 0], LL: [20, 5, 0, 40, 30, 0], E: { jawOpen: 0.5 } }],
+      [slam - 0.04, { RA: [174, 10, 10, 15, 50, -45, 0] }],
+      [slam, { ...SLAM1, B: 'free', N: [-10, 0, 0], E: f1, ev: 'slam' }],
       [slam + 0.03, { RF: 'claw', LA: [60, 30, 0, 40, 0, 0, 0], RL: LEG.dunkHang, LL: LEG.dunkHang, ev: 'rimGrab' }],
+      [slam + 0.07, { RA: [160, 8, 10, 15, 90, 40, 0], S: [10, 0, -5], RC: [0, 0] }],
       [slam + 0.03 + hang, { RA: [140, 12, 0, 30, 60, 0, 0], RF: 'relax', ev: 'rimRelease' }],
     );
   } else {
@@ -659,22 +773,23 @@ export function makeDunk(p, type) {
         RF: 'grip', LF: 'grip', Rft: null, Lft: null, RL: [30, 5, 0, 45, 10, 0], LL: [-5, 5, 0, 25, 25, 0], look: 'rim', ev: 'gather' }],
       [tS, { P: [0, -0.18, 0, 18, 0, 0], Rft: [-0.25, rootAt(Rk, tS)[1] + 0.15, 5, 'f'], Lft: [0.25, rootAt(Rk, tS)[1] + 0.15, -5, 'f'],
         RL: LEG.dunkPlant, LL: LEG.dunkPlant, ev: ['plantL', 'plantR'] }],
-      [TO, { P: [0, -0.02, 0, 0, 0, 0], S: [-5, 0, 0], RA: [150, 15, 10, 40, 40, -30, 0], LA: [150, 15, 10, 40, 40, -30, 0], Rft: null, Lft: null,
+      [TO, { P: [0, -0.02, 0, 0, 0, 0], S: [-5, 0, 0], RA: GRIP2.rise, LA: GRIP2.rise, Rft: null, Lft: null,
         RL: LEG.dunkTakeoff, LL: LEG.dunkTakeoff, E: f0, ev: 'takeoff' }],
     );
     if (two) {
       keys.push(
-        [slam - 0.07, { RA: ARM.dunkCock2, LA: ARM.dunkCock2, S: [-12, 0, 0], N: [-15, 0, 0], RL: LEG.dunkTuck, LL: LEG.dunkTuck }],
-        [slam, { RA: ARM.dunkSlam2, LA: ARM.dunkSlam2, S: [15, 0, 0], B: 'free', E: f1, ev: 'slam' }],
-        [slam + 0.03, { RF: 'claw', LF: 'claw', RL: LEG.dunkHang, LL: LEG.dunkHang, RA: [148, 15, 0, 30, 90, 20, 0], LA: [148, 15, 0, 30, 90, 20, 0], ev: 'rimGrab' }],
+        [slam - 0.10, { RA: GRIP2.cock, LA: GRIP2.cock, S: [-12, 0, 0], N: [-15, 0, 0], RL: LEG.dunkTuck, LL: LEG.dunkTuck }],
+        [slam, { RA: GRIP2.slam, LA: GRIP2.slam, RC: [10, 0], LC: [10, 0], S: [4, 0, 0], N: [-10, 0, 0], B: 'free', E: f1, ev: 'slam' }],
+        [slam + 0.03, { RF: 'claw', LF: 'claw', RL: LEG.dunkHang, LL: LEG.dunkHang, ev: 'rimGrab' }],
+        [slam + 0.09, { RA: [160, 12, 0, 25, 90, 30, 0], LA: [160, 12, 0, 25, 90, 30, 0], RC: [0, 0], LC: [0, 0], S: [12, 0, 0] }],
         [slam + 0.03 + hang, { RA: [140, 15, 0, 40, 60, 0, 0], LA: [140, 15, 0, 40, 60, 0, 0], RF: 'relax', LF: 'relax', ev: 'rimRelease' }],
       );
     } else {
       keys.push(
         [TO + 0.10, { B: 'R', LA: [110, 25, 0, 30, 0, 0, 0], LF: 'relax', RA: [170, 15, 0, 30, 40, -20, 0] }],
-        [slam - 0.06, { RA: [172, 15, 0, 35, 40, -25, 0], RL: [50, 10, 0, 80, 30, 0], LL: [50, 10, 0, 80, 30, 0] }],
-        [slam, { RA: [140, 10, 0, 5, 90, 60, 0], B: 'free', E: f1, ev: 'slam' }],
-        [slam + 0.10, { RA: [130, 10, 0, 20, 70, 30, 0], RF: 'relax' }],
+        [slam - 0.06, { RA: [172, 10, 10, 25, 50, -40, 0], RL: [50, 10, 0, 80, 30, 0], LL: [50, 10, 0, 80, 30, 0] }],
+        [slam, { ...SLAM1, B: 'free', E: f1, ev: 'slam' }],
+        [slam + 0.10, { RA: [140, 10, 0, 5, 90, 60, 0], RF: 'relax', S: [8, 0, 0], RC: [0, 0] }],
       );
     }
   }
@@ -685,7 +800,7 @@ export function makeDunk(p, type) {
     [dur, { P: [0, -0.06, 0, 6, 0, 0], S: [6, 0, 0], N: [0, 0, 0], ...SHORT.DOWN, RF: 'relax', LF: 'relax', ...(p === 'jordan' ? {} : { E: settleFace(f1) }) }],
   );
   if (p === 'jordan') keys.push(...faceKeysJordan(0, land, dur));
-  return defineClip({
+  return defineJump({
     id: 'dunk.' + type, dur, mask: 'full', root: 'motion', entry: 'replace', tempo: false, jump: { h, gScale: g, hang }, meter: false,
     hand: 'R', cancel: land + 0.10, blendIn: 0.10, blendOut: 0.25, target: 'takeoff',
     params: { cat: 'dunk', hands: two ? 2 : 1, gatherWindow: [0.6, 4.0], dTO, toDist },
@@ -719,7 +834,8 @@ export function makeStepbackJ(p) {
     [0.16 * tp, { Lft: null, LL: [30, 6, 0, 50, 25, 0], RL: [25, 6, 0, 45, 25, 0], P: [0, -0.04, 0, 6, 0, 0], S: [6, 0, 0] }],
     [0.28 * tp, { Lft: [0.20, zl, 10, 'f'], LL: [40, 6, 4, 60, -20, 0], P: [0, -0.12, 0, 10, 0, 0], ev: 'plantL' }],
     [0.32 * tp, { Rft: [-0.20, zl, 10, 'f'], RL: [40, 6, 4, 60, -20, 0], ev: 'plantR' }],
-    [0.6 * (TO - 0.32 * tp) + 0.32 * tp, { P: [0, -F.dip, 0, 10, 0, 0], RL: [30, 6, 4, F.kneeDip + 10, -(F.kneeDip - 20), 0], LL: [30, 6, 4, F.kneeDip + 10, -(F.kneeDip - 20), 0],
+    [0.6 * (TO - 0.32 * tp) + 0.32 * tp, { P: [0, -F.dip, 0, 10, 0, 0], RL: [30, 6, 4, F.kneeDip + 10, Math.max(-30, -(F.kneeDip - 20)), 0],
+      LL: [30, 6, 4, F.kneeDip + 10, Math.max(-30, -(F.kneeDip - 20)), 0],
       RA: DIP_ARMS[F.ballAtDip].RA, LA: DIP_ARMS[F.ballAtDip].LA, N: [-12, 0, 0] }],
   ];
   keys.push(...jumpTail(p, T, {
@@ -780,7 +896,7 @@ export function makeTurnFade(p) {
 export function makeHook(p) {
   const s = STYLE[p].tempo;
   const TO = 0.60 * s, h = 0.22, rel = TO + th(h) - 0.02, land = TO + 2 * th(h), dur = land + 0.30;
-  return defineClip({
+  return defineJump({
     id: 'shot.hook', dur, mask: 'full', root: 'motion', entry: 'stop', entryDecel: 18, tempo: false, jump: { h }, meter: 'key',
     hand: 'R', cancel: land + 0.10, blendIn: 0.06, blendOut: 0.20,
     params: { cat: 'layup', meterFrom: 0.30 * s, tIdeal: rel - 0.05, baseSide: 'L' },
@@ -795,7 +911,7 @@ export function makeFloater(/* p */) {
   const rel = TO + (0.40 - 0.17) * airScale, land = TO + 2 * th(h), dur = land + 0.30;
   const keys = tplFloater({ TO, rel, land, end: dur, h }, false);
   keys.push([land, { R: [0, 0.40, 0] }]);
-  return defineClip({
+  return defineJump({
     id: 'shot.floaterGeneric', dur, mask: 'full', root: 'motion', entry: 'replace', tempo: false, jump: { h }, meter: 'key',
     hand: 'R', cancel: land + 0.10, blendIn: 0.06, blendOut: 0.20,
     params: { cat: 'layup', meterFrom: 0, tIdeal: rel - 0.05, gatherWindow: [2.2, 4.5] },
@@ -813,7 +929,7 @@ const HJ = HJUMP;
 /** put.tip: load 0.10 (P dy −0.14), two-foot takeoff, tipping arm up, CONTACT at the apex with a wrist flick. */
 export function makeTip(p) {
   const h = HJ[p], TO = 0.10, half = th(h), apex = TO + half, land = TO + 2 * half, dur = land + 0.25;
-  return defineClip({
+  return defineJump({
     id: 'put.tip', dur, mask: 'full', root: 'none', tempo: false, jump: { h }, hand: 'R', cancel: land + 0.05, blendIn: 0.05, blendOut: 0.20,
     params: { cat: 'tip' },
     keys: [
@@ -833,7 +949,7 @@ export function makeTip(p) {
 /** put.dunk: catch both hands at the apex, slam 0.10 s later, no hang, roar 0.8 (LeBron, Giannis, Yao). */
 export function makePutDunk(p) {
   const h = HJ[p], TO = 0.10, half = th(h), apex = TO + half, slam = apex + 0.10, land = TO + 2 * half, dur = land + 0.30;
-  return defineClip({
+  return defineJump({
     id: 'put.dunk', dur, mask: 'full', root: 'none', tempo: false, jump: { h }, meter: false, hand: 'R', cancel: land + 0.10,
     blendIn: 0.05, blendOut: 0.25, params: { cat: 'dunk', hands: 2 },
     keys: [
@@ -842,8 +958,9 @@ export function makePutDunk(p) {
       [0.06, { P: [0, -0.14, 0, 12, 0, 0], RL: LEG.load, LL: LEG.load, RA: [-15, 15, 0, 20, 0, 0, 0], LA: [-15, 15, 0, 20, 0, 0, 0] }],
       [TO, { P: [0, -0.03, 0, 2, 0, 0], RL: LEG.takeoff, LL: LEG.takeoff, RA: [140, 15, 0, 25, -40, -10, 0], LA: [140, 15, 0, 25, -40, -10, 0], RF: 'spread', LF: 'spread', ev: 'takeoff' }],
       [apex - 0.05, { RA: [172, 15, 0, 20, -60, -10, 0], LA: [172, 15, 0, 20, -60, -10, 0], RL: LEG.reboundAir, LL: LEG.reboundAir, E: { roar: 0.4 } }],
-      [apex, { B: 'both', RF: 'grip', LF: 'grip', RA: [170, 15, 0, 35, 30, -20, 0], LA: [170, 15, 0, 35, 30, -20, 0], ev: ['apex', 'catch'] }],
-      [slam, { RA: ARM.dunkSlam2, LA: ARM.dunkSlam2, B: 'free', S: [12, 0, 0], E: { roar: 0.8 }, ev: 'slam' }],
+      [apex, { B: 'both', RF: 'grip', LF: 'grip', RA: GRIP2.overhead, LA: GRIP2.overhead, ev: ['apex', 'catch'] }],
+      [slam, { RA: GRIP2.slam, LA: GRIP2.slam, RC: [10, 0], LC: [10, 0], B: 'free', S: [6, 0, 0], E: { roar: 0.8 }, ev: 'slam' }],
+      [slam + 0.09, { RA: HAMMER2, LA: HAMMER2, RC: [0, 0], LC: [0, 0], S: [12, 0, 0] }],
       [land, { P: [0, -0.15, 0, 12, 0, 0], RL: LEG.dunkLand, LL: LEG.dunkLand, RA: [60, 25, 0, 50, 30, 0, 0], LA: [60, 25, 0, 50, 30, 0, 0], RF: 'relax', LF: 'relax', ev: 'land' }],
       [dur, { P: [0, -0.06, 0, 6, 0, 0], S: [6, 0, 0], N: [0, 0, 0], ...SHORT.DOWN, E: { roar: 0.3 } }],
     ],

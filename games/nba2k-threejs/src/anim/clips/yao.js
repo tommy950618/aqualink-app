@@ -16,17 +16,17 @@
  * land 1.18; up-and-under takeoff 0.40, release 0.57, land 0.75.
  */
 import { defineClip } from '../clip.js';
-import { SET, GUIDE, REL, FOLLOW, SHORT, LEG, ARM, STANCE } from '../presets.js';
+import { SET, REL, FOLLOW, SHORT, LEG, ARM, STANCE } from '../presets.js';
 import { HJUMP } from '../select.js';
-import { th, jumpTail, tplHook, tplUpUnder, relBall } from './shots.js';
+import { th, jumpTail, tplHook, tplUpUnder, relBall, guideSet, GRIP2, HAMMER2, defineJump } from './shots.js';
 
-const CHIN_Y = [40, 60, 30, 110, 15, -25, 0];            // chinned, elbows out (abd 60), forearm 110
+const CHIN_Y = GRIP2.chinY;                             // chinned, elbows out (fitted abd 40: the spec's 60 leaves the hands off the ball)
 const POST = { P: [0, -0.12, 0, 6, 0, 0], S: [15, 0, 0], N: [-8, -30, 0], RA: CHIN_Y, LA: CHIN_Y, RL: [35, 8, 0, 45, -10, 0], LL: [35, 8, 0, 45, -10, 0] };
 
 // ---------------------------------------------------------------------------------------------------------------
 // Y1 right-hand jump hook to the middle from the left block
 // ---------------------------------------------------------------------------------------------------------------
-const hook = defineClip({
+const hook = defineJump({
   id: 'sig.yao.hook', dur: 1.50, mask: 'full', root: 'motion', entry: 'stop', entryDecel: 18, tempo: false, jump: { h: 0.22 }, meter: 'key', hand: 'R',
   cancel: 1.12, blendIn: 0.06, blendOut: 0.20,
   params: { cat: 'layup', meterFrom: 0.30, tIdeal: 0.74, METER_T: 0.55, baseSide: 'L', launchDeg: 55 },
@@ -44,7 +44,7 @@ const turnFade = defineClip({
   keys: [
     [0.00, { ...POST, Rft: [-0.38, 0, 0, 'f'], Lft: [0.37, 0, 0, 't'], B: 'both', RF: 'grip', LF: 'grip', look: 'none', R: [0, 0, 0] }],
     // head fake: yaw 25 left (fake middle); the ball dips 0.10
-    [0.13, { N: [-8, 25, 0], S3: [null, 25, null], RA: [40, 60, 30, 120, 15, -25, 0], LA: [40, 60, 30, 120, 15, -25, 0] }],
+    [0.13, { N: [-8, 25, 0], S3: [null, 25, null], RA: [40, 40, 58, 135, 15, -25, 0], LA: [40, 40, 58, 135, 15, -25, 0] }],
     [0.27, { Rft: null, RL: [30, 25, 0, 55, 10, 0], N: [-8, 0, 0], S3: [null, 0, null], R: [0, 0, 0] }],
     [0.40, { R: [0.35, -0.03, -80], P: [0, -0.12, 0, 6, -10, 0] }],
     // square to the rim, thigh 45 load; ball up the midline chin → forehead
@@ -52,7 +52,7 @@ const turnFade = defineClip({
     [0.53, { Rft: null, Lft: null, RL: LEG.takeoff, LL: LEG.takeoff, P: [0, -0.03, 0, 2, 0, 0], RA: [100, 8, 18, 110, 80, -55, 0], LA: [95, 12, 40, 105, 15, -20, 0], ev: ['plantR', 'gather', 'takeoff'] }],
     [tfT.apex, { ev: 'apex' }],
     // set 0.15 above and 0.10 in front of the forehead, elbow 10° out; lean back 12 (spine_02 8, spine_03 4)
-    [0.67, { RA: SET('yao'), LA: GUIDE('yao'), RF: 'shoot', S1: [0, 0, 0], S2: [-8, 0, 0], S3: [-4, 0, 0], RL: [15, 6, 0, 20, 30, 0], LL: [15, 6, 0, 20, 30, 0], ev: 'set' }],
+    [0.67, { RA: SET('yao'), LA: guideSet('yao'), RF: 'shoot', S1: [0, 0, 0], S2: [-8, 0, 0], S3: [-4, 0, 0], RL: [15, 6, 0, 20, 30, 0], LL: [15, 6, 0, 20, 30, 0], ev: 'set' }],
     [0.749, { RA: REL('yao'), B: 'free', S2: [-8, 0, 0], S3: [-4, 0, 0], ev: 'release' }],
     // wrist flex 70 over 4 frames; the guide stays (no thumb flick), opens sideways at 0.85
     [0.88, { RA: FOLLOW('yao'), RF: 'snap' }],
@@ -67,7 +67,7 @@ const turnFade = defineClip({
 // ---------------------------------------------------------------------------------------------------------------
 // Y3 high-post jab jumper (0.30 m right-foot jab, gather 0.33–0.53, 0.15 rise, release at the apex, no fade)
 // ---------------------------------------------------------------------------------------------------------------
-const jjT = { TO: 0.53, apex: 0.53 + th(0.15), tSet: 0.535, tRel: 0.685, tLand: 0.88 };
+const jjT = { TO: 0.53, apex: 0.53 + th(0.15), tSet: 0.535, tRel: 0.685, tLand: 0.53 + 2 * th(0.15) };
 jjT.tEnd = Math.max(jjT.tLand + 0.25, jjT.tRel + 0.60 + 0.15);
 const TT = STANCE.tripleThreat;
 const jabJumper = defineClip({
@@ -104,20 +104,21 @@ const dropStart = (k) => [
   [0.32, { Lft: null, LL: [40, 8, 0, 60, 15, 0] }],
   // two-foot power gather, feet 0.5 apart facing the rim, elbows out
   [0.42, { Lft: [0.25, -0.05, -120, 'f'], RL: [60, 8, 0, 70, -15, 0], LL: [60, 8, 0, 70, -15, 0], P: [0, -0.20, 0, 15, 0, 0], ...SHORT.CHEST, S: [10, 0, 0] }],
-  [0.47, { Rft: null, Lft: null, RL: LEG.dunkTakeoff, LL: LEG.dunkTakeoff, P: [0, -0.03, 0, 2, 0, 0], S: [2, 0, 0], RA: [140, 15, 0, 40, 30, -20, 0], LA: [140, 15, 0, 40, 30, -20, 0], ev: 'takeoff' }],
+  [0.47, { Rft: null, Lft: null, RL: LEG.dunkTakeoff, LL: LEG.dunkTakeoff, P: [0, -0.03, 0, 2, 0, 0], S: [2, 0, 0], RA: GRIP2.rise, LA: GRIP2.rise, ev: 'takeoff' }],
   [0.47 + th(0.48), { ev: 'apex' }],
   ...k,
 ];
 const DS_LAND = 0.47 + 0.71;
-const dropStep = defineClip({
+const dropStep = defineJump({
   id: 'sig.yao.dropStep', dur: 1.65, mask: 'full', root: 'motion', entry: 'replace', tempo: false, jump: { h: 0.48, hang: 0.10 }, meter: false, hand: 'R',
   cancel: 1.40, blendIn: 0.10, blendOut: 0.25,
   params: { cat: 'dunk', hands: 2, gatherWindow: [0, 1.5] },
   keys: relBall(dropStart([
-    [0.65, { RA: [170, 15, 0, 20, 30, -20, 0], LA: [170, 15, 0, 20, 30, -20, 0], RL: [25, 8, 0, 40, 30, 0], LL: [25, 8, 0, 40, 30, 0], E: { roar: 0.4 } }],
-    [0.70, { RA: [170, 15, 0, 0, 40, -10, 0], LA: [170, 15, 0, 0, 40, -10, 0] }],
-    // both hands drive it down, wrists flex 60
-    [0.75, { RA: [150, 12, 0, 0, 90, 60, 0], LA: [150, 12, 0, 0, 90, 60, 0], B: 'free', S: [12, 0, 0], E: { roar: 0.8 }, ev: 'slam' }],
+    [0.65, { RA: GRIP2.overhead, LA: GRIP2.overhead, RL: [25, 8, 0, 40, 30, 0], LL: [25, 8, 0, 40, 30, 0], E: { roar: 0.4 } }],
+    [0.70, { RA: GRIP2.slam, LA: GRIP2.slam, RC: [10, 0], LC: [10, 0] }],
+    // both hands drive it down over the rim; the wrists flex 60 in the follow-through
+    [0.75, { RA: GRIP2.slam, LA: GRIP2.slam, B: 'free', S: [4, 0, 0], E: { roar: 0.8 }, ev: 'slam' }],
+    [0.82, { RA: HAMMER2, LA: HAMMER2, RC: [0, 0], LC: [0, 0], S: [12, 0, 0] }],
     [0.78, { RF: 'claw', RA: [148, 12, 0, 20, 90, 20, 0], P: [0, 0, 0, 5, 0, 0], ev: 'rimGrab' }],
     [0.88, { RF: 'relax', LF: 'relax', RA: [140, 15, 0, 40, 60, 0, 0], LA: [140, 15, 0, 40, 60, 0, 0], ev: 'rimRelease' }],
     // heavy landing (thigh 50)
@@ -126,12 +127,12 @@ const dropStep = defineClip({
     [1.65, { P: [0, -0.10, 0, 12, 0, 0], S: [18, 0, 0], RA: [35, 25, 0, 100, 0, 0, 0], LA: [35, 25, 0, 100, 0, 0, 0], RF: 'fist', LF: 'fist', E: { roar: 0.9 } }],
   ])),
 });
-const dropStepLay = defineClip({
+const dropStepLay = defineJump({
   id: 'sig.yao.dropStepLay', dur: 1.40, mask: 'full', root: 'motion', entry: 'replace', tempo: false, jump: { h: 0.48 }, meter: 'key', hand: 'R',
   cancel: 1.20, blendIn: 0.08, blendOut: 0.20,
   params: { cat: 'layup', meterFrom: 0.27, tIdeal: 0.73, gatherWindow: [0, 4.5] },
   keys: relBall(dropStart([
-    [0.65, { RA: [165, 15, 0, 25, 30, -20, 0], LA: [160, 15, 0, 25, 30, -20, 0] }],
+    [0.65, { RA: GRIP2.overhead, LA: GRIP2.overhead }],
     // two-hand power layup off the glass at the apex
     [0.78, { RA: [170, 12, 0, 10, 60, 20, 0], LA: [165, 12, 0, 10, 60, 20, 0], B: 'free', E: { jawOpen: 0.4 }, ev: 'release' }],
     [0.88, { RA: [165, 12, 0, 10, 60, 30, 0], LA: [150, 20, 0, 30, 40, 0, 0], RF: 'relax', LF: 'relax' }],
@@ -146,7 +147,7 @@ const dropStepLay = defineClip({
 const HY = HJUMP.yao;
 const rimJump = (id, cat, blocking) => {
   const TO = 0.13, apex = TO + th(HY), land = TO + 2 * th(HY), dur = land + 0.40;
-  return defineClip({
+  return defineJump({
     id, dur, mask: 'full', root: 'none', entry: 'stop', entryDecel: 30, tempo: false, jump: { h: HY }, hand: 'R', cancel: land + 0.05, blendIn: 0.05, blendOut: 0.20,
     params: { cat },
     keys: [
@@ -174,16 +175,16 @@ const block = rimJump('sig.yao.block', 'block', true);
 const pumpHook = defineClip({
   id: 'sig.yao.pumpHook', dur: 0.20, mask: 'full', root: 'none', tempo: false, hand: 'R', blendIn: 0.04, blendOut: 0.12, params: { cat: 'move' },
   keys: [
-    [0.00, { RA: [110, 60, -20, 130, 60, -40, 0], LA: [90, 40, 30, 110, 0, -20, 0], B: 'both', RF: 'grip', LF: 'grip', N: [-12, 30, 0], RL: [40, 8, 0, 50, -12, 0], LL: [40, 8, 0, 50, -12, 0], look: 'rim' }],
+    [0.00, { RA: [110, 60, -20, 130, 60, -40, 0], LA: [90, 40, 30, 110, 0, -20, 0], B: 'R', RF: 'grip', LF: 'relax', N: [-12, 30, 0], RL: [40, 8, 0, 50, -12, 0], LL: [40, 8, 0, 50, -12, 0], look: 'rim' }],
     // ear → forehead → back; heels +0.04, head and eyes up
     [0.10, { RA: [140, 30, 0, 100, 80, -60, 0], LA: [110, 30, 20, 100, 10, -20, 0], RL: [30, 8, 0, 40, 8, 0], LL: [30, 8, 0, 40, 8, 0], N: [-25, 20, 0], P: [0, -0.06, 0, 4, 0, 0], ev: 'fake' }],
     [0.20, { RA: [110, 60, -20, 130, 60, -40, 0], LA: [90, 40, 30, 110, 0, -20, 0], RL: [40, 8, 0, 50, -12, 0], LL: [40, 8, 0, 50, -12, 0], N: [-12, 30, 0], P: [0, -0.10, 0, 6, 0, 0] }],
   ],
 });
-const upUnder = defineClip({
+const upUnder = defineJump({
   id: 'sig.yao.upUnder', dur: 1.00, mask: 'full', root: 'motion', entry: 'replace', tempo: false, jump: { h: 0.15 }, meter: 'key', hand: 'R',
   cancel: 0.85, blendIn: 0.06, blendOut: 0.20,
-  params: { cat: 'layup', meterFrom: 0.10, tIdeal: 0.52, METER_T: 0.525, gatherWindow: [0, 3.0] },
+  params: { cat: 'layup', meterFrom: 0.10, tIdeal: 0.52, METER_T: 0.525 },
   keys: tplUpUnder({ s: 1, TO: 0.40, rel: 0.57, land: 0.75, end: 1.00, h: 0.15 }),
 });
 
@@ -195,7 +196,7 @@ const overheadPass = defineClip({
   keys: [
     [0.00, { RA: CHIN_Y, LA: CHIN_Y, B: 'both', RF: 'grip', LF: 'grip', S: [6, 0, 0], N: [-10, 0, 0], Lft: null, LL: [25, 6, 0, 30, 5, 0], look: 'target' }],
     // ball overhead, both hands at the back of the ball, elbows 70
-    [0.20, { RA: [165, 15, 0, 70, 30, -30, 0], LA: [165, 15, 0, 70, 30, -30, 0], S: [-4, 0, 0], N: [-12, 15, 0] }],
+    [0.20, { RA: GRIP2.passLoad, LA: GRIP2.passLoad, S: [-4, 0, 0], N: [-12, 15, 0] }],
     // arms snap: upper arm 165 → 120, forearm 70 → 0, thumbs rotate down; left foot steps 0.20 toward the target
     [0.25, { RA: [120, 10, 0, 0, 90, 30, 0], LA: [120, 10, 0, 0, 90, 30, 0], S: [8, 0, 0], B: 'free', RF: 'spread', LF: 'spread', Lft: [0.20, 0.20, 0, 'f'], LL: [20, 6, 0, 25, -8, 0], ev: 'release' }],
     [0.40, { RA: [110, 10, 0, 0, 95, 45, 0], LA: [110, 10, 0, 0, 95, 45, 0] }],
@@ -209,7 +210,7 @@ const overheadPass = defineClip({
 const RB = { TO: 0.10, apex: 0.10 + th(HY), land: 0.10 + 2 * th(HY) };
 RB.dur = RB.land + 0.70;
 const BO = STANCE.boxOut;
-const rebound = defineClip({
+const rebound = defineJump({
   id: 'sig.yao.rebound', dur: RB.dur, mask: 'full', root: 'none', entry: 'stop', entryDecel: 30, tempo: false, jump: { h: HY }, hand: 'R', cancel: RB.land + 0.20,
   blendIn: 0.05, blendOut: 0.20, params: { cat: 'rebound' },
   keys: [

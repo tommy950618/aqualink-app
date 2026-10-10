@@ -15,7 +15,7 @@
  */
 import { defineClip } from '../clip.js';
 import { SHORT, LEG, ARM, STANCE, SLEG } from '../presets.js';
-import { th, tplEuro, rootAt, relBall, G } from './shots.js';
+import { th, tplEuro, rootAt, relBall, G, GRIP2, HAMMER2, JAB_HOLD, defineJump } from './shots.js';
 
 const K = 1 / SLEG.giannis;                         // world metres → authored metres
 
@@ -24,13 +24,13 @@ const K = 1 / SLEG.giannis;                         // world metres → authored
 // ---------------------------------------------------------------------------------------------------------------
 const EU = { TO: 0.83, h: 0.72 };
 const euroDunkLand = EU.TO + 0.48 + 0.03 + 0.20 + Math.sqrt(2 * (EU.h - 0.05) / G);
-const euroDunk = defineClip({
+const euroDunk = defineJump({
   id: 'sig.giannis.euroDunk', dur: 2.21, mask: 'full', root: 'motion', entry: 'replace', tempo: false, jump: { h: 0.72, hang: 0.20, descending: true },
   meter: false, hand: 'R', cancel: 2.0, blendIn: 0.10, blendOut: 0.25, target: 'takeoff',
   params: { cat: 'dunk', hands: 1, gatherWindow: [5.4, 7.6], dTO: 2.9, toDist: 3.60 },
-  keys: tplEuro({ s: 1, TO: 0.83, slam: 1.31, land: euroDunkLand, end: 2.21, h: 0.72, steps: 1, toDist: 3.60 * K, air: (2.9 - 0.35) * K }, 'dunk'),
+  keys: tplEuro({ s: 1, TO: 0.83, slam: 1.31, land: euroDunkLand, end: 2.21, h: 0.72, hang: 0.20, steps: 1, toDist: 3.60 * K, air: (2.9 - 0.35) * K }, 'dunk'),
 });
-const euroLay = defineClip({
+const euroLay = defineJump({
   id: 'sig.giannis.euroLay', dur: 1.90, mask: 'full', root: 'motion', entry: 'replace', tempo: false, jump: { h: 0.72 }, meter: 'key', hand: 'R',
   cancel: 1.70, blendIn: 0.08, blendOut: 0.20, target: 'takeoff',
   params: { cat: 'layup', meterFrom: 0.60, tIdeal: 1.15, METER_T: 0.69, gatherWindow: [5.4, 7.6], dTO: 2.9, toDist: 3.60 },
@@ -44,7 +44,7 @@ const LG = { TO: 0.60, h: 0.66, slam: 1.067, hang: 0.30 };
 LG.land = LG.slam + 0.03 + LG.hang + Math.sqrt(2 * (LG.h - 0.05) / G);
 const lgRk = [[0, { R: [0, 0, 0] }], [0.60, { R: [0, 4.20 * K, 0] }], [1.067, { R: [0, (4.20 + 2.55) * K, 0] }]];
 const lz = (t) => rootAt(lgRk, t)[1];
-const longGather = defineClip({
+const longGather = defineJump({
   id: 'sig.giannis.longGather', dur: 2.05, mask: 'full', root: 'motion', entry: 'replace', tempo: false, jump: { h: 0.66, hang: 0.30, descending: true },
   meter: false, hand: 'R', cancel: 1.85, blendIn: 0.10, blendOut: 0.25, target: 'takeoff',
   params: { cat: 'dunk', hands: 2, gatherWindow: [6.4, 7.8], dTO: 2.9, toDist: 4.20, gather: [5.0, 5.4] },
@@ -59,12 +59,13 @@ const longGather = defineClip({
     // long right step into the LEFT plant, deep load
     [0.53, { Lft: [0.12, lz(0.53) + 0.30, 0, 'f'], LL: [50, 6, 0, 70, -15, 0], RL: [40, 6, 0, 80, 20, 0], P: [0, -0.27, 0, 6, 0, 0], S: [10, 0, 0], ev: 'plantL' }],
     // hips and knees extend; ball swung up the midline overhead
-    [0.60, { Lft: null, LL: LEG.dunkTakeoff, RL: [60, 6, 0, 70, 30, 0], RA: [160, 15, 0, 30, 30, -20, 0], LA: [160, 15, 0, 30, 30, -20, 0], P: [0, -0.03, 0, 0, 0, 0], S: [0, 0, 0], ev: 'takeoff' }],
+    [0.60, { Lft: null, LL: LEG.dunkTakeoff, RL: [60, 6, 0, 70, 30, 0], RA: [160, -5, 20, 30, 30, -20, 0], LA: [160, -5, 20, 30, 30, -20, 0], P: [0, -0.03, 0, 0, 0, 0], S: [0, 0, 0], ev: 'takeoff' }],
     // ball behind the head at neck level, knees tuck, roar builds
-    [0.80, { RA: [175, 18, 0, 100, 30, -20, 0], LA: [175, 18, 0, 100, 30, -20, 0], S2: [-12, 0, 0], S3: [-12, 0, 0], S1: [0, 0, 0], N: [-10, 0, 0], RL: LEG.dunkTuck, LL: LEG.dunkTuck, E: { roar: 0.4 } }],
+    [0.80, { RA: GRIP2.cock, LA: GRIP2.cock, S2: [-12, 0, 0], S3: [-12, 0, 0], S1: [0, 0, 0], N: [-10, 0, 0], RL: LEG.dunkTuck, LL: LEG.dunkTuck, E: { roar: 0.4 } }],
     [LG.TO + th(LG.h), { ev: 'apex' }],
-    [1.03, { S1: [10, 0, 0], S2: [12, 0, 0], S3: [10, 0, 0], RA: [150, 15, 0, 10, 90, 60, 0], LA: [150, 15, 0, 10, 90, 60, 0] }],
-    [1.067, { B: 'free', E: { roar: 1.0 }, ev: 'slam' }],
+    [1.03, { S1: [0, 0, 0], S2: [2, 0, 0], S3: [2, 0, 0], RA: GRIP2.slam, LA: GRIP2.slam, RC: [10, 0], LC: [10, 0] }],
+    [1.067, { RA: GRIP2.slam, LA: GRIP2.slam, B: 'free', E: { roar: 1.0 }, ev: 'slam' }],
+    [1.13, { S1: [10, 0, 0], S2: [12, 0, 0], S3: [10, 0, 0], RA: HAMMER2, LA: HAMMER2, RC: [0, 0], LC: [0, 0] }],
     // both hands on the rim, elbows bend 30 (slight pull-up); legs swing forward, knees lift and apart
     [1.097, { RF: 'claw', LF: 'claw', RA: [145, 15, 0, 30, 90, 20, 0], LA: [145, 15, 0, 30, 90, 20, 0], ev: 'rimGrab' }],
     [1.20, { RL: [60, 15, 0, 80, 20, 0], LL: [60, 15, 0, 80, 20, 0] }],
@@ -78,7 +79,7 @@ const longGather = defineClip({
 // ---------------------------------------------------------------------------------------------------------------
 // G3 reverse spin gather (root yaw +300 CCW on the left forefoot) into a left-hand finger roll
 // ---------------------------------------------------------------------------------------------------------------
-const spinGather = defineClip({
+const spinGather = defineJump({
   id: 'sig.giannis.spinGather', dur: 1.70, mask: 'full', root: 'motion', entry: 'replace', tempo: false, jump: { h: 0.50 }, meter: 'key', hand: 'R',
   cancel: 1.57, blendIn: 0.08, blendOut: 0.20, target: 'plantR',
   params: { cat: 'layup', meterFrom: 0.63, tIdeal: 1.07, METER_T: 0.55, gatherWindow: [0, 4.0] },
@@ -88,13 +89,14 @@ const spinGather = defineClip({
     // hard plant, toes 30° right of travel; gather at the right hip
     [0.23, { Lft: [0.25, 0.40, 30, 't'], LL: [40, 8, 0, 60, -15, 0], P: [0, -0.18, 0, 10, 0, 0], B: 'both', ...SHORT.HIP_R, LF: 'grip', R: [0, 0.25, 0], ev: ['plantL', 'gather'] }],
     // head whips round first to spot the rim
-    [0.33, { N: [-10, 75, 0], R: [0.05, 0.30, 90], RL: [30, 30, 0, 70, 10, 0], RA: [40, 40, 30, 110, 20, -25, 0], LA: [40, 40, 30, 110, 20, -25, 0] }],
+    [0.33, { N: [-10, 75, 0], R: [0.05, 0.30, 90], RL: [30, 30, 0, 70, 10, 0], RA: GRIP2.hipTight, LA: GRIP2.hipTight }],
     [0.48, { N: [-10, 30, 0], R: [-0.10, 0.45, 200] }],
     // right foot lands ≈ 1.4 m past the defender's hip toward the rim
     [0.63, { Rft: [-0.87, 0.87, 300, 'f'], RL: [40, 8, 0, 55, -15, 0], Lft: [0.25, 0.40, 330, 't'], R: [-0.31, 0.64, 300], N: [-12, 0, 0], ev: 'plantR' }],
     [0.66, { Lft: null }],
     // load on the right foot, left knee drives up
-    [0.80, { LL: [90, 5, 0, 100, 20, 0], RL: [45, 6, 0, 65, -18, 0], P: [0, -0.14, 0, 8, 0, 0] }],
+    [0.76, { RA: GRIP2.hipTight, LA: GRIP2.hipTight }],
+    [0.80, { LL: [90, 5, 0, 100, 20, 0], RL: [45, 6, 0, 65, -18, 0], P: [0, -0.14, 0, 8, 0, 0], B: 'L', RF: 'relax' }],
     // takeoff off the RIGHT foot; the ball rises up the left side
     [0.83, { Rft: null, RL: [-10, 3, 0, 10, 40, 0], LL: [95, 5, 0, 100, 30, 0], LA: [150, 15, 0, 30, -60, -20, 0], B: 'L', RF: 'relax', P: [0, -0.03, 0, 0, 0, 0], ev: 'takeoff' }],
     [1.12, { LA: [170, 10, 0, 5, -70, 15, 0], B: 'free', RA: [80, 40, 0, 60, 0, 0, 0], E: { jawOpen: 0.3 }, ev: 'release' }],
@@ -110,14 +112,14 @@ const spinGather = defineClip({
 // ---------------------------------------------------------------------------------------------------------------
 const HB = { TO: 0.15, h: 0.785 };
 HB.apex = HB.TO + th(HB.h); HB.land = HB.TO + 2 * th(HB.h); HB.dur = HB.land + 0.35;
-const helpBlock = defineClip({
+const helpBlock = defineJump({
   id: 'sig.giannis.helpBlock', dur: HB.dur, mask: 'full', root: 'motion', entry: 'carry', entryDecel: 30, tempo: false, jump: { h: 0.785 }, hand: 'R',
   cancel: HB.land + 0.05, blendIn: 0.05, blendOut: 0.20, params: { cat: 'block', pin: true },
   keys: [
     // stutter, then the left-foot penultimate
     [0.00, { Rft: [-0.12, 0, 0, 'f'], Lft: null, P: [0, -0.22, 0, 8, 0, 0], S: [10, 0, 0], N: [-15, 0, 0], RA: [30, 20, 0, 70, 0, 0, 0], LA: [30, 20, 0, 70, 0, 0, 0],
       RL: [35, 8, 0, 60, -15, 0], LL: [50, 8, 0, 75, 10, 0], R: [0, 0, 0], look: 'ball', E: { jawOpen: 0.3 }, ev: 'plantR' }],
-    [0.08, { Lft: [0.12, 0.45, 0, 'f'], LL: [40, 8, 0, 60, -15, 0], Rft: null, RL: [45, 8, 0, 75, 20, 0], ev: 'plantL' }],
+    [0.08, { Lft: [0.12, 0.25, 0, 'f'], LL: [40, 8, 0, 60, -15, 0], Rft: null, RL: [45, 8, 0, 75, 20, 0], ev: 'plantL' }],
     // takeoff off the LEFT foot: inside arm straight up, palm toward the ball; other arm down and back
     [0.15, { Lft: null, LL: LEG.takeoff, RL: [70, 6, 0, 80, 30, 0], RA: [175, 10, 0, 0, -90, -15, 0], RF: 'spread', LA: [-20, 40, 0, 20, 0, 0, 0],
       S2: [null, null, -15], S3: [null, null, -15], N: [-25, 0, 0], P: [0, -0.03, 0, 2, 0, 0], ev: 'takeoff' }],
@@ -141,18 +143,19 @@ const elbowDrive = defineClip({
   target: 'plantR', params: { cat: 'move' },
   keys: relBall([
     ...edRk,
-    [0.00, { P: TT.P, S: TT.S, N: TT.N, RA: TT.RA, LA: TT.LA, RL: TT.RL, LL: TT.LL, Rft: [-0.29, 0.04, 8, 'f'], Lft: [0.29, -0.03, 8, 'f'], B: 'both', RF: 'grip', LF: 'grip', look: 'man' }],
+    [0.00, { P: TT.P, S: TT.S, N: TT.N, ...JAB_HOLD, RL: TT.RL, LL: TT.LL, Rft: [-0.29, 0.04, 8, 'f'], Lft: [0.29, -0.03, 8, 'f'], B: 'both', RF: 'grip', LF: 'grip', look: 'man' }],
     [0.03, { Rft: null, RL: [35, 6, 0, 55, 10, 0] }],
     // jab 0.4 with a head fake right
     [0.10, { Rft: [-0.29, 0.44, 0, 't'], RL: [30, 6, 0, 35, -5, 0], P: [0, -0.155, 0.05, 16, 0, 0], N: [-24, -10, 0], ev: 'fake' }],
     [0.15, { Rft: null, RL: [35, 6, 0, 50, 10, 0] }],
-    [0.20, { Rft: [-0.29, 0.04, 8, 'f'], RL: TT.RL, P: TT.P, N: TT.N }],
+    [0.20, { Rft: [-0.29, 0.04, 8, 'f'], RL: TT.RL, P: TT.P, N: TT.N, ...JAB_HOLD }],
+    [0.28, { Rft: null, RL: [20, 6, 0, 50, 25, 0] }],
     // crossover dribble hand_r → hand_l at knee height
     [0.23, { B: 'path', Bp: [-0.25, 0.75, 0.30], RA: [25, 15, 30, 70, 95, 25, 0], Lft: null, LL: [40, 6, 0, 70, 20, 0], P: [0, -0.15, 0, 18, 0, 0], S: [22, 0, 0] }],
     [0.30, { Bp: [0, 0.12, 0.50], ev: 'bounce' }],
     [0.40, { Bp: [0.30, 0.50, 0.35], LA: [25, 15, 15, 70, 90, 10, 0], LF: 'grip', RA: [30, 20, 0, 50, 20, 0, 0], RF: 'relax' }],
     // left foot strides 1.9 m past the defender's left hip
-    [0.50, { Lft: [0.40, 1.95, 0, 't'], LL: [40, 6, 0, 50, -12, 0], Rft: null, RL: [20, 6, 0, 60, 30, 0], ev: 'plantL' }],
+    [0.50, { Lft: [0.40, 1.95, 0, 't'], LL: [40, 6, 0, 50, -12, 0], RL: [20, 6, 0, 60, 30, 0], ev: 'plantL' }],
     [0.53, { B: 'both', ...SHORT.HIP_R, RF: 'grip', ev: 'gather' }],
     [0.62, { Lft: null, LL: [10, 6, 0, 50, 30, 0], RL: [60, 6, 0, 70, 5, 0] }],
     // one more 1.8 m right-foot step → finish clip (target-matched)

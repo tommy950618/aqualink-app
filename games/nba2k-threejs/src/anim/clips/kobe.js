@@ -17,8 +17,8 @@
  * above 95° is keyed just after the takeoff (cloth guard).
  */
 import { defineClip } from '../clip.js';
-import { SET, GUIDE, REL, FOLLOW, SHORT, LEG, ARM, FORMS, STANCE } from '../presets.js';
-import { th, jumpTail, relBall, rootAt, G } from './shots.js';
+import { SET, REL, FOLLOW, SHORT, LEG, ARM, FORMS, STANCE } from '../presets.js';
+import { th, jumpTail, relBall, rootAt, G, guideSet, SLAM1, GRIP2, HAMMER1, HAMMER2, JAB_HOLD, JAB_SWAY, RIP_LOW, RIP_HIP_L, defineJump } from './shots.js';
 
 const F = FORMS.kobe;
 const SCOWL = { scowl: 0.4 };
@@ -44,7 +44,7 @@ const turnFade = defineClip({
     // load, knees 65
     [0.63, { P: [0, -0.16, 0, 10, 0, 0], S: [5, 0, 0], N: [-8, 0, 0], ...SHORT.CHIN, RL: [45, 6, 0, 65, -20, 0], LL: [45, 6, 0, 65, -20, 0], Lft: [0.37, 0, 165, 'f'] }],
     [0.70, { P: [0, -0.04, 0, 0, 0, 0], S: [0, 0, 0], RA: [100, 8, 20, 110, 80, -55, 0], RL: LEG.takeoff, LL: LEG.takeoff, Rft: null, Lft: null, R: [0.63, 0.10, 165], ev: 'takeoff' }],
-    [0.83, { P: [0, 0, 0, -9, 0, 0], S: [-9, 0, 0], N: [-8, 0, 0], RA: SET('kobe'), LA: GUIDE('kobe'), RF: 'shoot', RL: [25, 5, 0, 40, 30, 0], LL: [10, 5, 0, 25, 30, 0], E: SCOWL, ev: 'set' }],
+    [0.83, { P: [0, 0, 0, -9, 0, 0], S: [-9, 0, 0], N: [-8, 0, 0], RA: SET('kobe'), LA: guideSet('kobe'), RF: 'shoot', RL: [25, 5, 0, 40, 30, 0], LL: [10, 5, 0, 25, 30, 0], E: SCOWL, ev: 'set' }],
     [0.70 + th(0.50), { ev: 'apex' }],
     [1.009, { RA: REL('kobe'), LA: [105, 27, 30, 80, -5, 0, 0], B: 'free', P: [null, null, null, -9, 0, 0], S: [-9, 0, 0], ev: 'release' }],
     [1.11, { RA: FOLLOW('kobe'), RF: 'snap', LA: [100, 32, 25, 70, -15, 0, 0] }],
@@ -59,7 +59,7 @@ const turnFade = defineClip({
 // ---------------------------------------------------------------------------------------------------------------
 // K2 jab series (move) + rip pull-up (shot) + jab-go (drive), left-foot pivot from the triple threat
 // ---------------------------------------------------------------------------------------------------------------
-const JAB0 = { P: [0, -0.11, 0, 12, 0, 0], S: [25, 0, 0], N: [-25, 0, 0], RA: [15, 25, 20, 75, 40, -25, 0], LA: [40, 20, 60, 85, 0, -15, 0] };
+const JAB0 = { P: [0, -0.11, 0, 12, 0, 0], S: [25, 0, 0], N: [-25, 0, 0], ...JAB_HOLD };
 const jabSeries = defineClip({
   id: 'sig.kobe.jabSeries', dur: 0.53, mask: 'full', root: 'none', tempo: false, hand: 'R', cancel: 0.47, blendIn: 0.06, blendOut: 0.12,
   params: { cat: 'move', branch: [0.17, 0.47] },
@@ -68,7 +68,7 @@ const jabSeries = defineClip({
     [0.05, { Rft: null, RL: [35, 6, 0, 55, 10, 0], P: [-0.03, -0.13, 0.02, 14, 0, 0] }],
     // jab 1: 0.35 m at the defender
     [0.12, { Rft: [-0.30, 0.40, 8, 't'], RL: [30, 6, 0, 35, 5, 0], P: [-0.06, -0.15, 0.05, 15, 0, 0], S: [35, 0, 0], ev: ['plantR', 'fake'] }],
-    [0.17, { RA: [20, 40, 20, 75, 40, -25, 0], P: [-0.06, -0.16, 0.05, 15, 0, 0] }],
+    [0.17, { ...JAB_SWAY, P: [-0.06, -0.16, 0.05, 15, 0, 0] }],
     [0.22, { Rft: null, RL: [35, 6, 0, 50, 10, 0] }],
     [0.30, { Rft: [-0.30, 0.05, 8, 'f'], RL: STANCE.tripleThreat.RL, ...JAB0 }],
     [0.35, { Rft: null, RL: [30, 6, 0, 45, 10, 0] }],
@@ -88,8 +88,8 @@ const ripPullup = defineClip({
   params: { cat: 'jumper', meterFrom: 0, tIdeal: 0.465, METER_T: 0.58 },
   keys: [
     [0.00, { ...JAB0, RL: STANCE.tripleThreat.RL, LL: STANCE.tripleThreat.LL, Rft: [-0.30, 0.05, 8, 'f'], Lft: [0.30, -0.05, 8, 'f'], B: 'both', RF: 'grip', LF: 'grip', look: 'rim', R: [0, 0, 0], E: SCOWL }],
-    [0.06, { RA: [-5, 20, 40, 40, 60, -10, 0], LA: [20, 10, 50, 40, 20, -10, 0], S: [35, -15, 0], P: [0, -0.13, 0, 13, 0, 0] }],
-    [0.10, { RA: [10, 15, 50, 60, 40, -10, 0], LA: [15, 30, 20, 60, 30, -10, 0], S: [30, 10, 0] }],
+    [0.06, { ...RIP_LOW, S: [35, -15, 0], P: [0, -0.13, 0, 13, 0, 0] }],
+    [0.10, { ...RIP_HIP_L, S: [30, 10, 0] }],
     [0.14, { RA: [60, 15, 30, 120, 40, -40, 0], LA: [60, 20, 35, 115, -5, -20, 0], P: [0, -0.15, 0, 10, 0, 0], S: [12, 0, 0], N: [-12, 0, 0], RL: [45, 6, 0, 62, -18, 0], LL: [45, 6, 0, 62, -18, 0] }],
     ...jumpTail('kobe', ripT, { R: [0, 0, 0], face: SCOWL, armsTO: false }),
   ],
@@ -100,12 +100,13 @@ const jabGo = defineClip({
   id: 'sig.kobe.jabGo', dur: 0.40, mask: 'full', root: 'motion', entry: 'replace', tempo: false, hand: 'R', blendIn: 0.06, blendOut: 0.12,
   params: { cat: 'move', exitV: [0, 4.5] },
   keys: [
-    [0.00, { P: [0, -0.08, 0.03, 10, 0, 0], S: [28, 0, 0], N: [-30, 0, 0], RA: [15, 25, 20, 75, 40, -25, 0], LA: [40, 20, 60, 85, 0, -15, 0], RL: [30, 6, 0, 40, 0, 0],
+    [0.00, { P: [0, -0.08, 0.03, 10, 0, 0], S: [28, 0, 0], N: [-30, 0, 0], ...JAB_HOLD, RL: [30, 6, 0, 40, 0, 0],
       LL: STANCE.tripleThreat.LL, Rft: [-0.30, 0.25, 8, 't'], Lft: [0.30, -0.05, 8, 't'], B: 'both', RF: 'grip', LF: 'grip', R: [0, 0, 0], look: 'man' }],
-    [0.08, { Rft: null, RL: [45, -5, 10, 70, 10, 0], P: [0, -0.14, 0.05, 18, 0, 0], S: [30, 0, 0] }],
+    [0.08, { Rft: null, RL: [45, -5, 10, 70, 10, 0], P: [0, -0.14, 0.05, 18, 0, 0], S: [30, 0, 0], ...JAB_HOLD }],
+    [0.12, { B: 'R' }],                                                  // right hand pulls it out for the push dribble
     [0.18, { RA: [45, 10, 15, 45, 90, 20, 0], B: 'drib', LA: [30, 20, 0, 50, 10, 0, 0], LF: 'relax' }],
     [0.20, { Rft: [-0.10, 0.90, 0, 't'], RL: [40, 5, 0, 50, -10, 0], ev: 'plantR' }],
-    [0.24, { Lft: null, LL: [-10, 5, 0, 40, 30, 0] }],
+    [0.14, { Lft: null, LL: [-10, 5, 0, 40, 30, 0] }],
     [0.40, { P: [0, -0.12, 0, 16, 0, 0], S: [24, 0, 0], N: [-14, 0, 0], LL: [40, 5, 0, 70, 10, 0], R: [0.10, 1.30, 0] }],
   ],
 });
@@ -119,7 +120,7 @@ const pump = defineClip({
   keys: [
     [0.00, { ...SHORT.CHEST, P: [0, -0.10, 0, 10, 0, 0], S: [12, 0, 0], N: [-10, 0, 0], RL: [25, 6, 0, 40, -10, 0], LL: [25, 6, 0, 40, -10, 0], B: 'both', RF: 'grip', LF: 'grip', look: 'rim', E: SCOWL }],
     [0.08, { RA: [90, 8, 20, 110, 70, -50, 0], LA: [80, 14, 40, 105, 10, -20, 0] }],
-    [0.18, { RA: [140, 6, 18, 95, 85, -60, 0], LA: GUIDE('kobe'), RF: 'shoot', RL: [10, 4, 0, 30, 8, 0], LL: [10, 4, 0, 30, 8, 0], P: [0, -0.06, 0, 6, 0, 0], RC: [8, 0], LC: [8, 0], N: [-15, 0, 0], ev: 'fake' }],
+    [0.18, { RA: [140, 6, 18, 95, 85, -60, 0], LA: guideSet('kobe'), RF: 'shoot', RL: [10, 4, 0, 30, 8, 0], LL: [10, 4, 0, 30, 8, 0], P: [0, -0.06, 0, 6, 0, 0], RC: [8, 0], LC: [8, 0], N: [-15, 0, 0], ev: 'fake' }],
     [0.30, { ...SHORT.CHEST, RF: 'grip', P: [0, -0.10, 0, 10, 0, 0], RL: [25, 6, 0, 40, -10, 0], LL: [25, 6, 0, 40, -10, 0], RC: [0, 0], LC: [0, 0], N: [-10, 0, 0] }],
   ],
 });
@@ -154,21 +155,21 @@ function spinPart() {
       RL: [30, 6, 0, 45, 10, 0], LL: [-5, 4, 0, 25, 25, 0], Rft: null, Lft: null, R: [0, 0, 0], look: 'rim', E: SCOWL }],
     [0.13, { Lft: [0.20, 0.45, 45, 't'], LL: [40, 8, 0, 60, -15, 0], P: [0, -0.15, 0, 12, 0, 0], ev: 'plantL' }],
     [0.20, { B: 'both', ...SHORT.HIP_R, LF: 'grip', ev: 'gather' }],
-    [0.27, { R: [0.10, 0.30, -30], RL: [30, 25, 0, 65, 10, 0], RA: [50, 45, 30, 120, 20, -25, 0], LA: [50, 45, 30, 120, 20, -25, 0] }],
+    [0.27, { R: [0.10, 0.30, -30], RL: [30, 25, 0, 65, 10, 0], RA: GRIP2.chinOut, LA: GRIP2.chinOut }],
     [0.40, { R: [0.35, 0.42, -140], P: [null, null, null, null, -15, null] }],
     [0.47, { R: [0.45, 0.45, -180], Lft: [0.20, 0.45, -135, 't'], Rft: [0.70, 0.45, -180, 'f'], RL: [40, 8, 0, 55, -15, 0], P: [0, -0.15, 0, 10, 0, 0], ev: 'plantR' }],
   ];
 }
 
-const baselineSpinLay = defineClip({
+const baselineSpinLay = defineJump({
   id: 'sig.kobe.baselineSpinLay', dur: 1.30, mask: 'full', root: 'motion', entry: 'replace', tempo: false, jump: { h: 0.55 }, meter: 'key',
   hand: 'R', cancel: 1.30, blendIn: 0.08, blendOut: 0.20,
   params: { cat: 'layup', meterFrom: 0.47, tIdeal: 0.855, METER_T: 0.48, gatherWindow: [0, 4.5] },
   keys: [
     ...spinPart(),
-    [0.55, { Lft: null, LL: [60, 5, 0, 90, 10, 0], P: [0, -0.10, 0, 6, 0, 0] }],
-    [0.60, { RL: [95, 5, 0, 100, 30, 0], Rft: null, LL: [-10, 3, 0, 10, 40, 0], P: [0, -0.03, 0, 2, 0, 0], RA: [120, 20, 15, 60, 30, -30, 0], ev: 'takeoff' }],
-    [0.80, { RA: [170, 25, 0, 15, 30, -30, 0], N: [-30, 0, 0], S: [-8, 0, 0], B: 'R', LF: 'relax', LA: [60, 40, 20, 60, 0, 0, 0] }],
+    [0.55, { Lft: null, LL: [60, 5, 0, 90, 10, 0], P: [0, -0.10, 0, 6, 0, 0], RA: GRIP2.chinOut, LA: GRIP2.chinOut }],
+    [0.60, { RL: [95, 5, 0, 100, 30, 0], Rft: null, LL: [-10, 3, 0, 10, 40, 0], P: [0, -0.03, 0, 2, 0, 0], RA: [120, 20, 15, 60, 30, -30, 0], B: 'R', LF: 'relax', ev: 'takeoff' }],
+    [0.80, { RA: [170, 25, 0, 15, 30, -30, 0], N: [-30, 0, 0], S: [-8, 0, 0], LA: [60, 40, 20, 60, 0, 0, 0] }],
     [0.905, { RA: [175, 28, 0, 10, 30, 40, 0], B: 'free', LA: [60, 40, 20, 60, 0, 0, 0], E: { scowl: 0.4, jawOpen: 0.3 }, ev: 'release' }],
     [0.60 + th(0.55), { ev: 'apex' }],
     [1.00, { RF: 'snap', RA: [170, 25, 0, 10, 30, 50, 0] }],
@@ -199,7 +200,7 @@ const baselineSpinFade = defineClip({
 const TOM = { TO: 0.36, h: 0.73, slam: 0.716, hang: 0.10 };
 TOM.land = TOM.TO + (TOM.slam - TOM.TO) + 0.03 + TOM.hang + Math.sqrt(2 * (TOM.h - 0.05) / G);
 const tomRk = [[0, { R: [0, 0, 0] }], [0.36, { R: [0, 1.30, 0] }], [0.716, { R: [0, 2.60, 0] }]];
-const tomahawk = defineClip({
+const tomahawk = defineJump({
   id: 'sig.kobe.tomahawk', dur: 1.50, mask: 'full', root: 'motion', entry: 'replace', tempo: false, jump: { h: 0.73, hang: 0.10 }, meter: false,
   hand: 'R', cancel: 1.32, blendIn: 0.10, blendOut: 0.25, target: 'takeoff',
   params: { cat: 'dunk', hands: 1, gatherWindow: [2.25, 3.65], dTO: 1.65, toDist: 1.30 },
@@ -211,8 +212,11 @@ const tomahawk = defineClip({
     [0.28, { Lft: [0.10, rootAt(tomRk, 0.28)[1] + 0.25, 0, 'f'], P: [0, -0.14, 0, -6, 0, 0], S: [-6, 0, 0], LL: [30, 5, 0, 45, -15, 0], RL: [50, 5, 0, 90, 20, 0], ev: 'plantL' }],
     [0.36, { Lft: null, LL: [-10, 3, 0, 10, 40, 0], RL: [95, 5, 0, 100, 30, 0], LA: [120, 20, 20, 20, 0, 0, 0], P: [0, -0.03, 0, 0, 0, 0], ev: 'takeoff' }],
     [0.40, { RL: [100, 5, 0, 100, 30, 0] }],
-    [0.56, { RA: [178, 25, -40, 110, 0, -40, 0], S: [-15, 0, 0], N: [-15, 0, 0], LL: [20, 5, 0, 40, 30, 0], E: { scowl: 0.2, jawJut: 0.6 } }],
-    [0.716, { RA: [120, 10, 0, 5, 90, 70, 0], S: [18, 0, 0], B: 'free', ev: 'slam' }],
+    // ball behind the right ear (forearm rotated out 15°, not 40: at −40 the ball swings out beside the head)
+    [0.56, { RA: [178, 25, -15, 110, 0, -40, 0], S: [-15, 0, 0], N: [-15, 0, 0], LL: [20, 5, 0, 40, 30, 0], E: { scowl: 0.2, jawJut: 0.6 } }],
+    [0.67, { RA: [175, 12, 0, 20, 40, -45, 0], S: [-2, 0, -8] }],
+    [0.716, { ...SLAM1, B: 'free', ev: 'slam' }],
+    [0.776, { RA: HAMMER1, S: [18, 0, 0], RC: [0, 0] }],
     [0.36 + th(0.73), { ev: 'apex' }],
     [0.746, { RF: 'claw', LA: [60, 30, 0, 40, 0, 0, 0], RL: LEG.dunkHang, LL: LEG.dunkHang, ev: 'rimGrab' }],
     [0.846, { RA: [140, 12, 0, 30, 60, 0, 0], RF: 'relax', ev: 'rimRelease' }],
@@ -223,7 +227,7 @@ const tomahawk = defineClip({
 });
 
 const REV = { TO: 0.28, h: 0.85, slam: 0.72, land: 1.32 };
-const reverse2 = defineClip({
+const reverse2 = defineJump({
   id: 'sig.kobe.reverse2', dur: 1.60, mask: 'full', root: 'motion', entry: 'replace', tempo: false, jump: { h: 0.85, hang: 0.15 }, meter: false,
   hand: 'R', cancel: 1.42, blendIn: 0.10, blendOut: 0.25,
   params: { cat: 'dunk', hands: 2, gatherWindow: [1.0, 2.6] },
@@ -232,10 +236,11 @@ const reverse2 = defineClip({
       Rft: null, Lft: null, R: [0, 0, 0], look: 'rim', E: { scowl: 0.4 } }],
     // jump stop facing the baseline, both feet
     [0.14, { Rft: [-0.22, 0.70, 0, 'f'], Lft: [0.22, 0.70, 0, 'f'], P: [0, -0.18, 0, 15, 0, 0], S: [16, 0, 0], RL: LEG.dunkPlant, LL: LEG.dunkPlant, R: [0, 0.60, 0], ev: ['plantL', 'plantR'] }],
-    [0.28, { Rft: null, Lft: null, RL: LEG.dunkTakeoff, LL: LEG.dunkTakeoff, P: [0, -0.02, 0, 0, 0, 0], S: [-4, 0, 0], RA: [180, 15, 0, 20, 30, -20, 0], LA: [180, 15, 0, 20, 30, -20, 0], R: [0, 0.75, 0], ev: 'takeoff' }],
+    [0.28, { Rft: null, Lft: null, RL: LEG.dunkTakeoff, LL: LEG.dunkTakeoff, P: [0, -0.02, 0, 0, 0, 0], S: [-4, 0, 0], RA: GRIP2.skip, LA: GRIP2.skip, R: [0, 0.75, 0], ev: 'takeoff' }],
     // spine extends back, head back to see the rim; the slam goes backwards over the head
-    [0.55, { S: [-25, 0, 0], N: [-30, 0, 0], RA: [180, 20, 0, 100, 30, -30, 0], LA: [180, 20, 0, 100, 30, -30, 0], RL: [40, 10, 0, 70, 30, 0], LL: [40, 10, 0, 70, 30, 0], E: { scowl: 0.2, jawJut: 0.5 } }],
-    [0.72, { RA: [150, 15, 0, 10, 90, 50, 0], LA: [150, 15, 0, 10, 90, 50, 0], B: 'free', ev: 'slam' }],
+    [0.55, { S: [-25, 0, 0], N: [-30, 0, 0], RA: GRIP2.cock, LA: GRIP2.cock, RL: [40, 10, 0, 70, 30, 0], LL: [40, 10, 0, 70, 30, 0], E: { scowl: 0.2, jawJut: 0.5 } }],
+    [0.72, { RA: GRIP2.slam, LA: GRIP2.slam, RC: [10, 0], LC: [10, 0], S: [-12, 0, 0], B: 'free', ev: 'slam' }],
+    [0.78, { RA: HAMMER2, LA: HAMMER2, RC: [0, 0], LC: [0, 0] }],
     [0.28 + th(0.85), { ev: 'apex' }],
     [0.75, { RF: 'claw', LF: 'claw', RL: LEG.dunkHang, LL: LEG.dunkHang, ev: 'rimGrab' }],
     [0.90, { RA: [140, 15, 0, 40, 60, 0, 0], LA: [140, 15, 0, 40, 60, 0, 0], RF: 'relax', LF: 'relax', S: [0, 0, 0], ev: 'rimRelease' }],
@@ -253,13 +258,13 @@ const hesiCrossStepback = defineClip({
   params: { cat: 'move', imm: [0.05, 0.27], freeze: 1.0, branch: 0.27 },
   keys: relBall([
     [0.00, { P: [0, -0.06, 0, 10, 0, 0], S: [15, 0, 0], N: [-8, 0, 0], RA: ARM.dribJog, LA: [25, 20, 0, 40, 20, 0, 0], RL: [25, 6, 0, 40, -5, 0], LL: [10, 6, 0, 30, 10, 0],
-      B: 'path', Bp: [-0.30, 0.85, 0.30], R: [0, 0, 0], RF: 'grip', look: 'man', E: SCOWL }],
+      B: 'path', Bp: [-0.29, 0.93, 0.51], R: [0, 0, 0], RF: 'grip', look: 'man', E: SCOWL }],
     // torso rises 5 cm, slight lean back: sells a stop
-    [0.07, { P: [0, -0.01, 0, 2, 0, 0], S: [5, 0, 0], N: [-10, 0, 0], RA: [25, 14, 15, 60, 90, 0, 0], look: 'rim', Bp: [-0.30, 0.95, 0.30] }],
+    [0.07, { P: [0, -0.01, 0, 2, 0, 0], S: [5, 0, 0], N: [-10, 0, 0], RA: [7, 14, 15, 60, 90, 0, 0], look: 'rim', Bp: [-0.31, 0.96, 0.32] }],
     // pelvis drops 12 cm, low crossover bounce in front
     [0.13, { P: [0, -0.13, 0, 18, 0, 0], S: [22, 0, 0], RA: [20, 5, 35, 75, 95, 30, 0], Bp: [0.0, 0.12, 0.30], N: [-14, 0, 0], look: 'man', ev: 'bounce' }],
     [0.16, { Rft: null, RL: [20, 8, 0, 35, 30, 0] }],
-    [0.20, { Bp: [0.30, 0.55, 0.30], B: 'drib', LA: [28, 15, 20, 70, 90, 10, 0], LF: 'grip', RA: [25, 15, 0, 40, 20, 0, 0], RF: 'relax', R: [0.15, 0.20, 0], ev: 'handOnL' }],
+    [0.20, { Bp: [0.29, 0.69, 0.29], B: 'drib', LA: [36, 8, 25, 33, 90, 10, 0], LF: 'grip', RA: [25, 15, 0, 40, 20, 0, 0], RF: 'relax', R: [0.15, 0.20, 0], ev: 'handOnL' }],
     [0.27, { Lft: [0.25, 0.55, 0, 'f'], LL: [35, 6, 0, 50, -12, 0], ev: 'plantL' }],
     [0.32, { Rft: null, RL: [35, 6, 0, 60, 15, 0] }],
     [0.40, { R: [0.30, 0.40, 0], P: [0, -0.10, 0, 14, 0, 0], S: [18, 0, 0], RL: [25, 6, 0, 40, -5, 0] }],

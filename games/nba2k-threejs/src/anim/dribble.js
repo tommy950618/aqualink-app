@@ -19,7 +19,8 @@
  * step, 2.2–2.8), run 4.0–5.8 (one per two steps, 1.5–1.8), speed > 5.8 (one per two steps, 1.7–1.95), backdown
  * (post). Mode changes only while the ball is in the hand (ψ ∈ [0.70, 1)) and blend over one cycle. Step sync: the
  * release is phase-locked to the strike of the foot opposite the dribble hand (every strike for one-per-step) by the
- * PLL ψ' = f + 2.0·wrap½(ψ_target − ψ). Pickup: ψ ∈ [0.60, 1) → caught at the next contact; else the remaining path is
+ * PLL ψ' = f + 2.0·wrap½(ψ_target − ψ); STYLE.dribble.f scales the synced modes' clamp range (not the synced value),
+ * so a cadence outside the player's range leaves a bounded lag of (cadence − f)/2 cycles. Pickup: ψ ∈ [0.60, 1) → caught at the next contact; else the remaining path is
  * time-compressed × 2. lowWindow = ball centre below 0.45 m (GP `exposed`).
  *
  * Positions are world space (x, y, z). Zero allocation per step / render (H10).
@@ -87,7 +88,7 @@ export class Dribble {
     this.cEnterX = 0; this.cEnterY = 0; this.cEnterZ = 0;
     // root state of the last step
     this.x = 0; this.z = 0; this.yaw = 0; this.vx = 0; this.vz = 0; this.speed = 0;
-    this.pickup = false; this.picked = false;
+    this.pickup = false; this.picked = false; this.pendingHand = 0;
     this.bounced = false; this.bounceDt = 0; this.released = false;
     this.ballY = 1;
     this.pos = new Float64Array(3);  // ball at the current step (sim)
@@ -103,7 +104,7 @@ export class Dribble {
    * (0 = release now; 0.80 = in the hand, e.g. after a move clip's handOn).
    */
   start(hand, bx, by, bz, x, z, yaw, psi0 = 0) {
-    this.active = true; this.hand = hand === 2 ? 2 : 1;
+    this.active = true; this.hand = hand === 2 ? 2 : 1; this.pendingHand = 0;
     this.x = x; this.z = z; this.yaw = yaw;
     this.psi = psi0; this.psiPrev = psi0; this.dpsi = 0;
     this.pickup = false; this.picked = false;
@@ -118,8 +119,14 @@ export class Dribble {
   /** Requests a pickup (shot / pass / hold): the ball reaches the hand at the next contact (module header). */
   requestPickup() { if (this.active) this.pickup = true; }
 
-  /** Switches the dribble hand (crossover finished by a clip): takes effect at the next release. */
-  setHand(hand) { this.hand = hand === 2 ? 2 : 1; }
+  /**
+   * Switches the dribble hand: immediately while the dribble is not running, else at the next release (the ball
+   * never jumps sides mid-cycle). Clip moves that hand the ball over restart the dribble with start().
+   */
+  setHand(hand) {
+    const h = hand === 2 ? 2 : 1;
+    if (!this.active) { this.hand = h; this.pendingHand = 0; } else if (h !== this.hand) this.pendingHand = h; else this.pendingHand = 0;
+  }
 
   /** Chooses the mode from speed / protect / post. */
   modeFor(speed, protect, post) {
@@ -173,10 +180,10 @@ export class Dribble {
     const inHand = this.psi >= C_CATCH;
     if (inHand) this.mode = this.target;
     const M = DRIB_MODES[this.mode], sty = this.sty;
-    // frequency: fixed, or synced to the cadence (one per step / per two steps), clamped, × STYLE f
-    let f = M.f;
-    if (M.sync && inp.gaitMoving && inp.cadence > 0) f = clamp(M.sync === 1 ? inp.cadence : inp.cadence / 2, M.fMin, M.fMax);
-    f *= sty.f;
+    // frequency: fixed modes × STYLE f; synced modes follow the cadence (one per step / per two steps) inside the
+    // mode's clamp scaled by STYLE f, so the PLL below locks without a standing phase lag whenever the cadence fits
+    let f = M.f * sty.f;
+    if (M.sync && inp.gaitMoving && inp.cadence > 0) f = clamp(M.sync === 1 ? inp.cadence : inp.cadence / 2, M.fMin * sty.f, M.fMax * sty.f);
     this.f = f;
     // parameters approach the mode over one cycle (only while in the hand)
     if (inHand) {
@@ -217,6 +224,7 @@ export class Dribble {
       p1 -= 1;
       this.psi = p1;
       this.released = true;
+      if (this.pendingHand) { this.hand = this.pendingHand; this.pendingHand = 0; }
       this.latchRelease(_bp[0], _bp[1], _bp[2]);
     } else this.psi = p1;
     // re-predict the catch point during the rise so the ball meets the live hand

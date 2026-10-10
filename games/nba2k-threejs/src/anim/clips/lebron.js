@@ -17,7 +17,7 @@
  */
 import { defineClip } from '../clip.js';
 import { SHORT, LEG, ARM, FORMS, STANCE } from '../presets.js';
-import { th, jumpTail, rootAt, makeDunk } from './shots.js';
+import { th, jumpTail, rootAt, makeDunk, SLAM1, HAMMER1, GRIP2, defineJump } from './shots.js';
 
 const F = FORMS.lebron;
 
@@ -26,7 +26,7 @@ const F = FORMS.lebron;
 // ---------------------------------------------------------------------------------------------------------------
 const CD = { TO: 0.13, h: 0.85 };
 CD.apex = CD.TO + th(CD.h); CD.land = CD.TO + 2 * th(CD.h); CD.dur = CD.land + 0.34;
-const chasedown = defineClip({
+const chasedown = defineJump({
   id: 'sig.lebron.chasedown', dur: CD.dur, mask: 'full', root: 'motion', entry: 'carry', entryDecel: 30, tempo: false, jump: { h: 0.85 }, hand: 'R',
   cancel: CD.land + 0.05, blendIn: 0.05, blendOut: 0.20,
   params: { cat: 'block', pin: true },
@@ -54,7 +54,7 @@ const chasedown = defineClip({
 // ---------------------------------------------------------------------------------------------------------------
 const TK = { TO: 0.20, h: 0.80, slam: 0.574, hang: 0.15, land: 1.14 };
 const tkRk = [[0, { R: [0, 0, 0] }], [0.20, { R: [0, 1.40 / 1.03, 0] }], [0.574, { R: [0, 2.80 / 1.03, 0] }]];
-const tomahawk = defineClip({
+const tomahawk = defineJump({
   id: 'sig.lebron.tomahawk', dur: 1.44, mask: 'full', root: 'motion', entry: 'replace', tempo: false, jump: { h: 0.80, hang: 0.15 }, meter: false,
   hand: 'R', cancel: 1.24, blendIn: 0.10, blendOut: 0.25, target: 'takeoff',
   params: { cat: 'dunk', hands: 1, gatherWindow: [2.41, 3.89], dTO: 1.75, toDist: 1.40 },
@@ -65,12 +65,14 @@ const tomahawk = defineClip({
       RL: [15, 5, 0, 25, -5, 0], LL: [45, 5, 0, 80, 15, 0], look: 'rim', ev: ['gather', 'plantR'] }],
     [0.06, { Rft: null, RL: [30, 5, 0, 50, 20, 0] }],
     // quick plant; torso leans back 10° to convert speed
-    [0.12, { Lft: [0.10, rootAt(tkRk, 0.12)[1] + 0.35, 0, 'f'], P: [0, -0.15, 0, -10, 0, 0], S: [-6, 0, 0], LL: [30, 5, 0, 45, -15, 0], RL: [50, 5, 0, 90, 20, 0], ev: 'plantL' }],
+    [0.12, { Lft: [0.10, rootAt(tkRk, 0.12)[1] + 0.35, 0, 'f'], P: [0, -0.15, 0, -10, 0, 0], S: [-6, 0, 0], LL: [30, 5, 0, 45, -15, 0], RL: [50, 5, 0, 90, 20, 0], ...SHORT.HIP_R, ev: 'plantL' }],
     [0.20, { Lft: null, LL: [-10, 3, 0, 10, 40, 0], RL: [90, 5, 0, 95, 30, 0], B: 'R', LF: 'relax', P: [0, -0.03, 0, 0, 0, 0], E: { roar: 0.2 }, ev: 'takeoff' }],
     // ball cocked behind the head, left arm reaching toward the rim, arch 15–20, chin up
     [0.40, { RA: [160, 30, -50, 115, 0, -40, 0], LA: [120, 15, 0, 20, -20, 0, 0], S: [-18, 0, 0], N: [-15, 0, 0], RL: [60, 8, 0, 80, 30, 0], LL: [10, 6, 0, 30, 35, 0], E: { roar: 0.4 } }],
     // hammer: elbow extends, wrist −40 → +40, crunch
-    [0.574, { RA: [125, 10, 0, 5, 90, 40, 0], S: [25, 0, 0], N: [-5, 0, 0], B: 'free', E: { roar: 1.0 }, ev: 'slam' }],
+    [0.53, { RA: [175, 15, 0, 25, 40, -45, 0], S: [-4, 0, -8] }],
+    [0.574, { ...SLAM1, N: [-5, 0, 0], B: 'free', E: { roar: 1.0 }, ev: 'slam' }],
+    [0.64, { RA: [125, 10, 0, 5, 90, 40, 0], S: [25, 0, 0], RC: [0, 0] }],
     [TK.TO + th(TK.h), { ev: 'apex' }],
     [0.604, { RF: 'claw', RL: [60, 10, 0, 90, 20, 0], LL: [60, 10, 0, 90, 20, 0], LA: [70, 30, 0, 40, 0, 0, 0], S: [10, 0, 0], ev: 'rimGrab' }],
     [0.754, { RA: [140, 12, 0, 30, 60, 0, 0], RF: 'relax', ev: 'rimRelease' }],
@@ -141,7 +143,7 @@ const skipOverhead = defineClip({
   keys: [
     [0.00, { RA: ARM.chinned, LA: ARM.chinned, B: 'both', RF: 'grip', LF: 'grip', S: [8, 0, 0], N: [-10, 0, 0], look: 'rim' }],
     // both arms straight overhead (flex 175, elbows 15) …
-    [0.10, { RA: [175, 15, 0, 15, 30, -40, 0], LA: [175, 15, 0, 15, 30, -40, 0], S: [-6, 0, 0] }],
+    [0.10, { RA: GRIP2.skip, LA: GRIP2.skip, S: [-6, 0, 0] }],
     // … and a two-wrist snap
     [0.18, { RA: [165, 12, 0, 10, 60, 40, 0], LA: [165, 12, 0, 10, 60, 40, 0], S: [4, 0, 0], B: 'free', RF: 'spread', LF: 'spread', ev: 'release' }],
     [0.30, { RA: [150, 12, 0, 10, 70, 50, 0], LA: [150, 12, 0, 10, 70, 50, 0] }],

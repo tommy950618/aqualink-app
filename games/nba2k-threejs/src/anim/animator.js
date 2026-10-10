@@ -132,6 +132,7 @@ export class Animator {
     this.time = 0; this.stepN = 0; this.stepCalls = 0;
     this.external = false;
     this.events = new EventRing(32);
+    this.cosRing = new EventRing(32);
     this.slots = [new Layer(0), new Layer(1), new Layer(2)];
     this.root = new RootMotion();
     this.motion = { active: false, vx: 0, vz: 0, dyaw: 0, exit: false, exitVx: 0, exitVz: 0 };
@@ -149,7 +150,9 @@ export class Animator {
     // poses: base, action, upper, additive scratch, last layered, snapshot (six, [ANIM §2.9])
     this.pBase = new Pose(); this.pAct = new Pose(); this.pUp = new Pose(); this.pAdd = new Pose();
     this.pLast = new Pose(); this.pSnap = new Pose();
-    this.snapK = 0; this.snapDur = 0.2; this.snapAge = 0;
+    this.snapK = 0; this.snapDur = 0.2; this.snapAge = 0; this.snapAgePrev = 0;
+    this.xfL = new Float64Array(BONE_COUNT * 4); this.xfT = new Float64Array(BONE_COUNT * 3);
+    this.xfOn = false; this.xfAge = 0; this.xfAgePrev = 0; this.xfDur = 0.20;
     this.hasLast = false;
     // skeletons: render and step-query
     this.sk = new Skel(rig); this.skQ = new Skel(rig);
@@ -305,15 +308,18 @@ export class Animator {
     }
     const kp = L.li === 0 ? lw * mw[0] * this.pAct.pelW : 0;
     this.pSnap.pelW = kp > prevPel ? kp : prevPel;
-    this.snapK = 1; this.snapAge = 0; this.snapDur = dur > 0.01 ? dur : 0.06;
+    this.snapK = 1; this.snapAge = 0; this.snapAgePrev = 0; this.snapDur = dur > 0.01 ? dur : 0.06;
   }
 
-  /** Full-pose crossfade from the current pose over `seconds` (CHECK formation, rematch, teleport; R#37). */
+  /**
+   * Full-pose crossfade from the current rendered pose over `seconds` (CHECK formation, rematch, teleport; R#37): the
+   * final bone-local rotations and pelvis of the last frame (after IK and look-at) are blended into the new ones with a
+   * smoothstep, so feet re-planted by the gait and IK targets never snap.
+   */
   crossfade(seconds = 0.20) {
     if (!this.hasLast) return;
-    copyPose(this.pSnap, this.pLast);
-    this.pSnap.w.fill(1); this.pSnap.pelW = 1;
-    this.snapK = 1; this.snapAge = 0; this.snapDur = seconds;
+    this.xfL.set(this.sk.L); this.xfT.set(this.sk.T);
+    this.xfAge = 0; this.xfAgePrev = 0; this.xfDur = seconds > 0.01 ? seconds : 0.20; this.xfOn = true;
   }
 
   /** Shot release input (spec §4.9.1): the guide hand leaves now (both → shooting hand); see ClipClock.releaseNow. */
@@ -447,11 +453,14 @@ export class Animator {
       const c = L.clock;
       if (!c.active) continue;
       const tOld = c.t, wasActive = c.active;
-      const e0 = ev.head;
-      c.step(dt, this.time, L.cosmetic ? null : ev, L.idx, li);
+      // cosmetic clips (Kyrie's idle combos) report into a private ring: gameplay never sees their events
+      const ring = L.cosmetic ? this.cosRing : ev;
+      const e0 = ring.head;
+      c.step(dt, this.time, ring, L.idx, li);
       const tNew = c.t;
-      for (let i = e0; i < ev.head; i++) {
-        const r = ev.buf[i % ev.size];
+      for (let i = e0; i < ring.head; i++) {
+        const r = ring.buf[i % ring.size];
+        if (L.cosmetic && r.code === EV.BOUNCE) ev.push(EV.BOUNCE, r.t, r.param, -1, li);   // still audible
         if (r.code === EV.GATHER) L.gather = r.t; else if (r.code === EV.LAND) L.land = r.t;
         else if (r.code === EV.SLAM) L.slamAt = r.t; else if (r.code === EV.TAKEOFF) L.takeoffAt = r.t;
         // the dribble hand must be known before this step's ball-mode change (a move's handOn + B 'drib' key)
@@ -473,6 +482,7 @@ export class Animator {
         }
         if (c.takeoffG >= 0 && this.jumpArmed && this.jumpStart < 0) this.jumpStart = L.start + c.takeoffG;
       }
+      if (L.cosmetic) ring.clear();
       if (!c.active) {
         // natural end: hold the last frame and fade out (celebrations 0.30 s, moves 0.12 s, … via the clip's blendOut)
         L.frozenT = L.src.dur; L.state = 2; L.outAge = 0; L.outAgePrev = 0;
@@ -529,7 +539,8 @@ export class Animator {
     if (this.drib.active) {
       const di = this.dribIn;
       di.x = x; di.z = z; di.vx = vx; di.vz = vz; di.yaw = yaw;
-      di.gaitPhi = this.gait.phi; di.gaitMoving = this.gait.mode === GAIT.MOVE; di.cadence = 2 * this.gait.rate;
+      // the gait phase at the start of this step (the dribble phase it is compared with is also start-of-step)
+      di.gaitPhi = this.gait.phiPrev; di.gaitMoving = this.gait.mode === GAIT.MOVE; di.cadence = 2 * this.gait.rate;
       di.protect = !!ctx.protect; di.post = !!ctx.post;
       this.drib.update(dt, di);
       if (this.drib.bounced) ev.push(EV.BOUNCE, this.time + this.drib.bounceDt, 0, -1, 0);
@@ -557,7 +568,8 @@ export class Animator {
     this.look.step(dt, this.rng, this.gait.mode === GAIT.IDLE && this.slots[0].state === 0);
     this.stepFace(dt, Math.hypot(vx, vz), sta);
     this.stepCombo(dt, Math.hypot(vx, vz));
-    if (this.snapK > 0) { this.snapAge += dt; if (this.snapAge >= this.snapDur) this.snapK = 0; }
+    if (this.snapK > 0) { this.snapAgePrev = this.snapAge; this.snapAge += dt; if (this.snapAgePrev >= this.snapDur) this.snapK = 0; }
+    if (this.xfOn) { this.xfAgePrev = this.xfAge; this.xfAge += dt; if (this.xfAgePrev >= this.xfDur) this.xfOn = false; }
     this.time += dt;
     this.stepN++;
   }
@@ -618,17 +630,21 @@ export class Animator {
   /** Kyrie's idle combos (cosmetic, in place): live dribble, speed < 0.5 for > 0.8 s, no action → btl, cross, btl_L, cross_L. */
   stepCombo(dt, speed) {
     if (this.id !== 'kyrie') return;
-    if (this.combo >= 0 && (speed >= 0.5 || this.ballMode !== BM.DRIB && this.ballMode !== BM.PATH)) { this.combo = -1; this.stopAction(0.06); return; }
+    if (this.combo >= 0 && (speed >= 0.5 || this.ballMode !== BM.DRIB && this.ballMode !== BM.PATH)) {
+      // cancelled in 0.06 s; the ball returns to the gameplay hand at the next release (ballHand keeps its sign)
+      this.combo = -1; this.stopAction(0.06); this.drib.setHand(this.ballHand); return;
+    }
     if (this.combo >= 0) return;
     if (this.ballMode === BM.DRIB && speed < 0.5 && this.slots[0].state === 0) this.comboT += dt; else this.comboT = 0;
     if (this.comboT > 0.8 && hasMoveClips()) { this.combo = 0; this.comboT = 0; this.playCombo(); }
   }
   comboOn() { return this.combo >= 0; }
+  /** btl, cross, btl, cross — each authored right → left, mirrored when the ball is in the left hand. */
   playCombo() {
     const k = this.combo & 3;
     const idx = k === 0 || k === 2 ? COMBO.btl : COMBO.cross;
-    const mirror = (k >= 2) !== (this.ballHand === HAND.L);
-    this.play(idx, { mirror, cosmetic: true, inPlace: true, blendIn: 0.06 });
+    const left = this.drib.active ? this.drib.hand === 2 : this.dribHand === HAND.L;
+    this.play(idx, { mirror: left, cosmetic: true, inPlace: true, blendIn: 0.06 });
   }
   nextCombo() { this.combo++; if (this.combo > 3) this.combo = 0; this.playCombo(); }
 
@@ -819,7 +835,8 @@ export class Animator {
     this.overlays(P, a, frameDt, false);
     // interrupted-fade / teleport snapshot (fading out)
     if (this.snapK > 0) {
-      const u = this.snapDur > 1e-6 ? (this.snapAge + a / 60) / this.snapDur : 1;
+      const age = this.snapAgePrev + (this.snapAge - this.snapAgePrev) * a;
+      const u = this.snapDur > 1e-6 ? age / this.snapDur : 1;
       const k = 1 - smooth(u);
       if (k > 0) blendPose(P, P, this.pSnap, k, ONES);
     }
@@ -859,6 +876,16 @@ export class Animator {
     if (d.footIK && !(culled)) this.feetIK(a, jy, frameDt);
     this.ballAndHands(a, d.handIK && !culled);
     if (d.look && !culled) this.lookAt(P, frameDt);
+    // ---- teleport / reset crossfade of the final pose ----
+    if (this.xfOn) {
+      const age = this.xfAgePrev + (this.xfAge - this.xfAgePrev) * a, k = smooth(age / this.xfDur);
+      if (k < 1) {
+        for (let b = 0; b < BONE_COUNT; b++) qnlerp(this.xfL, b * 4, sk.L, b * 4, k, sk.L, b * 4);
+        const p = BONE.pelvis * 3;
+        for (let j = 0; j < 3; j++) sk.T[p + j] = this.xfT[p + j] + (sk.T[p + j] - this.xfT[p + j]) * k;
+        sk.fkAll();
+      }
+    }
     // ---- write bones ----
     if (this.bones) this.writeBones();
     // ---- 5 face ----
@@ -1181,10 +1208,10 @@ export class Animator {
           const w = slamRamp(toSlam);
           const hands = bm === BM.BOTH ? 3 : bm === BM.L ? 2 : 1;
           this.slamIK(hands, _b3, w);
-          // the arms alone may fall short of the rig-independent reach table: lift the body (visual, ≤ 0.15 m)
+          // the arms alone may fall short of the rig-independent reach table: lift the body (visual, ≤ 0.20 m)
           const short = (_b3[1] - this.rBall[1]) * w;
           if (short > 0.003) {
-            sk.T[BONE.pelvis * 3 + 1] += short < 0.15 ? short : 0.15;
+            sk.T[BONE.pelvis * 3 + 1] += short < 0.20 ? short : 0.20;
             sk.fkAll();
             this.slamIK(hands, _b3, w);
           }
@@ -1194,12 +1221,14 @@ export class Animator {
           this.rimPoint(_w3);
           this.toChar(_w3[0], _w3[1], _w3[2], _b3, 0);
           const hands = L0.src.timing.params.hands === 2 ? 3 : (L0.mirror ? 2 : 1);
-          for (let s = 0; s < 2; s++) {
-            if (!(hands & (1 << s))) continue;
-            // two-hand grabs: hooks 0.22 m apart along the rim tangent
-            _q3[0] = _b3[0]; _q3[1] = _b3[1]; _q3[2] = _b3[2];
-            if (hands === 3) _q3[0] += s === 1 ? 0.11 : -0.11;
-            handToPoint(sk, s, s === 0 ? SOCK.rimHook_r : SOCK.rimHook_l, _q3, this.overheadPole(s), w, 1);
+          // two-hand grabs: hooks 0.22 m apart along the rim tangent; a hang the arms cannot reach lifts the body
+          // (visual, ≤ 0.20 m, like the slam) so the hooks stay on the rim
+          let short = this.rimIK(hands, _b3, w);
+          if (short > 0.003) {
+            sk.T[BONE.pelvis * 3 + 1] += short < 0.20 ? short : 0.20;
+            sk.fkAll();
+            short = this.rimIK(hands, _b3, w);
+            if (short > 0.003) { sk.T[BONE.pelvis * 3 + 1] += short < 0.05 ? short : 0.05; sk.fkAll(); this.rimIK(hands, _b3, w); }
           }
         }
       }
@@ -1272,6 +1301,23 @@ export class Animator {
     }
     if (hands === 3) { sk.sock(SOCK.ball1_r, _q3, 0); sk.sock(SOCK.ball1_l, _q3, 3); this.rBall[0] = 0.5 * (_q3[0] + _q3[3]); this.rBall[1] = 0.5 * (_q3[1] + _q3[4]); this.rBall[2] = 0.5 * (_q3[2] + _q3[5]); }
     else sk.sock(hands === 2 ? SOCK.ball1_l : SOCK.ball1_r, this.rBall, 0);
+  }
+
+  /** rimHook IK of the grabbing hand(s) to the rim front (char frame); returns the weighted vertical shortfall (m). */
+  rimIK(hands, rim, w) {
+    const sk = this.sk;
+    let short = 0;
+    for (let s = 0; s < 2; s++) {
+      if (!(hands & (1 << s))) continue;
+      _q3[0] = rim[0]; _q3[1] = rim[1]; _q3[2] = rim[2];
+      if (hands === 3) _q3[0] += s === 1 ? 0.11 : -0.11;
+      const sock = s === 0 ? SOCK.rimHook_r : SOCK.rimHook_l;
+      handToPoint(sk, s, sock, _q3, this.overheadPole(s), w, 1);
+      sk.sock(sock, _q3, 3);
+      const d = (_q3[1] - _q3[4]) * w;
+      if (d > short) short = d;
+    }
+    return short;
   }
 
   /** Game seconds from clip time t to clip event time te under the current clock (≥ 0 when ahead). */

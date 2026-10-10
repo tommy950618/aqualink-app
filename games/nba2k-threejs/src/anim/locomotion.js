@@ -293,7 +293,7 @@ class FootState {
     this.yaw = 0; this.mode = 0; this.pitch = 0;
     // swing / step
     this.b0x = 0; this.b0y = 0; this.b0z = 0; this.b0yaw = 0; this.b0pitch = 0;
-    this.b3x = 0; this.b3z = 0; this.b3yaw = 0; this.b3mode = 0;
+    this.b3x = 0; this.b3z = 0; this.b3yaw = 0; this.b3mode = 0; this.b3pitch = 0;
     this.stepT = 0; this.stepDur = 0.22; this.stepH = 0.05; this.stepPrevT = 0;
     this.toe = 0;                                   // 1 when this stance switched to a toe lock
     this.ext = 0;                                   // extra stance time (cut)
@@ -416,22 +416,20 @@ export class Gait {
   }
 
   // ------------------------------------------------------------------ external control
-  /** Teleport: phase reset; feet keep their root-relative offsets around the new root; settle steps follow. */
+  /**
+   * Teleport (> 1.5 m in one step: formation snap, rematch): phase reset, foot locks released and re-planted on the
+   * stance targets of the new root (the Animator's 0.20 s final-pose crossfade carries the legs there, R#37).
+   */
   reset(x, z, yaw) {
-    for (let s = 0; s < 2; s++) {
-      const f = this.feet[s], a = this.ankleOf(f);
-      // old root-relative (facing frame) offset
-      const dx = a[0] - this.x, dz = a[2] - this.z, c = Math.cos(this.yaw), sn = Math.sin(this.yaw);
-      const cx = dx * c - dz * sn, cz = dx * sn + dz * c;
-      const dyaw = f.yaw - this.yaw;
-      const nx = x + cx * Math.cos(yaw) + cz * Math.sin(yaw), nz = z - cx * Math.sin(yaw) + cz * Math.cos(yaw);
-      this.plantAt(f, nx, nz, yaw + dyaw, 0, 0);
-      f.x = nx; f.y = this.ankleY; f.z = nz; f.oyaw = yaw + dyaw; f.opitch = 0; f.omode = 0; f.planted = 1;
-    }
     this.x = x; this.z = z; this.yaw = yaw; this.prevYaw = yaw;
-    this.phi = 0; this.phiPrev = 0; this.dphi = 0; this.rate = 0;
+    for (let s = 0; s < 2; s++) {
+      const f = this.feet[s], t = this.stanceTarget(s);
+      this.plantAt(f, t[0], t[1], t[2], t[3], this.stTab[this.stance][CH.ANK] * DEG);
+      this.renderFoot(f, 1);
+    }
+    this.phi = 0; this.phiPrev = 0; this.dphi = 0; this.rate = 0; this.moveW = 0; this.slideW = 0;
     this.mode = GAIT.IDLE; this.settleCount = 0; this.settleGap = SETTLE_GAP; this.idleT = 0;
-    this.hn = 0; this.headN = 0; this.startSteps = 0;
+    this.hn = 0; this.headN = 0; this.startSteps = 0; this.hardT = -1; this.cutT = -1;
   }
 
   /** Adopts a foot position (world ankle point x, z; yaw rad; mode 0 flat / 1 toe with pitch) — e.g. after a clip. */
@@ -496,11 +494,8 @@ export class Gait {
       mode = toe ? 1 : 0; pitch = toe ? Math.max(0, this.prm.strike) * DEG : 0;
     }
     let x = f.b3x, z = f.b3z;
-    if (mode === 1 && !(this.mode === GAIT.SLIDE && f.state === FOOT.SWING) && f.state !== FOOT.STEP) {
-      // a toe plant converts the ankle point to the ball joint of the flat foot (toToe)
-      const o = this.ballOff[f.s], cy = Math.cos(f.b3yaw), sy = Math.sin(f.b3yaw);
-      x += o[0] * cy + o[2] * sy; z += -o[0] * sy + o[2] * cy;
-    } else if (mode === 1) {
+    if (mode === 1) {
+      // b3 is always the ankle point; a toe plant anchors the ball joint of the flat foot (as toToe does)
       const o = this.ballOff[f.s], cy = Math.cos(f.b3yaw), sy = Math.sin(f.b3yaw);
       x += o[0] * cy + o[2] * sy; z += -o[0] * sy + o[2] * cy;
     }
@@ -690,9 +685,10 @@ export class Gait {
         this.phi = frac(beta + u * (1 - beta) - (lifter === 0 ? 0.5 : 0));
       }
     }
-    // the other foot stays planted (it keeps its lock)
+    // the other foot keeps its lock; one still in the air (slide swing) finishes as a short step, a stepping one
+    // completes its step (time-based) — no foot ever jumps
     const o = this.feet[1 - lifter];
-    if (o.state !== FOOT.PLANT) this.plantAt(o, o.b3x, o.b3z, o.b3yaw, o.b3mode, o.b3mode ? 8 * DEG : 0);
+    if (o.state === FOOT.SWING) this.swingToStep(o, 0.12);
     this.phiPrev = this.phi; this.dphi = 0;
     if (was === GAIT.IDLE) this.startSteps = 2;
   }
@@ -753,7 +749,7 @@ export class Gait {
           const p = this.predictPlant(f, tLand, tSt);
           f.b3x = p[0]; f.b3z = p[1]; f.b3yaw = p[2];
         }
-        if (f1 >= 1) this.footStrike(f, beta, rate);
+        if (f1 >= 1) this.footStrike(f);
       }
     }
     this.phi = frac(this.phi);
@@ -764,7 +760,7 @@ export class Gait {
   }
 
   /** A swinging foot touches down at its target. */
-  footStrike(f, beta, rate) {
+  footStrike(f) {
     const prm = this.prm;
     let yaw = f.b3yaw;
     if (f.cut) {
@@ -787,7 +783,6 @@ export class Gait {
     }
     this.strikes++; if (f.s === 0) this.strikesR++; else this.strikesL++;
     if (this.startSteps > 0) this.startSteps--;
-    void beta; void rate;
   }
 
   /** Defensive slide ([ANIM §3.5]): lead steps out by dc in 0–0.25, trail closes in 0.50–0.75. */
@@ -799,7 +794,6 @@ export class Gait {
     const o0 = this.slPhi, o1 = o0 + rate * dt;               // unwrapped cycle phase over this step
     this.slPrev = o0; this.slD = rate * dt;
     const lx = Math.cos(this.yaw), lz = -Math.sin(this.yaw);
-    const mx = v > 1e-6 ? this.vx / v : lx, mz = v > 1e-6 ? this.vz / v : lz;
     const fx = Math.sin(this.yaw), fz = Math.cos(this.yaw);
     const w0 = (STANCE.def[this.id] || STANCE.def.default).width * sL;
     for (let s = 0; s < 2; s++) {
@@ -815,14 +809,19 @@ export class Gait {
       const q1 = lead && o1 >= 1 ? o1 - 1 : o1;
       const tLand = Math.max(0, (pl - Math.min(q1, pl)) / rate);
       const cx = this.x + this.vx * tLand, cz = this.z + this.vz * tLand;
-      // lead lands w0/2 + 0.75·dc ahead of the centre (it stepped out by dc), the trail w0/2 − 0.25·dc behind
-      const along = lead ? (w0 / 2 + 0.75 * dc) : (-w0 / 2 + 0.25 * dc);
+      // each foot keeps its half width on its own side of the character's lateral axis ℓ (σ = +1 left, −1 right);
+      // the stride share follows the movement side μ: lead (σ = μ) lands w0/2 + 0.75·dc out, the trail closes to
+      // w0/2 − 0.25·dc, so a reversal mid-swing can never carry a foot across the other one
+      const sg = s === 1 ? 1 : -1;
+      const mu = (this.vx * lx + this.vz * lz) >= 0 ? 1 : -1;
+      const share = (lead ? 0.75 : 0.25) * dc;
       const stg = (s === 0 ? 0.03 : -0.03) * sL;                 // stance stagger R +0.03 / L −0.03 (facing frame)
-      let px = cx + mx * along + fx * stg, pz = cz + mz * along + fz * stg;
-      // feet never closer than 0.25 m (no crossing)
+      let lat = sg * w0 / 2 + mu * share;
+      // feet never closer than 0.25 m along ℓ (no crossing)
       const oa = this.ankleOf(this.feet[1 - s]);
-      const ddx = px - oa[0], ddz = pz - oa[2], dd = Math.hypot(ddx, ddz);
-      if (dd < 0.25) { px = oa[0] + ddx / (dd || 1) * 0.25; pz = oa[2] + ddz / (dd || 1) * 0.25; }
+      const oLat = (oa[0] - cx) * lx + (oa[2] - cz) * lz;
+      if (sg * (lat - oLat) < 0.25) lat = oLat + sg * 0.25;
+      const px = cx + lx * lat + fx * stg, pz = cz + lz * lat + fz * stg;
       f.b3x = px; f.b3z = pz; f.b3yaw = this.yaw + (s === 1 ? 10 : -10) * DEG; f.b3mode = 1; f.b3pitch = 8 * DEG;
       if (q1 >= pl) {
         this.plantAt(f, f.b3x, f.b3z, f.b3yaw, 1, 8 * DEG);
@@ -1006,7 +1005,8 @@ export class Gait {
     if (mw > 0.5) { c[CH.FR] = g[CH.FR]; c[CH.FL] = g[CH.FL]; }
     // shoulders counter-rotate: spine_02 / spine_03 yaw each −0.8 × the pelvis yaw oscillation; chest toward ψ
     poseChannels(pose, c, tR);
-    const pyR = mw * (pyaw * (1 - this.slideW)), syR = mw * sideYaw;
+    // (the slide keeps the pelvis square to ψ: no open-hip yaw and no chest counter-twist)
+    const pyR = mw * (pyaw * (1 - this.slideW)), syR = mw * sideYaw * (1 - this.slideW);
     const S = c[CH.S], R = c[CH.S + 2];
     poseSpine3(pose, 0.30 * S, -0.30 * syR, 0.30 * R, 0.35 * S, -0.8 * pyR - 0.33 * syR, 0.35 * R, 0.35 * S, -0.8 * pyR - 0.37 * syR, 0.35 * R);
     // ---- feet ----

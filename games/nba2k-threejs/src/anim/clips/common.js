@@ -22,7 +22,7 @@
 import { defineClip, registerClip } from '../clip.js';
 import { PLAYER_IDS, SLEG, STANCE, ARM, LEG, SHORT } from '../presets.js';
 import { HJUMP, timingByClip } from '../select.js';
-import { SHOT_GENERATORS, th, relBall, makeSteal, DEF_KEY, DEF_FEET as DF } from './shots.js';
+import { SHOT_GENERATORS, th, relBall, makeSteal, DEF_KEY, DEF_FEET as DF, GRIP2, GUIDE_SET, defineJump, RIP_LOW, RIP_HIP_L } from './shots.js';
 import { KOBE_CLIPS } from './kobe.js';
 import { JORDAN_CLIPS } from './jordan.js';
 import { LEBRON_CLIPS } from './lebron.js';
@@ -46,7 +46,7 @@ const MOVES = [
     keys: relBall([
       [0.00, { P: [0, -0.06, 0, 10, 0, 0], S: [14, 0, 0], N: [-10, 0, 0], RA: [30, 14, 15, 70, 90, 10, 0], LA: [20, 12, 0, 30, 15, 0, 0],
         RL: [25, 6, 0, 45, -5, 0], LL: [10, 6, 0, 30, 10, 0], Rft: [-0.24, 0.10, 0, 't'], Lft: [0.22, -0.30, 0, 't'], B: 'path',
-        Bp: [-0.30, 0.80, 0.28], R: [0, 0, 0], RF: 'grip', look: 'man' }],
+        Bp: [-0.15, 0.92, 0.56], R: [0, 0, 0], RF: 'grip', look: 'man' }],
       [0.05, { ev: 'plantR' }],
       [0.08, { P: [-0.06, -0.14, 0, 16, -8, 4], S: [20, -10, 6], RA: [25, 5, 35, 80, 95, 30, 0], RC: [null, 15], Bp: [-0.20, 0.55, 0.30] }],
       [0.10, { R: [-0.05, 0.10, 0] }],
@@ -54,7 +54,7 @@ const MOVES = [
       [0.18, { P: [0.04, -0.15, 0.05, 18, 10, -6], S: [22, 12, -8], RA: [20, 10, 20, 40, 40, 0, 0], LA: [28, 15, 20, 70, 90, 10, 0], RC: [0, 0], Bp: [0.18, 0.45, 0.34] }],
       [0.20, { R: [0.35, 0.25, 0] }],
       [0.22, { Rft: null, RL: [10, 5, 0, 35, 35, 0] }],
-      [0.24, { Bp: [0.30, 0.68, 0.32], B: 'drib', LF: 'grip', RF: 'relax', ev: 'handOnL' }],
+      [0.24, { Bp: [0.29, 0.76, 0.30], B: 'drib', LA: [38, -5, 28, 40, 91, 10, 0], LF: 'grip', RF: 'relax', ev: 'handOnL' }],
       [0.28, { Lft: [1.00, 0.52, 10, 't'], RL: [40, 10, 0, 80, 10, 0], LL: [30, 8, 0, 45, -10, 0], ev: 'plantL' }],
       [0.30, { R: [0.78, 0.42, 0] }],
       [0.40, { P: [0.02, -0.09, 0, 12, 4, 0], S: [16, 4, 0], N: [-10, 0, 0], RL: [25, 6, 0, 40, -5, 0], Rft: [0.80, 0.85, 0, 't'], R: [1.00, 0.60, 0], ev: 'plantR' }],
@@ -67,10 +67,10 @@ const MOVES = [
     keys: relBall([
       [0.00, { P: [0, -0.12, 0, 14, 0, 0], S: [20, 0, 0], N: [-14, 0, 0], RA: [25, 18, 10, 70, 90, 15, 0], LA: [20, 20, 0, 40, 20, 0, 0],
         RL: [10, 12, 0, 50, -15, 0], LL: [40, 12, 0, 55, -10, 0], Rft: [-0.33, -0.15, 0, 't'], Lft: [0.35, 0.25, 0, 't'], B: 'path',
-        Bp: [-0.32, 0.70, 0.30], R: [0, 0, 0], RF: 'grip', look: 'man' }],
+        Bp: [-0.36, 0.79, 0.42], R: [0, 0, 0], RF: 'grip', look: 'man' }],
       [0.08, { RA: [15, 10, 30, 55, 95, 35, 0], Bp: [-0.12, 0.40, 0.18], P: [0, -0.14, 0, 15, 0, 0] }],
       [0.14, { Bp: [0.02, 0.12, 0.02], RA: [5, 10, 30, 45, 95, 25, 0], ev: 'bounce' }],
-      [0.22, { LA: [10, 18, -10, 55, 90, 10, 0], LF: 'grip', Bp: [0.22, 0.40, -0.10], ev: 'handOnL' }],
+      [0.22, { LA: [14, -2, -10, 26, 95, 10, 0], LF: 'grip', Bp: [0.22, 0.74, 0.01], ev: 'handOnL' }],
       [0.30, { RA: [20, 15, 0, 40, 20, 0, 0], RF: 'relax' }],
       [0.36, { P: [0, -0.12, 0, 14, 0, 0], LA: [25, 18, 10, 70, 90, 15, 0], RA: [25, 15, 0, 40, 20, 0, 0], Bp: [0.32, 0.70, 0.10], B: 'drib', R: [0.15, 0.05, 0] }],
     ]),
@@ -81,10 +81,10 @@ const MOVES = [
     params: { cat: 'move', imm: [0.06, 0.30], freeze: 0.9 },
     keys: relBall([
       [0.00, { RA: [30, 14, 15, 70, 90, 10, 0], LA: [25, 20, 0, 40, 20, 0, 0], S: [12, 0, 0], P: [0, -0.08, 0, 10, 0, 0], N: [-10, 0, 0],
-        B: 'path', Bp: [-0.30, 0.80, 0.30], R: [0, 0, 0], RF: 'grip', look: 'rim' }],
-      [0.10, { RA: [-30, 35, -55, 75, 90, 25, 0], S: [16, 0, -6], Bp: [-0.28, 0.55, -0.20] }],
+        B: 'path', Bp: [-0.29, 0.94, 0.52], R: [0, 0, 0], RF: 'grip', look: 'rim' }],
+      [0.10, { RA: [0, 3, -55, 34, 91, 25, 0], S: [16, 0, -6], Bp: [-0.27, 0.80, -0.10] }],
       [0.17, { Bp: [0.00, 0.12, -0.30], RA: [-25, 30, -60, 50, 90, 30, 0], ev: 'bounce' }],
-      [0.26, { LA: [10, 20, 0, 60, 90, 10, 0], LF: 'grip', Bp: [0.30, 0.55, 0.05], S: [14, 0, 4], ev: 'handOnL' }],
+      [0.26, { LA: [14, 5, 0, 26, 99, 10, 0], LF: 'grip', Bp: [0.29, 0.73, 0.07], S: [14, 0, 4], ev: 'handOnL' }],
       [0.32, { RA: [20, 15, 0, 40, 20, 0, 0], RF: 'relax' }],
       [0.38, { B: 'drib', LA: [30, 14, 15, 70, 90, 10, 0], S: [12, 0, 0], Bp: [0.30, 0.75, 0.25], R: [0.35, 0, 0] }],
     ]),
@@ -108,14 +108,16 @@ const MOVES = [
     params: { cat: 'move', imm: [0.08, 0.40], exitV: [0.6, 4.2], freeze: 1.0 },
     keys: relBall([
       [0.00, { P: [0, -0.10, 0, 14, 0, 0], S: [18, 0, 0], N: [-10, 0, 0], RA: ARM.dribJog, LA: [25, 20, 0, 40, 20, 0, 0], RL: [25, 6, 0, 45, -5, 0],
-        LL: [35, 8, 0, 55, -10, 0], Lft: [0.25, 0.45, 30, 't'], Rft: [-0.25, -0.05, 0, 't'], B: 'path', Bp: [-0.30, 0.80, 0.40], R: [0, 0, 0], RF: 'grip', look: 'man' }],
-      [0.06, { RA: [25, 20, 30, 85, 100, -10, 0], Bp: [-0.28, 0.70, 0.10], ev: 'plantL' }],
+        LL: [35, 8, 0, 55, -10, 0], Lft: [0.25, 0.45, 30, 't'], Rft: [-0.25, -0.05, 0, 't'], B: 'path', Bp: [-0.29, 0.83, 0.49], R: [0, 0, 0], RF: 'grip', look: 'man' }],
+      // palm on top, ball pulled to the right hip
+      [0.06, { RA: [5, 20, 48, 48, 97, -10, 0], Bp: [-0.29, 0.73, 0.11], ev: 'plantL' }],
       [0.10, { N: [-5, 60, 0], R: [0, 0.15, 20] }],
-      [0.20, { R: [0.15, 0.30, 140], P: [null, -0.14, null, null, 25, null], Rft: null, RL: [30, 30, 0, 70, 10, 0], LA: [30, 25, 0, 60, 20, 0, 0], Bp: [-0.25, 0.75, 0.05] }],
+      [0.20, { R: [0.15, 0.30, 140], P: [null, -0.14, null, null, 25, null], Rft: null, RL: [30, 30, 0, 70, 10, 0], LA: [30, 25, 0, 60, 20, 0, 0], RA: [-2, 19, 20, 28, 6, -4, 0], Bp: [-0.25, 0.78, 0.06] }],
       [0.30, { B: 'L', LA: [25, 18, 15, 70, 90, 10, 0], LF: 'grip', RA: [30, 25, 0, 50, 30, 0, 0], RF: 'relax', N: [-8, 20, 0], P: [null, null, null, null, 10, null], Bp: [0.25, 0.80, 0.20], ev: 'handoff' }],
       [0.34, { Rft: [0.70, 0.55, 290, 't'], RL: [30, 10, 0, 50, -10, 0], R: [0.45, 0.60, 270], ev: 'plantR' }],
-      [0.42, { B: 'drib', R: [0.62, 0.90, 330], Lft: [0.25, 0.45, 330, 't'], N: [-10, 0, 0], P: [null, null, null, null, 0, null] }],
-      [0.46, { Lft: null, LL: [40, 8, 0, 70, 20, 0] }],
+      [0.38, { Lft: [0.25, 0.45, 310, 't'] }],
+      [0.40, { Lft: null, LL: [40, 8, 0, 70, 20, 0] }],
+      [0.42, { B: 'drib', R: [0.62, 0.90, 330], N: [-10, 0, 0], P: [null, null, null, null, 0, null] }],
       [0.50, { R: [0.75, 1.20, 360], P: [0, -0.09, 0, 12, 0, 0], S: [16, 0, 0], LL: [20, 8, 0, 40, 10, 0] }],
     ]),
   }),
@@ -125,7 +127,7 @@ const MOVES = [
     params: { cat: 'move', imm: [0.08, 0.36], exitV: [0, 0], freeze: 0.7 },
     keys: relBall([
       [0.00, { P: [0, -0.08, 0, 12, 0, 0], S: [14, 0, 0], N: [-10, 0, 0], RA: ARM.dribJog, LA: [25, 20, 0, 40, 20, 0, 0], RL: [25, 6, 0, 40, -5, 0],
-        LL: [40, 6, 0, 50, 10, 0], Rft: [-0.20, 0.0, 0, 'f'], Lft: null, B: 'path', Bp: [-0.30, 0.80, 0.30], R: [0, 0, 0], RF: 'grip', look: 'man' }],
+        LL: [40, 6, 0, 50, 10, 0], Rft: [-0.20, 0.0, 0, 'f'], Lft: null, B: 'path', Bp: [-0.29, 0.90, 0.51], R: [0, 0, 0], RF: 'grip', look: 'man' }],
       [0.08, { Lft: [0.18, 0.35, 5, 't'], LL: [45, 6, 0, 60, -15, 0], Rft: null, RL: [20, 6, 0, 45, 20, 0], P: [0, -0.14, 0.04, 14, 0, 0], Bp: [-0.28, 0.12, 0.35], ev: ['plantL', 'bounce'] }],
       [0.10, { R: [0, 0, 0] }],
       [0.14, { Lft: null, LL: [30, 6, 0, 45, 25, 0], P: [0, 0.02, 0, 6, 0, 0], S: [8, 0, 0], Bp: [-0.25, 0.70, 0.25] }],
@@ -133,8 +135,9 @@ const MOVES = [
       [0.22, { B: 'both', ...SHORT.CHEST, LF: 'grip', Bp: [0, 1.05, 0.25] }],
       [0.30, { Lft: [0.20, -0.75, 0, 'f'], LL: [40, 6, 4, 55, -20, 0], P: [0, -0.12, 0, 10, 0, 0], R: [0, -0.75, 0], ev: 'plantL' }],
       [0.34, { Rft: [-0.20, -0.75, 0, 'f'], RL: [40, 6, 4, 55, -20, 0], ev: 'plantR' }],
-      [0.36, { B: 'drib', RA: ARM.dribStill, LA: [25, 20, 0, 40, 20, 0, 0], LF: 'relax' }],
-      [0.45, { P: [0, -0.09, 0, 10, 0, 0], S: [12, 0, 0], N: [-8, 0, 0] }],
+      [0.34, { ...SHORT.CHEST }],
+      [0.36, { B: 'drib' }],
+      [0.45, { P: [0, -0.09, 0, 10, 0, 0], S: [12, 0, 0], N: [-8, 0, 0], RA: ARM.dribStill, LA: [25, 20, 0, 40, 20, 0, 0], LF: 'relax' }],
     ]),
   }),
 ];
@@ -166,7 +169,7 @@ const HOLDING = [
       [0.00, { ...TT_KEY, Rft: [-0.29, 0.04, 8, 'f'], Lft: [0.29, -0.03, 8, 'f'], look: 'rim' }],
       [0.08, { RA: [70, 10, 25, 115, 60, -45, 0], LA: [60, 15, 40, 110, 10, -20, 0], P: [0, -0.06, 0, 8, 0, 0], S: [10, 0, 0] }],
       [0.12, { ev: 'fake' }],
-      [0.18, { RA: [115, 6, 18, 95, 85, -72, 0], LA: [100, 12, 45, 100, 15, -20, 0], RF: 'shoot', P: [0, -0.04, 0, 4, 0, 0], S: [4, 0, 0],
+      [0.18, { RA: [115, 6, 18, 95, 85, -72, 0], LA: GUIDE_SET.kobe, RF: 'shoot', P: [0, -0.04, 0, 4, 0, 0], S: [4, 0, 0],
         N: [-15, 0, 0], RL: [15, 4, 0, 30, 8, 0], LL: [15, 4, 0, 30, 8, 0], RC: [8, 0], LC: [8, 0] }],
       [0.26, { RC: [0, 0], LC: [0, 0] }],
       [0.36, { ...TT_KEY, RF: 'grip' }],
@@ -178,8 +181,8 @@ const HOLDING = [
     id: 'move.rip', dur: 0.30, mask: 'full', root: 'none', hand: 'R', blendIn: 0.06, blendOut: 0.12, params: { cat: 'move' },
     keys: [
       [0.00, { ...TT_KEY, ...SHORT.HIP_R, look: 'man' }],
-      [0.08, { RA: [-5, 20, 40, 40, 60, -10, 0], LA: [20, 10, 50, 40, 20, -10, 0], S: [32, -15, 0], P: [0, -0.13, 0, 14, 0, 0] }],
-      [0.17, { RA: [10, 15, 50, 60, 40, -10, 0], LA: [15, 30, 20, 60, 30, -10, 0], S: [28, 10, 0] }],
+      [0.08, { ...RIP_LOW, S: [32, -15, 0], P: [0, -0.13, 0, 14, 0, 0] }],
+      [0.17, { ...RIP_HIP_L, S: [28, 10, 0] }],
       [0.30, { RA: [60, 15, 30, 120, 40, -40, 0], LA: [60, 20, 35, 115, -5, -20, 0], S: [25, 0, 0], P: [0, -0.12, 0, 12, 0, 0] }],
     ],
   }),
@@ -245,7 +248,7 @@ function defJumps(p) {
   const h = HJUMP[p], half = th(h);
   const mk = (id, cat, TO, tail, keysFn, extra = {}) => {
     const apex = TO + half, land = TO + 2 * half, dur = land + tail;
-    return defineClip({
+    return defineJump({
       id, dur, mask: 'full', root: 'none', entry: 'stop', entryDecel: extra.decel || 30, tempo: false, jump: { h }, hand: 'R',
       cancel: land + 0.05, blendIn: 0.05, blendOut: 0.20, params: { cat },
       keys: keysFn({ TO, apex, land, dur }).concat([[apex, { ev: 'apex' }]]),
@@ -341,7 +344,8 @@ const DEFENCE = [
         Rft: DF.Rft, Lft: DF.Lft, R: [0, 0, 0], look: 'ball' }],
       [0.03, { Lft: null, LL: [30, 30, 0, 45, 5, 0] }],
       [0.20, { Lft: [0.625, -0.03, 15, 't'], LL: [40, 20, 0, 55, -10, 0], P: [0.16, -0.14, 0, 12, 0, 12] }],
-      [0.25, { N: [-20, -30, 0], Rft: null, RL: [30, 10, 0, 50, 10, 0], R: [0.20, 0, 0] }],
+      [0.18, { Rft: null, RL: [30, 10, 0, 50, 10, 0] }],
+      [0.25, { N: [-20, -30, 0], R: [0.20, 0, 0] }],
       [0.38, { Rft: [-0.175, 0.03, -10, 't'], RL: DEF_KEY.RL }],
       [0.40, { ...DEF_KEY, R: [0.20, 0, 0] }],
     ],
@@ -362,7 +366,7 @@ const DEFENCE = [
     keys: [
       [0.00, { P: [0, -0.08, 0, 15, 0, 0], S: [25, 0, 0], N: [-20, 0, 0], RA: [40, 15, 10, 30, -20, 0, 0], LA: [40, 15, 10, 30, -20, 0, 0], RL: [30, 8, 0, 40, -8, 0],
         LL: [30, 8, 0, 40, -8, 0], look: 'ball' }],
-      [0.15, { P: [0, -0.22, 0, 25, 0, 0], S: [60, 0, 0], N: [-35, 0, 0], RA: [55, 15, 10, 15, -30, -10, 0], LA: [55, 15, 10, 15, -30, -10, 0],
+      [0.15, { P: [0, -0.22, 0, 25, 0, 0], S: [60, 0, 0], N: [-35, 0, 0], RA: GRIP2.scoop, LA: GRIP2.scoop,
         RL: [50, 10, 0, 70, -20, 0], LL: [50, 10, 0, 70, -20, 0], RF: 'spread', LF: 'spread' }],
       [0.20, { B: 'both', RF: 'grip', LF: 'grip', ev: 'catch' }],
       [0.30, { P: [0, -0.14, 0, 18, 0, 0], S: [35, 0, 0], N: [-25, 0, 0], ...SHORT.CHEST, RL: [40, 8, 0, 55, -15, 0], LL: [40, 8, 0, 55, -15, 0] }],
@@ -436,8 +440,8 @@ const PASSES = [
   defineClip({
     id: 'pass.overhead', dur: 0.45, mask: 'full', root: 'none', meter: false, hand: 'R', blendIn: 0.06, blendOut: 0.20, params: { cat: 'pass' },
     keys: [
-      [0.00, { RA: [120, 15, 10, 90, 30, -20, 0], LA: [120, 15, 10, 90, 30, -20, 0], B: 'both', RF: 'grip', LF: 'grip', S: [0, 0, 0], look: 'receiver' }],
-      [0.08, { RA: ARM.passOverheadLoad, LA: ARM.passOverheadLoad, S: [-6, 0, 0] }],
+      [0.00, { RA: [120, -5, 21, 90, 30, -20, 0], LA: [120, -5, 21, 90, 30, -20, 0], B: 'both', RF: 'grip', LF: 'grip', S: [0, 0, 0], look: 'receiver' }],
+      [0.08, { RA: GRIP2.passLoad, LA: GRIP2.passLoad, S: [-6, 0, 0] }],
       [0.18, { RA: ARM.passOverheadRel, LA: ARM.passOverheadRel, S: [8, 0, 0], B: 'free', RF: 'spread', LF: 'spread', ev: 'release' }],
       [0.28, { RA: [110, 10, 0, 0, 95, 45, 0], LA: [110, 10, 0, 0, 95, 45, 0] }],
       [0.45, { ...SHORT.DOWN, S: [4, 0, 0], RF: 'relax', LF: 'relax' }],
@@ -480,14 +484,14 @@ const CATCHES = [
       [0.30, { RA: ARM.catchReady, LA: ARM.catchReady }],
     ],
   }),
-  catchClip('catch.chest', [60, 20, 0, 30, -40, 0, 0], 'upper', null),
-  catchClip('catch.high', ARM.catchHigh, 'upper', null),
-  catchClip('catch.low', ARM.catchLow, 'action', [
+  catchClip('catch.chest', GRIP2.catchChest, 'upper', null),
+  catchClip('catch.high', GRIP2.catchHigh, 'upper', null),
+  catchClip('catch.low', GRIP2.catchLow, 'action', [
     { P: [0, -0.12, 0, 15, 0, 0], S: [25, 0, 0], RL: [40, 8, 0, 60, -20, 0], LL: [40, 8, 0, 60, -20, 0] },
     { P: [0, -0.10, 0, 14, 0, 0], S: [20, 0, 0], RL: [35, 8, 0, 55, -18, 0], LL: [35, 8, 0, 55, -18, 0] },
     { P: TT.P, S: TT.S, RL: TT.RL, LL: TT.LL },
   ]),
-  catchClip('catch.run', [55, 20, 0, 35, -40, 0, 0], 'upper', null),
+  catchClip('catch.run', [55, 0, 20, 37, -40, 0, 0], 'upper', null),
 ];
 
 // =============================================================================================================
