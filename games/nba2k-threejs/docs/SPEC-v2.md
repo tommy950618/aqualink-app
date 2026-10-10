@@ -1,26 +1,26 @@
 # 传奇对决 3v3 / LEGENDS 3v3 — v2 IMPLEMENTATION SPEC (authoritative)
 
 This is the single authoritative spec for v2 of the game at `games/nba2k-threejs/` (paths below are relative to that
-folder unless they start with `tools/`, `/tmp` or `scratchpad/`). Implementers read **this file instead of the four
+folder unless they start with `/tmp` or `scratchpad/`; scratchpad paths name one-off measurement scripts that are not shipped). Implementers read **this file instead of the four
 section files**. Where a passage says "**[ref S:§x.y]**" the named heading of a section file is incorporated *verbatim*
 into this spec (those passages are long keyframe / formula tables that would only be copied here); everything in this
 file overrides anything in a referenced passage, and the conflict register (§0.4) lists every override.
 
 Section files (part of the spec only where referenced):
 
-| key | path (all under `/tmp/claude-0/-home-user-aqualink-app/00930db5-eb45-5ad9-9692-3f587da4c832/scratchpad/`) |
+| key | path (relative to `games/nba2k-threejs/`) |
 |---|---|
-| **CHR** | `nba2k-v2/sections/characters.md` |
-| **ANIM** | `nba2k-v2/sections/animation.md` |
-| **GP** | `nba2k-v2/sections/gameplay.md` |
-| **PR** | `nba2k-v2/sections/presentation.md` |
-| v1 | `nba2k/SPEC.md` (v1 spec; still binding where v2 is silent, e.g. coordinate constants, ball physics integrator, Intent object, keyboard map) |
-| inputs | `phaseA.json` (poc, profiles, xcheck), `review-r1-all.json` (44 findings), `tools/legends/*` (bake pipeline), `test/scratch/legends-poc/` (PoC renders) |
+| **CHR** | `docs/v2-sections/characters.md` |
+| **ANIM** | `docs/v2-sections/animation.md` |
+| **GP** | `docs/v2-sections/gameplay.md` |
+| **PR** | `docs/v2-sections/presentation.md` |
+| v1 | `docs/SPEC-v1.md` (v1 spec; still binding where v2 is silent, e.g. coordinate constants, ball physics integrator, Intent object, keyboard map) |
+| inputs | `docs/v2-sections/phaseA-profiles.json` (poc, profiles, xcheck), `docs/v2-sections/review-r1-findings.json` (44 findings), `tools/legends/*` (bake pipeline), `test/scratch/legends-poc/` (PoC renders) |
 
 Citation keys used inline: [CHR §n], [ANIM §n], [GP §n], [PR §n], [V1 §n], [PROF:id] (phaseA profiles), [XCHK]
 (phaseA xcheck), [POC] (phaseA poc), [CFG] (`tools/legends/legends.config.json`), [DEC] (orchestrator decisions).
 
-**Review finding numbering.** `R#n` in this file is the **1-based** index into `review-r1-all.json` (R#1 = portrait
+**Review finding numbering.** `R#n` in this file is the **1-based** index into `docs/v2-sections/review-r1-findings.json` (R#1 = portrait
 camera … R#44 = verdict), the numbering GP and PR use. CHR and ANIM cite the same list **0-based**: their `[R1#4]`,
 `[REV#13]`, `[REV#32]`, `[REV#36]`, `[REV#42]` are R#5, R#14, R#33, R#37, R#43 here.
 
