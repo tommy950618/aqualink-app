@@ -1,7 +1,12 @@
-// Anthropometric check of a baked legends file (reads only the baked header + bins).
-//
-//   node tools/legends/measure.mjs <header.json> [--json]
-//
+/**
+ * measure.mjs — anthropometric and likeness check of a baked legends file (reads only the baked header + bins).
+ *
+ *   node measure.mjs <header.json> [--json] [--likeness]
+ *
+ * `--likeness` adds the SPEC-v2 §10.2 face metrics (faceLW, chinProj, earOut, fissH, lipsH, noseIcd; definitions
+ * and bands in lib/landmarks.mjs, vertex sets stored by the bake in `header.measureSets`) plus headH against
+ * meta.calibration.headH, prints a table and exits 1 on any band or ordering miss.
+ */
 // Per player: barefoot height, head height and the height/head ratio ("heads tall"), shoulder-joint
 // breadth, chest/waist/hip breadth and depth, wingspan and overhead reach (CPU linear-blend skinning of the
 // real mesh with the arms straightened sideways / straight up, no shoulder shrug), hand and foot length,
@@ -10,6 +15,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { faceMetrics, checkLikeness, LIKENESS_BANDS } from './lib/landmarks.mjs';
 
 // Mesh volume (1 kg/L) reads about 11% under the listed mass of the macro-only bodies (open mouth/eye
 // regions, no internal density model), so mass estimates are volume x VOLUME_TO_MASS.
@@ -30,11 +36,12 @@ export function measureHeader(file) {
   const boneNames = H.bones.map((b) => b.name);
   const B = Object.fromEntries(boneNames.map((n, i) => [n, i]));
   const bodyGroup = H.shared.groups.find((g) => g.name === 'body');
-  const eyeGroup = H.shared.groups.find((g) => g.name === 'eyes');
+  // eyeball index range: v2 `wetParts.eyes`, v1 the `eyes` group
+  const eyeRange = H.version >= 2 ? { start: H.shared.wetParts.eyes[0], count: H.shared.wetParts.eyes[1] } : H.shared.groups.find((g) => g.name === 'eyes');
 
   // kept-space triangles for the closed volume (body + eyeballs plug the eye sockets)
   const tris = [];
-  for (const g of [bodyGroup, eyeGroup]) for (let i = g.start; i < g.start + g.count; i++) tris.push(renderToKept[index[i]]);
+  for (const g of [bodyGroup, eyeRange]) for (let i = g.start; i < g.start + g.count; i++) tris.push(renderToKept[index[i]]);
 
   const wsum = (k, names) => { let s = 0; for (let j = 0; j < 4; j++) if (names.includes(boneNames[skinIdx[k * 4 + j]])) s += skinW[k * 4 + j] / 255; return s; };
   const TORSO = ['pelvis', 'spine_01', 'spine_02', 'spine_03'];
@@ -106,21 +113,28 @@ export function measureHeader(file) {
     const bones = p.bones;
     const J = (n) => bones[B[n]];
     let top = -Infinity; for (let k = 0; k < nKept; k++) if (isBody(k)) top = Math.max(top, P[k * 3 + 1]);
-    // chin: front-most midline point of the lower face (pogonion), then the lowest midline point near it (menton)
-    const mouthY = p.landmarks.mouth[1];
-    let pog = -1;
-    for (let k = 0; k < nKept; k++) {
-      if (!isBody(k) || Math.abs(P[k * 3]) > 0.004) continue;
-      const y = P[k * 3 + 1];
-      if (y > mouthY - 0.02 || y < mouthY - 0.09) continue;
-      if (wsum(k, ['head']) < 0.5) continue;
-      if (pog < 0 || P[k * 3 + 2] > P[pog * 3 + 2]) pog = k;
-    }
-    let menton = P[pog * 3 + 1];
-    for (let k = 0; k < nKept; k++) {
-      if (!isBody(k) || Math.abs(P[k * 3]) > 0.004) continue;
-      if (wsum(k, ['head']) < 0.3 || P[k * 3 + 1] < P[pog * 3 + 1] - 0.05) continue;
-      if (P[k * 3 + 2] > P[pog * 3 + 2] - 0.012 && P[k * 3 + 1] < menton) menton = P[k * 3 + 1];
+    // menton: the frozen ME landmark (base.obj 5296, lowest midline point of the chin) of a v2 header. The PoC
+    // heuristic below (front-most midline point under the mouth joint, then the lowest point within 12 mm of its
+    // depth) is kept only for v1 headers: it latches onto the lips or the nose tip whenever they protrude past the
+    // chin, so lip/nose edits moved its "menton" by up to 5 cm and drove calibrate.mjs into the knob limits.
+    let menton;
+    if (p.face && p.face.ME) menton = p.face.ME[1];
+    else {
+      const mouthY = p.landmarks.mouth[1];
+      let pog = -1;
+      for (let k = 0; k < nKept; k++) {
+        if (!isBody(k) || Math.abs(P[k * 3]) > 0.004) continue;
+        const y = P[k * 3 + 1];
+        if (y > mouthY - 0.02 || y < mouthY - 0.09) continue;
+        if (wsum(k, ['head']) < 0.5) continue;
+        if (pog < 0 || P[k * 3 + 2] > P[pog * 3 + 2]) pog = k;
+      }
+      menton = P[pog * 3 + 1];
+      for (let k = 0; k < nKept; k++) {
+        if (!isBody(k) || Math.abs(P[k * 3]) > 0.004) continue;
+        if (wsum(k, ['head']) < 0.3 || P[k * 3 + 1] < P[pog * 3 + 1] - 0.05) continue;
+        if (P[k * 3 + 2] > P[pog * 3 + 2] - 0.012 && P[k * 3 + 1] < menton) menton = P[k * 3 + 1];
+      }
     }
     const headH = top - menton;
     // head breadth (max |x| of head-weighted vertices above the ears' bottom, ears excluded roughly by z-band)
@@ -182,8 +196,16 @@ export function measureHeader(file) {
       handLen: +tipDist.toFixed(3), footLen: +(tipZ - heelZ).toFixed(3), crotch: +crotch.toFixed(3), legRatio: +(crotch / top).toFixed(3),
       crownEye: +(top - eyeY).toFixed(3), eyeMenton: +(eyeY - menton).toFixed(3), craniumFace: +((top - eyeY) / (eyeY - menton)).toFixed(2),
       volumeL: +Math.abs(vol * 1000).toFixed(1), massKg: +(Math.abs(vol * 1000) * VOLUME_TO_MASS).toFixed(1),
-      target: { wingspan: st.wingspanM, reach: st.standingReachM, weightKg: st.weightKg },
+      target: { wingspan: st.wingspanM, reach: st.reachM ?? st.standingReachM, weightKg: st.weightKg },
     };
+    if (H.measureSets) {
+      const lmKept = Object.fromEntries(Object.entries(H.landmarks).map(([n, e]) => [n, e.kept]));
+      const sets = Object.fromEntries(Object.entries(H.measureSets).map(([k, nm]) => [k, Array.from(sec(sharedBuf, S[nm], Uint16Array))]));
+      const fm = faceMetrics((k) => [P[k * 3], P[k * 3 + 1], P[k * 3 + 2]], sets, lmKept);
+      r.likeness = Object.fromEntries(Object.entries(fm).map(([k, v]) => [k, +v.toFixed(3)]));
+      r.likeness.headH = r.headH;
+      if (p.meta?.calibration?.headH != null) r.likeness.headHTarget = p.meta.calibration.headH;
+    }
     results.push(r);
   }
 
@@ -192,19 +214,39 @@ export function measureHeader(file) {
 
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {
-const file = path.resolve(process.argv[2] || '');
-if (!fs.existsSync(file)) { console.error('usage: node measure.mjs <header.json> [--json]'); process.exit(2); }
-const results = measureHeader(file);
-if (process.argv.includes('--json')) console.log(JSON.stringify(results, null, 1));
-else {
-  const cols = ['id', 'height', 'headH', 'headsTall', 'shoulderJoints', 'deltoidW', 'chestW', 'chestD', 'waistW', 'waistD', 'hipW', 'neckW', 'thighW', 'calfW', 'wingspan', 'apeIndex', 'reachNoShrug', 'handLen', 'footLen', 'legRatio', 'craniumFace', 'massKg'];
-  console.log(cols.join('\t'));
-  for (const r of results) console.log(cols.map((c) => r[c]).join('\t'));
-  console.log('\ntargets (listed): wingspan / standing reach / weight, and model deltas');
-  for (const r of results) {
-    const t = r.target;
-    if (!t.wingspan) continue;
-    console.log(`${r.id.padEnd(8)} span ${t.wingspan} (model ${r.wingspan}, ${((r.wingspan - t.wingspan) * 100).toFixed(1)} cm)  reach ${t.reach} (model no-shrug ${r.reachNoShrug}, ${((r.reachNoShrug - t.reach) * 100).toFixed(1)} cm)  weight ${t.weightKg} (est. ${r.massKg} kg, ${(r.massKg - t.weightKg).toFixed(1)})`);
+  const file = path.resolve(process.argv.slice(2).find((a) => !a.startsWith('--')) || '');
+  if (!fs.existsSync(file)) { console.error('usage: node measure.mjs <header.json> [--json] [--likeness]'); process.exit(2); }
+  const results = measureHeader(file);
+  const likeness = process.argv.includes('--likeness');
+  let misses = [];
+  if (likeness) {
+    if (!results.every((r) => r.likeness)) { console.error('header has no measureSets (bake with format v2)'); process.exit(2); }
+    misses = checkLikeness(Object.fromEntries(results.map((r) => [r.id, r.likeness])));
   }
-}
+  if (process.argv.includes('--json')) console.log(JSON.stringify(likeness ? { results, likenessMisses: misses } : results, null, 1));
+  else {
+    const cols = ['id', 'height', 'headH', 'headsTall', 'shoulderJoints', 'deltoidW', 'chestW', 'chestD', 'waistW', 'waistD', 'hipW', 'neckW', 'thighW', 'calfW', 'wingspan', 'apeIndex', 'reachNoShrug', 'handLen', 'footLen', 'legRatio', 'craniumFace', 'massKg'];
+    console.log(cols.join('\t'));
+    for (const r of results) console.log(cols.map((c) => r[c]).join('\t'));
+    console.log('\ntargets (listed): wingspan / standing reach / weight, and model deltas');
+    for (const r of results) {
+      const t = r.target;
+      if (!t.wingspan) continue;
+      console.log(`${r.id.padEnd(8)} span ${t.wingspan} (model ${r.wingspan}, ${((r.wingspan - t.wingspan) * 100).toFixed(1)} cm)  reach ${t.reach} (model no-shrug ${r.reachNoShrug}, ${((r.reachNoShrug - t.reach) * 100).toFixed(1)} cm)  weight ${t.weightKg} (est. ${r.massKg} kg, ${(r.massKg - t.weightKg).toFixed(1)})`);
+    }
+    if (likeness) {
+      const keys = ['faceLW', 'chinProj', 'earOut', 'fissH', 'lipsH', 'noseIcd'];
+      console.log('\nlikeness (SPEC-v2 §10.2): value [band]');
+      console.log(['id', ...keys, 'headH'].join('\t'));
+      for (const r of results) {
+        const L = r.likeness;
+        const cell = (k) => { const b = LIKENESS_BANDS[k] && LIKENESS_BANDS[k][r.id]; return `${L[k].toFixed(k === 'faceLW' || k === 'noseIcd' ? 3 : 1)}${b ? ` [${b[0]}, ${b[1]}]` : ''}`; };
+        console.log([r.id, ...keys.map(cell), `${(L.headH * 100).toFixed(1)} (${L.headHTarget != null ? (L.headHTarget * 100).toFixed(1) : '-'})`].join('\t'));
+      }
+    }
+  }
+  if (likeness) {
+    if (misses.length) { console.log(`\nlikeness: ${misses.length} miss(es)`); for (const m of misses) console.log('  ' + m); process.exit(1); }
+    console.log('\nlikeness: all bands and orderings met');
+  }
 }

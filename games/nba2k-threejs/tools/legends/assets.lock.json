@@ -1,0 +1,1196 @@
+{
+ "note": "SHA-256 of every cached MPFB2 file (CC0) used by the legends bake; fetch.mjs and bake.mjs verify the cache against it.",
+ "source": "https://raw.githubusercontent.com/makehumancommunity/mpfb2/",
+ "mpfbRef": "d0a32e57a7f915cb2f2b95410e2117648c7bbb7e",
+ "fetchedAt": "2026-10-10",
+ "files": {
+  "3dobjs/base.obj": {
+   "bytes": 1749303,
+   "sha256": "8e761e6624b8f54536409135d1636da63b32486a90d4897f84e121d144f6fb4c"
+  },
+  "mesh_metadata/basemesh_vertex_groups.json": {
+   "bytes": 81984,
+   "sha256": "8cb1417bc55ae5ec8aa99f90734e81ed5fbb556511ff6a2c00e0534b70911444"
+  },
+  "rigs/standard/rig.default.json": {
+   "bytes": 126355,
+   "sha256": "8b949de35c2dd70dbb5094e57a8586c3b9a9f650775a293212581a8f67be6797"
+  },
+  "rigs/standard/rig.game_engine.json": {
+   "bytes": 40936,
+   "sha256": "b324ddb4b707721c19630bfadb87c3e3b38eed3b6e4590bb3cead43ea918f799"
+  },
+  "rigs/standard/weights.default.json": {
+   "bytes": 5034981,
+   "sha256": "154b866774a8c2b055a8e86419f22a87b76c60440fdcb70bcb78345f00924e89"
+  },
+  "rigs/standard/weights.game_engine.json": {
+   "bytes": 3026778,
+   "sha256": "9f4a773e74ce5ba08415b4f30070338e9f75bae5971b5075b10cd6b9caa58473"
+  },
+  "targets/arms/l-lowerarm-fat-decr.target.gz": {
+   "bytes": 1952,
+   "sha256": "276b3b03ac90cfa41e23335d50e29f0f64b267e9d596830f27b8fd3dc4f90e20"
+  },
+  "targets/arms/l-lowerarm-muscle-incr.target.gz": {
+   "bytes": 1613,
+   "sha256": "29077b022632174656b8404ae12f68f62059f2fbc774b24885ec5b7460b72992"
+  },
+  "targets/arms/l-lowerarm-scale-horiz-incr.target.gz": {
+   "bytes": 6056,
+   "sha256": "8138ebefaea77cec6da62aa36432ff4608ad3230343427922111074aa2c0ecb2"
+  },
+  "targets/arms/l-upperarm-fat-decr.target.gz": {
+   "bytes": 3793,
+   "sha256": "5a9b7f6662eac9be67912ce1f26fc4c66e44d51deb1ef408ad7ad45bb4314996"
+  },
+  "targets/arms/l-upperarm-fat-incr.target.gz": {
+   "bytes": 4077,
+   "sha256": "ae4801b19ba99948bc59f87fc0b2bdfc35678b00054a02c6cf64d2db6ef724a7"
+  },
+  "targets/arms/l-upperarm-muscle-incr.target.gz": {
+   "bytes": 2078,
+   "sha256": "2b1ae2af00eabddadc298fd22b8af17966f13e65931636b36c2d77d2b9540dcd"
+  },
+  "targets/arms/l-upperarm-scale-horiz-incr.target.gz": {
+   "bytes": 6439,
+   "sha256": "7d7c5ad6509d5e6c20d8bc62709163f7c573d8fd44670548c6817cc78db04f48"
+  },
+  "targets/arms/l-upperarm-shoulder-muscle-decr.target.gz": {
+   "bytes": 508,
+   "sha256": "3eae08b12e71d65c67c4f2fbb02f143a14157be3ae81e0413869aecb108a644f"
+  },
+  "targets/arms/l-upperarm-shoulder-muscle-incr.target.gz": {
+   "bytes": 1648,
+   "sha256": "1e72cedbf6d72bcc70dcf360444f2c1f8aa214d49839e4fefcfa9a9320febd9d"
+  },
+  "targets/arms/measure-lowerarm-length-decr.target.gz": {
+   "bytes": 13026,
+   "sha256": "c2ebdaf38b9fedc6db399039d95303adc6bc7614f007416f4ace0b573ecfd4c2"
+  },
+  "targets/arms/measure-lowerarm-length-incr.target.gz": {
+   "bytes": 12450,
+   "sha256": "d725e5b7a35dad30a2a68fae52ea0efad72ed8ac77b186409a2cdc59d3e2368d"
+  },
+  "targets/arms/measure-upperarm-circ-incr.target.gz": {
+   "bytes": 4951,
+   "sha256": "fb7eafc4c8887700b7091a1bbdf402e47c768f4589e1cf50bc2976e6379f406f"
+  },
+  "targets/arms/measure-upperarm-length-decr.target.gz": {
+   "bytes": 14199,
+   "sha256": "8f9b7a3494ce54b7560c10cf2ae5b350752a56c6918e28230b9035d43b139afc"
+  },
+  "targets/arms/measure-upperarm-length-incr.target.gz": {
+   "bytes": 14066,
+   "sha256": "72890d3448778f6d25e3c9abd540582ad36598a832c28fd0b1e16073b1b3f962"
+  },
+  "targets/arms/r-lowerarm-fat-decr.target.gz": {
+   "bytes": 1941,
+   "sha256": "915aba8c9d0818a17183a0d61ed547f011d3173c8bd66b652ef19ffb017d0e75"
+  },
+  "targets/arms/r-lowerarm-muscle-incr.target.gz": {
+   "bytes": 1598,
+   "sha256": "84777a42af2cefbabcea15820c61dfd23a800d9a2583b23d063a1566052da226"
+  },
+  "targets/arms/r-lowerarm-scale-horiz-incr.target.gz": {
+   "bytes": 6215,
+   "sha256": "c091b36fd57e0f1cbde326387f1cb757e2886d79c8f14de2a2806ce53ea4709c"
+  },
+  "targets/arms/r-upperarm-fat-decr.target.gz": {
+   "bytes": 3770,
+   "sha256": "74ab400a3ac533602bd4dd65540d1cc10f83aa6230cef6dc8a2baf1d3119938f"
+  },
+  "targets/arms/r-upperarm-fat-incr.target.gz": {
+   "bytes": 4057,
+   "sha256": "926e85b9ee13bcae262341d2887e2d89b958973b830365529b06848f46f04966"
+  },
+  "targets/arms/r-upperarm-muscle-incr.target.gz": {
+   "bytes": 2089,
+   "sha256": "24f3486b3fe48bb8127f48c2eae53e48930c32b7ae2a221ec2c9afafc60b453d"
+  },
+  "targets/arms/r-upperarm-scale-horiz-incr.target.gz": {
+   "bytes": 6256,
+   "sha256": "9b78547fdc5c072acdc01d641d796d7f95dc06e49be2c2738fc9dcc3c2907499"
+  },
+  "targets/arms/r-upperarm-shoulder-muscle-decr.target.gz": {
+   "bytes": 511,
+   "sha256": "4221045a039a8518ce05f554c8f7bf8e874fa93d36efeff0d79d0297c06f880d"
+  },
+  "targets/arms/r-upperarm-shoulder-muscle-incr.target.gz": {
+   "bytes": 1698,
+   "sha256": "eefa8f598b81959bc8ee4b4a9ef7678c5e3a56fcf5333d13e26500047e9796b0"
+  },
+  "targets/asym/asym-brown-1-r.target.gz": {
+   "bytes": 1864,
+   "sha256": "e0dad462da0a0f465475acc57163a3d8ca75285bb3fbb1a27d21535f46659fac"
+  },
+  "targets/asym/asym-mouth-1-r.target.gz": {
+   "bytes": 3976,
+   "sha256": "4e5a6d775a253e63a1883576ba751ad924ac612c452a516b8b30b4752da87c0c"
+  },
+  "targets/buttocks/buttocks-volume-decr.target.gz": {
+   "bytes": 2081,
+   "sha256": "e7752ede368fb2b16c2a61fb1a2c57d70493e8cd5689574e3dc2dc22bd74ca1f"
+  },
+  "targets/buttocks/buttocks-volume-incr.target.gz": {
+   "bytes": 6126,
+   "sha256": "44d10afed96b0c29df25d7abe8c2e2f9eb50ad6c1906e2de7ab91612b39177e9"
+  },
+  "targets/cheek/l-cheek-bones-incr.target.gz": {
+   "bytes": 305,
+   "sha256": "ea5aa60abcc2926e61cdabf5d40701c2b23b3f8027f949cea0b80bcbc55df301"
+  },
+  "targets/cheek/l-cheek-inner-decr.target.gz": {
+   "bytes": 290,
+   "sha256": "2ae02220b2f5d94bdc0a8295211b3b3872bbc636d7e9f7ec5d121fd80a470196"
+  },
+  "targets/cheek/l-cheek-inner-incr.target.gz": {
+   "bytes": 582,
+   "sha256": "aa88894b5e89617c98c8738ffa61aab79f450a5420570d4c2ee8e97ae6a70c3e"
+  },
+  "targets/cheek/l-cheek-trans-up.target.gz": {
+   "bytes": 483,
+   "sha256": "d5a1b1a2aa277717077837ad430a0fc0b5081a002359cb316ada43782e428f82"
+  },
+  "targets/cheek/l-cheek-volume-decr.target.gz": {
+   "bytes": 787,
+   "sha256": "202ff036e39abea154e0896ad34641184c5e8b77610dca9e1e8e4ce4a5db1bc4"
+  },
+  "targets/cheek/l-cheek-volume-incr.target.gz": {
+   "bytes": 1274,
+   "sha256": "75bf330b96d0036c46f779ed003782c7380c77dd06c14fd80f1fa20a5093fee1"
+  },
+  "targets/cheek/r-cheek-bones-incr.target.gz": {
+   "bytes": 310,
+   "sha256": "c608528b9e5e1c670179cfb502dab3d9478a77bb942f7c8186cd072a7369e9b9"
+  },
+  "targets/cheek/r-cheek-inner-decr.target.gz": {
+   "bytes": 241,
+   "sha256": "4878a5ba766a4de2347bb7506e46a53936ede0a2d52cbbb6fee8cb58dac92dec"
+  },
+  "targets/cheek/r-cheek-inner-incr.target.gz": {
+   "bytes": 748,
+   "sha256": "db0700f0785acc72c2c91665d8ae9502b959e28c60e8fbd1d4b1a2bc94d11199"
+  },
+  "targets/cheek/r-cheek-trans-up.target.gz": {
+   "bytes": 471,
+   "sha256": "b355fbef52aa458e392b0cd8f16638d157fa7194a549ad9f5bf4fa61f426e37d"
+  },
+  "targets/cheek/r-cheek-volume-decr.target.gz": {
+   "bytes": 765,
+   "sha256": "ea12455c7a85e7b3b5e6e4882b4b68823a00bcaef4ea048cc49be452a139c1bc"
+  },
+  "targets/cheek/r-cheek-volume-incr.target.gz": {
+   "bytes": 1288,
+   "sha256": "4df3e61e843c2d3381ef534e90d347b6b8ea763428d69eba8ef2ed5ab0affb8c"
+  },
+  "targets/chin/chin-bones-incr.target.gz": {
+   "bytes": 3341,
+   "sha256": "72c76aeb7956fb083aaf0d5efa00b2cdfa0f328eefc01d5e28f4610719de50c3"
+  },
+  "targets/chin/chin-height-incr.target.gz": {
+   "bytes": 2004,
+   "sha256": "4f05b61b39266801b0a333c208d274ff109250fe9e4512c486a455806878e15c"
+  },
+  "targets/chin/chin-jaw-drop-decr.target.gz": {
+   "bytes": 374,
+   "sha256": "9176198f2ddcbb48d21d26b5c61e646bb656c6fc96508d4406272efa2aeab40c"
+  },
+  "targets/chin/chin-jaw-drop-incr.target.gz": {
+   "bytes": 288,
+   "sha256": "b750b941a75badd7281db378356438dd8647ef043e3470f9e34bbf873e711e71"
+  },
+  "targets/chin/chin-prognathism-incr.target.gz": {
+   "bytes": 1118,
+   "sha256": "d5453730848d4d3ad12680532c1e1d649194de652eba115fa733e2fb784167e3"
+  },
+  "targets/chin/chin-prominent-incr.target.gz": {
+   "bytes": 565,
+   "sha256": "e0d5ec5e213b88719def0f43ddaa7107796fc02f7447e2b2f140d9fe513a6ac8"
+  },
+  "targets/chin/chin-triangle.target.gz": {
+   "bytes": 1657,
+   "sha256": "284db04ac8024df839240b91d9bec56db3f96be41e188baef50974670746ff02"
+  },
+  "targets/chin/chin-width-decr.target.gz": {
+   "bytes": 768,
+   "sha256": "6c3aaca074630e89951184130a4a158b6f62c9d0cf57cf8eb828c445ff40c21a"
+  },
+  "targets/chin/chin-width-incr.target.gz": {
+   "bytes": 1110,
+   "sha256": "68764b6ec7c923597beaaf643f71c41f00c93639d9bb522c169c279db2ad299e"
+  },
+  "targets/ears/l-ear-flap-decr.target.gz": {
+   "bytes": 1300,
+   "sha256": "dc5e7a72948461f9f04fdec09d9570b5cfab122883e8fb0a0e1d711be14e5aff"
+  },
+  "targets/ears/l-ear-flap-incr.target.gz": {
+   "bytes": 1606,
+   "sha256": "452b154dff6c51d14f25782aa8e9bef0f96829e4fdda0dc9f06b6b62f80d36b2"
+  },
+  "targets/ears/l-ear-lobe-decr.target.gz": {
+   "bytes": 249,
+   "sha256": "260fd6c7d035a37d6aa4a3eacb20a8ef69493d8949d7d5528257f0a9f7c45e0b"
+  },
+  "targets/ears/l-ear-lobe-incr.target.gz": {
+   "bytes": 209,
+   "sha256": "7acc10fecd2472bd90d095b7ecfa43e73bdc9c828bcd69f85aa1f31379aff443"
+  },
+  "targets/ears/l-ear-rot-forward.target.gz": {
+   "bytes": 2439,
+   "sha256": "9ec7ae47c6b37516afb290229fb6e71cb44959b01f5ff230195c891f0050f547"
+  },
+  "targets/ears/l-ear-scale-decr.target.gz": {
+   "bytes": 3343,
+   "sha256": "109583d573fa8bb334b5c21488b66019665d977fe8fec9917568ad1a0a199500"
+  },
+  "targets/ears/l-ear-scale-incr.target.gz": {
+   "bytes": 3343,
+   "sha256": "6c49a5db6e24e7d026dc109292daf38414b90d9e52ed97c81e84f40cd47f107a"
+  },
+  "targets/ears/l-ear-scale-vert-incr.target.gz": {
+   "bytes": 1574,
+   "sha256": "c22ef3008621e919d57e30d01d9f2583fdb0d2a13a14980a616c1fa60e9e2f71"
+  },
+  "targets/ears/l-ear-shape-round.target.gz": {
+   "bytes": 2015,
+   "sha256": "36d30a5213f74362525331216a923d448295b32b045f1a35ddf0bfc232a1a195"
+  },
+  "targets/ears/l-ear-trans-down.target.gz": {
+   "bytes": 1419,
+   "sha256": "a651b757703b84c62996e1a23ed4deffbf27a9e98473ea7a3320610ceffbe591"
+  },
+  "targets/ears/l-ear-trans-up.target.gz": {
+   "bytes": 1406,
+   "sha256": "19fcfde5a127237a9dc968e62b36e0fd39f21d4e507f1f2de02ef897b17e9706"
+  },
+  "targets/ears/l-ear-wing-decr.target.gz": {
+   "bytes": 1899,
+   "sha256": "4bd39abd26bf1c2cd73d99508fe4fb7a4bf2502f78b7e7884e8c85c62ef217f0"
+  },
+  "targets/ears/l-ear-wing-incr.target.gz": {
+   "bytes": 1779,
+   "sha256": "569f6611d1d9135b851eb05f6a721b54d7080a20446591db8caecc9791c26073"
+  },
+  "targets/ears/r-ear-flap-decr.target.gz": {
+   "bytes": 1276,
+   "sha256": "ad1acd7ca2ce2222ce88cfa8cc1af5c0bdacf997f033b4a47e5e4ae0d135b924"
+  },
+  "targets/ears/r-ear-flap-incr.target.gz": {
+   "bytes": 1609,
+   "sha256": "cc6f18629ae40a380ee2bcb10fa2fb83d9e0b232ee2ab66972888f7ddbd92b75"
+  },
+  "targets/ears/r-ear-lobe-decr.target.gz": {
+   "bytes": 248,
+   "sha256": "573514a745c95472c1d2582cc5018534b5f96259368307338ae0feadedb4b365"
+  },
+  "targets/ears/r-ear-lobe-incr.target.gz": {
+   "bytes": 200,
+   "sha256": "49dc9b8b6cb5e21870e13494b8966102470b7494ec1494a1424f53b9c1d42a78"
+  },
+  "targets/ears/r-ear-rot-forward.target.gz": {
+   "bytes": 2432,
+   "sha256": "d66d4e0864a1e75fa28745737e11d54f892eb3cc2a0e7c25e7014dbb789d4c1e"
+  },
+  "targets/ears/r-ear-scale-decr.target.gz": {
+   "bytes": 3372,
+   "sha256": "692fbd18e31098b8dbb2373e6010c80c8b01e64ac10c62f2c36a2884eee80d90"
+  },
+  "targets/ears/r-ear-scale-incr.target.gz": {
+   "bytes": 3341,
+   "sha256": "a3d8c08e86449d1c9c03bc00e58418e0d633a5f7f4ad745c2b9eacf88e6bcd50"
+  },
+  "targets/ears/r-ear-scale-vert-incr.target.gz": {
+   "bytes": 1584,
+   "sha256": "a41a7a973d1d97c9b55b7e4dc7a7b88c641204772c6a38ef3bc2f7df71da9266"
+  },
+  "targets/ears/r-ear-shape-round.target.gz": {
+   "bytes": 2007,
+   "sha256": "9cc2583fc2b31da6edf0858b47397b60db6bd888ab08718691e1b07472c524c2"
+  },
+  "targets/ears/r-ear-trans-down.target.gz": {
+   "bytes": 1409,
+   "sha256": "58b04c658eb85b473492ff46f211181aa45d83921b2ff25429e074131b98683c"
+  },
+  "targets/ears/r-ear-trans-up.target.gz": {
+   "bytes": 1408,
+   "sha256": "8bd15cc1df940431b5ae179468bb168af7215fc2e07b753afbc4bc55e8e14b58"
+  },
+  "targets/ears/r-ear-wing-decr.target.gz": {
+   "bytes": 1887,
+   "sha256": "e26dd7183b89e80f34f96bd10ab8dfc6bf67213898e3dbdf944c969fee107910"
+  },
+  "targets/ears/r-ear-wing-incr.target.gz": {
+   "bytes": 1797,
+   "sha256": "2c7f6d017b10186650f0ef79482d99ef31ed30ec17a29b14a5a5ba28918f7972"
+  },
+  "targets/eyebrows/eyebrows-angle-down.target.gz": {
+   "bytes": 2200,
+   "sha256": "2c45c5f65406f0e987c586b03d5c07953d375fa19b38ffc7775edc160a7596df"
+  },
+  "targets/eyebrows/eyebrows-angle-up.target.gz": {
+   "bytes": 1433,
+   "sha256": "87bcf04d2bc5aad60d5a403c00eda5ec567141fc38fe6a19f8c65994ba7633b5"
+  },
+  "targets/eyebrows/eyebrows-trans-down.target.gz": {
+   "bytes": 1574,
+   "sha256": "9f5bbb848e40d3a320492dd08ef8d1a926b50c7fd1ca279cf8f573e0f0cdd589"
+  },
+  "targets/eyebrows/eyebrows-trans-forward.target.gz": {
+   "bytes": 1549,
+   "sha256": "7bc54f886d3c2776829e47a7ed8b26d1e730ee473424fde7f3ff35137990f949"
+  },
+  "targets/eyes/l-eye-bag-incr.target.gz": {
+   "bytes": 355,
+   "sha256": "45bd5a9415b7da13e42fb1b8f33e8023d2948cdfa27e40cf393496e827d754b4"
+  },
+  "targets/eyes/l-eye-corner2-down.target.gz": {
+   "bytes": 838,
+   "sha256": "33b0a44e47f35f510c296dbdc2d14d58c82e0bf13c3d5d782bf0223ccdf3eb09"
+  },
+  "targets/eyes/l-eye-corner2-up.target.gz": {
+   "bytes": 821,
+   "sha256": "6ea4c8f018c1a54822d10f3abf68e112365541dce1d0e81ef7db01b189c28b29"
+  },
+  "targets/eyes/l-eye-epicanthus-in.target.gz": {
+   "bytes": 430,
+   "sha256": "0dd894060ea9f420c7db57599d228e5df59f8836f794eb3172668c02dd4ef7ef"
+  },
+  "targets/eyes/l-eye-epicanthus-out.target.gz": {
+   "bytes": 546,
+   "sha256": "10e7b41eef926e8e76bf44c2eaecb59e39ca9d1ef980da58e723a508d696e76d"
+  },
+  "targets/eyes/l-eye-eyefold-down.target.gz": {
+   "bytes": 405,
+   "sha256": "b7b1589f224ed9f12bbb8ece904144023fde8ffe85355304299d24f5f6d292e5"
+  },
+  "targets/eyes/l-eye-height1-decr.target.gz": {
+   "bytes": 668,
+   "sha256": "158f7407a8a6fc031f5af3dbcf6bfd410d1f67c0160456db8f126c86d0214a43"
+  },
+  "targets/eyes/l-eye-height2-decr.target.gz": {
+   "bytes": 1945,
+   "sha256": "516b10048290ce14704b8ff372f1e2f2367545ccdd2057c7b4f97f166fd2ff55"
+  },
+  "targets/eyes/l-eye-height3-decr.target.gz": {
+   "bytes": 1234,
+   "sha256": "3c0d2c74d47bb661ad2d6ec014cab0260b0214592253364783614c4e1fd4e2c7"
+  },
+  "targets/eyes/l-eye-push1-in.target.gz": {
+   "bytes": 1585,
+   "sha256": "80658fd1ec6967bed34f04be1dcb2fa5cbabb8a17fdae2427e0735ff3474906d"
+  },
+  "targets/eyes/l-eye-push2-in.target.gz": {
+   "bytes": 1059,
+   "sha256": "ba69b575b665c3912b835395b08c5fec554cee481891a1375c978379062d11d8"
+  },
+  "targets/eyes/l-eye-scale-decr.target.gz": {
+   "bytes": 3193,
+   "sha256": "ef7be84caabecc9c0e4d937b68b4438ce3719f4a197a7ec3298f67faea7c5dbc"
+  },
+  "targets/eyes/l-eye-trans-out.target.gz": {
+   "bytes": 2349,
+   "sha256": "b74b2e4266f3db6122baaad9a4f793b81285cb2ac405f9fa4163bc72e72e56fc"
+  },
+  "targets/eyes/r-eye-bag-incr.target.gz": {
+   "bytes": 274,
+   "sha256": "552483d9b4cd846d5bc864e6866d8bc9db79fdf44233cb30be2d084e5d4373d0"
+  },
+  "targets/eyes/r-eye-corner2-down.target.gz": {
+   "bytes": 775,
+   "sha256": "89e20b2779fb0144008c357c4335732befa14afbf988136683644b6c2b863193"
+  },
+  "targets/eyes/r-eye-corner2-up.target.gz": {
+   "bytes": 768,
+   "sha256": "a295f78da108875885ace05e059e5949cd67aeb4cfca7524950ed2b6e77d1682"
+  },
+  "targets/eyes/r-eye-epicanthus-in.target.gz": {
+   "bytes": 424,
+   "sha256": "ec5e5b256e6529b0791cae2d7dc29f1aedaf381b6930d1d38c01c72643276bcc"
+  },
+  "targets/eyes/r-eye-epicanthus-out.target.gz": {
+   "bytes": 525,
+   "sha256": "9fbfb5d1cf20bd3a8d762a662248993b54d5c4a9a370ca7c07a4d346fc9ebd39"
+  },
+  "targets/eyes/r-eye-eyefold-down.target.gz": {
+   "bytes": 385,
+   "sha256": "a9225e4841241ef7a2d1f4db3b65d9caf09e23287f169f2d657a4bf9a95ff690"
+  },
+  "targets/eyes/r-eye-height1-decr.target.gz": {
+   "bytes": 588,
+   "sha256": "f35d03cb95a67301fac7622ea24945d6b529dcc1cff84f3a36e464b42865a5ac"
+  },
+  "targets/eyes/r-eye-height2-decr.target.gz": {
+   "bytes": 1938,
+   "sha256": "b53bacabd4b07a5fbe90e28dcb09b4a8f8f727682bdd27dfb124db5211d3cf89"
+  },
+  "targets/eyes/r-eye-height3-decr.target.gz": {
+   "bytes": 1060,
+   "sha256": "f93dcf201ac4a75412fca4694b298005ea4bbf132ffe0131aad452566afee5ad"
+  },
+  "targets/eyes/r-eye-push1-in.target.gz": {
+   "bytes": 1406,
+   "sha256": "7667d6d4ecfd2bec4f44ea842da3a849ca506378715fffcf39c380ae59d0582a"
+  },
+  "targets/eyes/r-eye-push2-in.target.gz": {
+   "bytes": 980,
+   "sha256": "41d685c9c07af049bcfe6bf8cce18dd4156c0c9abbccc8e1f178780bde9eac7d"
+  },
+  "targets/eyes/r-eye-scale-decr.target.gz": {
+   "bytes": 3161,
+   "sha256": "2ea82bce144a084c7c86c3e2b6b23b0c3f45293f6762fec4afba53e5c3684675"
+  },
+  "targets/eyes/r-eye-trans-out.target.gz": {
+   "bytes": 2402,
+   "sha256": "1fc70679c7c086d10adc405b57be80d757417e925f1884625d6bc24b6a9fd05d"
+  },
+  "targets/feet/l-foot-scale-incr.target.gz": {
+   "bytes": 11375,
+   "sha256": "d0fbd3d4c7d7632a14dc3f13d833c09ad284afb491351c2d2451e727a6e3212a"
+  },
+  "targets/feet/measure-ankle-circ-decr.target.gz": {
+   "bytes": 4844,
+   "sha256": "f290cd8bcc65583050108008eb4b009b86741ced6000eb5f96f3dd1e61cb735d"
+  },
+  "targets/feet/measure-ankle-circ-incr.target.gz": {
+   "bytes": 4822,
+   "sha256": "b32190489fe472e0cd72b4c569ce231641ca231b2aeb362307832dfcfad635cd"
+  },
+  "targets/feet/r-foot-scale-incr.target.gz": {
+   "bytes": 11352,
+   "sha256": "8d8f35db61230d55802794899dfb31de9faeca53360974a9662524d4a62a51a4"
+  },
+  "targets/forehead/forehead-nubian-incr.target.gz": {
+   "bytes": 2593,
+   "sha256": "5039c1af5309eb9cf12333d9a37dc0e3a189a6fcf6d10316df0b34ab043f5baf"
+  },
+  "targets/forehead/forehead-scale-vert-decr.target.gz": {
+   "bytes": 1580,
+   "sha256": "fae28eab9836b529c8a9a8a46ec2aae4181791239ac0d5737f525591e0eafaaf"
+  },
+  "targets/forehead/forehead-scale-vert-incr.target.gz": {
+   "bytes": 1497,
+   "sha256": "af68b78524f49e4b02976ff0006cb27db55d680c02fc1345945043de42a48bd0"
+  },
+  "targets/forehead/forehead-temple-decr.target.gz": {
+   "bytes": 481,
+   "sha256": "5d14ac1b6b557a019f047a36af2685e03891c1d8e79ffd00030285bb45ecbdab"
+  },
+  "targets/forehead/forehead-trans-backward.target.gz": {
+   "bytes": 1385,
+   "sha256": "1cb13b58f4c8f2482ad997528407b4b59ddd6db7e8e78c6130d6b3504e1d45fc"
+  },
+  "targets/forehead/forehead-trans-forward.target.gz": {
+   "bytes": 1818,
+   "sha256": "9add6a61672d0d9361ce1927c9096dfb718450fa679033ddad5b033b3cd914d1"
+  },
+  "targets/hands/l-hand-fingers-diameter-decr.target.gz": {
+   "bytes": 7122,
+   "sha256": "72ce65af9a94ac794949dc1a4ec6b0c5f3b4dd739b6cc17b9076cc63202e26e7"
+  },
+  "targets/hands/l-hand-fingers-diameter-incr.target.gz": {
+   "bytes": 7373,
+   "sha256": "12e169467e9407856a275971981666e1f8bbe636dafa7fb59f17e7793b788f43"
+  },
+  "targets/hands/l-hand-fingers-length-incr.target.gz": {
+   "bytes": 5720,
+   "sha256": "37620de4a7d2f3c8f1b233fc42ebf6c6c6b100ce1aecfe4ed4ada2f0e4006637"
+  },
+  "targets/hands/l-hand-scale-decr.target.gz": {
+   "bytes": 13490,
+   "sha256": "731f85efa15d887902d5cc65528a41439370f87f5d78cf4a454344dab5c1beaf"
+  },
+  "targets/hands/l-hand-scale-incr.target.gz": {
+   "bytes": 13462,
+   "sha256": "6b274978f762b5ed3ae9101615194c139e260b506f0ca24c47c1a6589b7715f5"
+  },
+  "targets/hands/measure-wrist-circ-decr.target.gz": {
+   "bytes": 3165,
+   "sha256": "3b6cbb6d8e4854c3d09fccc527174b02be1f32e8400cd7c7157361038d3cce21"
+  },
+  "targets/hands/measure-wrist-circ-incr.target.gz": {
+   "bytes": 3480,
+   "sha256": "a765624157b4e061a62fc2e02b44b0021c38246fce5cb54bff4b3cfb2e67d42d"
+  },
+  "targets/hands/r-hand-fingers-diameter-decr.target.gz": {
+   "bytes": 7116,
+   "sha256": "3d940e2194c3b46cffc866b99edaa2ca8b5c8c34bcf5eb64959524bfdfd28076"
+  },
+  "targets/hands/r-hand-fingers-diameter-incr.target.gz": {
+   "bytes": 7368,
+   "sha256": "58beddaa9c8097ab7addfe2ae638c6c8c578eb8b7e5ac5ada542fce000d0f7da"
+  },
+  "targets/hands/r-hand-fingers-length-incr.target.gz": {
+   "bytes": 5820,
+   "sha256": "ac90a1e7b1776bb41f896b2b5308ab791b860a3fbf4f854f17d56234b3da48a9"
+  },
+  "targets/hands/r-hand-scale-decr.target.gz": {
+   "bytes": 13390,
+   "sha256": "8a0a3e246efb9e3640fabd02c75085e3bc2bf57d20b736e0a98819302a72c83c"
+  },
+  "targets/hands/r-hand-scale-incr.target.gz": {
+   "bytes": 13576,
+   "sha256": "33d4f09b9c7cf1559503dde7b4e40f882a2bb81ec9bc71324c9edbe3655cda34"
+  },
+  "targets/head/head-age-incr.target.gz": {
+   "bytes": 13932,
+   "sha256": "ea5b7b9404daa1f6b8ea14a11a0e8ae6a082e98d0d65f63cc2150057a168e396"
+  },
+  "targets/head/head-back-scale-depth-decr.target.gz": {
+   "bytes": 2119,
+   "sha256": "86a1c69526aae30b4c307366d9e13157f9f2d5541b18205fbef2072b2bbf5470"
+  },
+  "targets/head/head-back-scale-depth-incr.target.gz": {
+   "bytes": 2052,
+   "sha256": "2d37e5cc84c8431a98e1ff4ce66d725207b303aaacb0c97f52f3721ec234d0dd"
+  },
+  "targets/head/head-fat-decr.target.gz": {
+   "bytes": 3988,
+   "sha256": "6ef17a5ba87b23aa11746ac8c539fef70be5a8f89cae4abb2c2f3f32a9c6cc57"
+  },
+  "targets/head/head-oval.target.gz": {
+   "bytes": 9625,
+   "sha256": "057eea7c5535c325493b9107228052b03c78fac1bcb24905313fae6351179cb8"
+  },
+  "targets/head/head-rectangular.target.gz": {
+   "bytes": 2936,
+   "sha256": "a4ff15dbcda4164e823c7a6f00c234cc62cb136b1c568198c7980bf9f2d358f2"
+  },
+  "targets/head/head-scale-depth-incr.target.gz": {
+   "bytes": 14650,
+   "sha256": "2e7eb5bf8cf73c780ff66610cb15d97a2496c5c2855612bbf6c6f8fcf36c7ddd"
+  },
+  "targets/head/head-scale-horiz-decr.target.gz": {
+   "bytes": 21427,
+   "sha256": "ddec139b27d1f9b7a90f6474450c56897a4e417334af083e87e988fdf94ca343"
+  },
+  "targets/head/head-scale-horiz-incr.target.gz": {
+   "bytes": 21695,
+   "sha256": "671542640aec14d1740c1263deb0e274f3044edec761e6d4171329f0419be084"
+  },
+  "targets/head/head-scale-vert-decr.target.gz": {
+   "bytes": 19252,
+   "sha256": "64e86d59a469eeeb0201026880bcd6ebb0cbd590a74b179f58efa879b3772f6c"
+  },
+  "targets/head/head-scale-vert-incr.target.gz": {
+   "bytes": 19171,
+   "sha256": "be8b270ec67817578128396433d6e8ab9d530c9d81ea21db92cd1b9627a8110b"
+  },
+  "targets/head/head-square.target.gz": {
+   "bytes": 3350,
+   "sha256": "94b484ae145970e5368706d4f42711f50e18fcbf7d9f1ee800572c3fa69f855a"
+  },
+  "targets/hip/hip-scale-depth-decr.target.gz": {
+   "bytes": 10555,
+   "sha256": "20bb79ee3c2dbbba40448219cf1b4627825c9f67e662021e1e78abecdf4948d3"
+  },
+  "targets/hip/hip-scale-depth-incr.target.gz": {
+   "bytes": 10541,
+   "sha256": "6d655dc583249178a53f729254b704fab4f3a83f4b5a666a7c49d5f7904148dd"
+  },
+  "targets/hip/hip-scale-horiz-decr.target.gz": {
+   "bytes": 8987,
+   "sha256": "f000ad7589bb05813dd6296192a70e647b9c4866db22ebd642a0f889d37b2c99"
+  },
+  "targets/hip/hip-scale-horiz-incr.target.gz": {
+   "bytes": 8982,
+   "sha256": "12eab540daee8f1aa7fa06b9ca18224c987b057da369a2f4870228470b8d933a"
+  },
+  "targets/legs/l-lowerleg-fat-decr.target.gz": {
+   "bytes": 1815,
+   "sha256": "b6d27ff7d248056ff60f90d01f3b1b9f87c5949b46c97c4d99ef6a10c30120e2"
+  },
+  "targets/legs/l-lowerleg-muscle-incr.target.gz": {
+   "bytes": 2146,
+   "sha256": "3b88ac764ddc456ce242ece72f7d24a0037c0eef448359b06d0327fa79a4b29c"
+  },
+  "targets/legs/l-upperleg-fat-decr.target.gz": {
+   "bytes": 2943,
+   "sha256": "0d5755bff50d38e5aebcef6b4f180ccd679ec638587cebb4ea5994562780c153"
+  },
+  "targets/legs/l-upperleg-fat-incr.target.gz": {
+   "bytes": 6955,
+   "sha256": "772e413126ad9a7405c8a2029a1ff4e474327e1c20b82c4a6647aec2d41ed42b"
+  },
+  "targets/legs/l-upperleg-muscle-incr.target.gz": {
+   "bytes": 2904,
+   "sha256": "c8af86a15d35ac926f2526c3fc532d70e43a3390de7f65468642ac5558bbf27b"
+  },
+  "targets/legs/l-upperleg-scale-horiz-incr.target.gz": {
+   "bytes": 3443,
+   "sha256": "09965c96931ae97affb9767b18d602c84b08d65b9bd70b747e0ce2d52ecc4d2c"
+  },
+  "targets/legs/measure-calf-circ-decr.target.gz": {
+   "bytes": 4422,
+   "sha256": "1781b4f0b61f1b92cd5b666aef189dc2ec42dcba43d57c23d707bda2b0c77edf"
+  },
+  "targets/legs/measure-calf-circ-incr.target.gz": {
+   "bytes": 4404,
+   "sha256": "f8501849f3d41a66d80dced86c6a50f30064e657fb86cac203f2584450fd5eda"
+  },
+  "targets/legs/measure-knee-circ-decr.target.gz": {
+   "bytes": 5041,
+   "sha256": "e45e39a0bce7e85cee0c094cf28e320924b5e3e8efa5fdbfe36247a6300027b9"
+  },
+  "targets/legs/measure-knee-circ-incr.target.gz": {
+   "bytes": 5360,
+   "sha256": "339b3926727806b77f82039749d6e2d01a8c737778d08d9dd159963b055898b6"
+  },
+  "targets/legs/measure-lowerleg-height-incr.target.gz": {
+   "bytes": 12296,
+   "sha256": "82a085a996d2c5a7fd9e44e0333801127992edee9aae7fdac5f17e1f6522a635"
+  },
+  "targets/legs/measure-thigh-circ-incr.target.gz": {
+   "bytes": 6677,
+   "sha256": "4647cb6dae7ed984712e81c5b394cfa545ca6a27d938903ba6cca1b410450cc1"
+  },
+  "targets/legs/measure-upperleg-height-incr.target.gz": {
+   "bytes": 18312,
+   "sha256": "97b2de6960da43cdcce12d5139db868d96764faba6c8ba454635789b423d8180"
+  },
+  "targets/legs/r-lowerleg-fat-decr.target.gz": {
+   "bytes": 1820,
+   "sha256": "fc71406a36920b06be64796a2abae24bbab649aa5845481c6e4bbf8b6858e52b"
+  },
+  "targets/legs/r-lowerleg-muscle-incr.target.gz": {
+   "bytes": 2075,
+   "sha256": "f8b7d141649b12b4cd8c37c7606d14daac692e7abfa72cea66b79f1672d4ab2a"
+  },
+  "targets/legs/r-upperleg-fat-decr.target.gz": {
+   "bytes": 2930,
+   "sha256": "7ab21c3ad40c69715f9c30f6dec54a0f2e3dc4775e72ca6727d99c3aa2622c7f"
+  },
+  "targets/legs/r-upperleg-fat-incr.target.gz": {
+   "bytes": 6902,
+   "sha256": "23a49fbb44f53b5259b12d537b50f2fa5c72d136a24912ba21cd5a9f8911f36a"
+  },
+  "targets/legs/r-upperleg-muscle-incr.target.gz": {
+   "bytes": 2875,
+   "sha256": "a96b25430155374568d72b1efd12443aeb2fa0c78a11c1a4d198a03a986c088f"
+  },
+  "targets/legs/r-upperleg-scale-horiz-incr.target.gz": {
+   "bytes": 3419,
+   "sha256": "391bb8cb2cf2f0dd878872c50ad483bf6993128047b250f024b613036abeb8f4"
+  },
+  "targets/legs/upperlegs-height-incr.target.gz": {
+   "bytes": 18243,
+   "sha256": "807d3ed8398ec5ce293ea5e3c75d97998760a79b2e4896480744db8a3724ba73"
+  },
+  "targets/macrodetails/african-female-young.target.gz": {
+   "bytes": 123654,
+   "sha256": "1147ae55ecb0f66bade3f45176b3af187e265878322db172ad1090e9f3108e84"
+  },
+  "targets/macrodetails/african-male-child.target.gz": {
+   "bytes": 135693,
+   "sha256": "578c3aad252de0868da7445d095f5acd8925b182c80812154065a37687c29b72"
+  },
+  "targets/macrodetails/african-male-old.target.gz": {
+   "bytes": 127252,
+   "sha256": "fb3477ab3c05d6ea421d82717c3df89ff23f926d1e5148092e30c0efe2ea96de"
+  },
+  "targets/macrodetails/african-male-young.target.gz": {
+   "bytes": 132860,
+   "sha256": "05ed84d6df36e788cdfa8da0be15376850524b960cf2f17f3e592b9cf7d21c85"
+  },
+  "targets/macrodetails/asian-female-young.target.gz": {
+   "bytes": 135687,
+   "sha256": "ee17da733288434e5b6fa120497f1fa6e72bf7faad5d694b0431d7275139170d"
+  },
+  "targets/macrodetails/asian-male-old.target.gz": {
+   "bytes": 130281,
+   "sha256": "8f931e96529904375a442c77be0c31d60ace6c0461645ed7ab1a43a3c378a247"
+  },
+  "targets/macrodetails/asian-male-young.target.gz": {
+   "bytes": 130005,
+   "sha256": "0928ed8b9f08f60afb9884cf9e9f33a939ed3a85d7f136de9ccc88a76981d6d7"
+  },
+  "targets/macrodetails/caucasian-female-young.target.gz": {
+   "bytes": 127369,
+   "sha256": "e9d6212373ac5f1e2c596fa145e363385f4d169c3c6c88ede3bab93b681af041"
+  },
+  "targets/macrodetails/caucasian-male-child.target.gz": {
+   "bytes": 137652,
+   "sha256": "18188350f6cfca20725f4057ba207ac5c7c759bfcc5badb212edabfd8563a544"
+  },
+  "targets/macrodetails/caucasian-male-old.target.gz": {
+   "bytes": 112944,
+   "sha256": "123cb7758c86aa2aa71d80ea0c8f5f4b3e96f394180edc1682e34720c4949df6"
+  },
+  "targets/macrodetails/caucasian-male-young.target.gz": {
+   "bytes": 127922,
+   "sha256": "ffe69537e53148edff2776204ba48cf3bf1f3cbc72966592c8a562ab80b07333"
+  },
+  "targets/macrodetails/height/male-child-averagemuscle-averageweight-maxheight.target.gz": {
+   "bytes": 142532,
+   "sha256": "afa27cc7b070e7d17f83c2bd3c31fd9f985bb5604bc8a9e16ee87e14ef3da781"
+  },
+  "targets/macrodetails/height/male-child-averagemuscle-averageweight-minheight.target.gz": {
+   "bytes": 132371,
+   "sha256": "dab11d7e290633eac9fefa52c738fe29f055474a3938bb1da50e9e47e1a30599"
+  },
+  "targets/macrodetails/height/male-child-maxmuscle-averageweight-maxheight.target.gz": {
+   "bytes": 142528,
+   "sha256": "10ad656121427c8e5d8af1c89766aa401a05be083556c39525abb01349ab9488"
+  },
+  "targets/macrodetails/height/male-child-maxmuscle-averageweight-minheight.target.gz": {
+   "bytes": 132367,
+   "sha256": "7e9cafd1eeff8deb70e37d9090c1cb5fa4be11c2026138e7a7b09c4c9eb048c2"
+  },
+  "targets/macrodetails/height/male-old-averagemuscle-averageweight-maxheight.target.gz": {
+   "bytes": 147114,
+   "sha256": "c522d7c8595c9c3f1ef21ec9c087f060c13f12c54c616d482e5da3296dca02b8"
+  },
+  "targets/macrodetails/height/male-old-averagemuscle-averageweight-minheight.target.gz": {
+   "bytes": 132469,
+   "sha256": "4d218544db9bf485b3c7290086960d8f4987f9142fb95968d454d5e38cbb3c0c"
+  },
+  "targets/macrodetails/height/male-old-averagemuscle-minweight-maxheight.target.gz": {
+   "bytes": 147110,
+   "sha256": "8859acd59fea16a79a28f6a65511217a95a5b383a97aeb1c872fdd293ee97343"
+  },
+  "targets/macrodetails/height/male-old-averagemuscle-minweight-minheight.target.gz": {
+   "bytes": 132465,
+   "sha256": "446fff75760451fb03867c17b42fc9b3c530879c3fed21068c7294e3796d5733"
+  },
+  "targets/macrodetails/height/male-old-maxmuscle-averageweight-maxheight.target.gz": {
+   "bytes": 147110,
+   "sha256": "8de399aac5578568f214628e26e23c899f11c629a10dbca462fa515ea0499c9d"
+  },
+  "targets/macrodetails/height/male-old-maxmuscle-averageweight-minheight.target.gz": {
+   "bytes": 132465,
+   "sha256": "d98af54859846b512f6a40581b03d0f218a6a23df1dd1656674830e679e19151"
+  },
+  "targets/macrodetails/height/male-old-maxmuscle-maxweight-maxheight.target.gz": {
+   "bytes": 147106,
+   "sha256": "369b48f241b11a6d5007023107c6815649f12bb0bba8a54d9de930453966fe72"
+  },
+  "targets/macrodetails/height/male-old-maxmuscle-maxweight-minheight.target.gz": {
+   "bytes": 3429,
+   "sha256": "ffc8d86c3705fa768841a13caee845e8110a9f38078e6cf8e6268ebabc4de568"
+  },
+  "targets/macrodetails/height/male-old-maxmuscle-minweight-maxheight.target.gz": {
+   "bytes": 147106,
+   "sha256": "b7c0865144beff2a54685433ef22124ba58763deeb41d65fe80228194bb5059f"
+  },
+  "targets/macrodetails/height/male-old-maxmuscle-minweight-minheight.target.gz": {
+   "bytes": 132461,
+   "sha256": "8fed7b63e2c498b296b27307ff8ac5be198c88c18abcb4c17ada552f4821d90d"
+  },
+  "targets/macrodetails/height/male-young-averagemuscle-averageweight-maxheight.target.gz": {
+   "bytes": 147116,
+   "sha256": "d9cfea6360e29628fdcaeb1991ba1fb11f64e4ae5067cd7d0ebc494e393d83e5"
+  },
+  "targets/macrodetails/height/male-young-averagemuscle-averageweight-minheight.target.gz": {
+   "bytes": 132476,
+   "sha256": "8d62bfc00708e12589d4c59204cb75cd529c49f3c7c48930ce14361c1237c268"
+  },
+  "targets/macrodetails/height/male-young-averagemuscle-maxweight-maxheight.target.gz": {
+   "bytes": 147112,
+   "sha256": "b606aefb157a0732da16ce7326f9c987ab0b2defbee113710ca3c0015015ee7e"
+  },
+  "targets/macrodetails/height/male-young-averagemuscle-maxweight-minheight.target.gz": {
+   "bytes": 132472,
+   "sha256": "d242324b7d1fb938e7bfe2c628a33084dbc0183bca5bfa0a65a98a687391d6e0"
+  },
+  "targets/macrodetails/height/male-young-averagemuscle-minweight-maxheight.target.gz": {
+   "bytes": 147112,
+   "sha256": "361f80104cf63d28c35465452b6bfca6ec9fe7888d7593a1b432ceb681c5dd99"
+  },
+  "targets/macrodetails/height/male-young-averagemuscle-minweight-minheight.target.gz": {
+   "bytes": 132472,
+   "sha256": "5b9079815ccf6cb15fecd3b2a1bd88a7853f62ae86afaa3fb84f8623ede33254"
+  },
+  "targets/macrodetails/height/male-young-maxmuscle-averageweight-maxheight.target.gz": {
+   "bytes": 147112,
+   "sha256": "76258b59bd6d0230f012054bf8d7c1294e57cb5fdb4ebeae3dbcfd974b0e6ed4"
+  },
+  "targets/macrodetails/height/male-young-maxmuscle-averageweight-minheight.target.gz": {
+   "bytes": 132472,
+   "sha256": "686698c4faa68561c0cfeae01a9d7e56e16ca93c0995f16e8be32eca522bb815"
+  },
+  "targets/macrodetails/height/male-young-maxmuscle-maxweight-maxheight.target.gz": {
+   "bytes": 147108,
+   "sha256": "ea4997a07594db525823be61fb344c79f95e5f5ee7af94c8e1e9d486fd89a9a8"
+  },
+  "targets/macrodetails/height/male-young-maxmuscle-maxweight-minheight.target.gz": {
+   "bytes": 132391,
+   "sha256": "56417c4fa571a60a9dc6cc4debe343defce39a796dbe534159083165ff53acaa"
+  },
+  "targets/macrodetails/height/male-young-maxmuscle-minweight-maxheight.target.gz": {
+   "bytes": 147108,
+   "sha256": "21d42eeea3cb2bc1db61fd6dc78c0bdb31243a5634e3db54ee93cb5908da6287"
+  },
+  "targets/macrodetails/height/male-young-maxmuscle-minweight-minheight.target.gz": {
+   "bytes": 132468,
+   "sha256": "7211af650c4d19bbbabeef46022be9fa166eb9d3fc1801afeb0cbbc1ccabbfef"
+  },
+  "targets/macrodetails/macro.json": {
+   "bytes": 4356,
+   "sha256": "5b6dfabced7b7912df45d3c39f6ef34bca55a72cb6de8ee6c8d66c371de4447c"
+  },
+  "targets/macrodetails/proportions/male-child-averagemuscle-averageweight-idealproportions.target.gz": {
+   "bytes": 37529,
+   "sha256": "b579f97704b087f51dfad460dd3ccbb9ab40b29331abcea8df051d5d6d4c637b"
+  },
+  "targets/macrodetails/proportions/male-child-maxmuscle-averageweight-idealproportions.target.gz": {
+   "bytes": 37525,
+   "sha256": "24ab466621552a954111f56b4dbf2137445b927f8c6c8c60db5dc44704e28a3c"
+  },
+  "targets/macrodetails/proportions/male-old-averagemuscle-averageweight-idealproportions.target.gz": {
+   "bytes": 38093,
+   "sha256": "65cfc244948e8dff2ccf899d595d403f26fba3c6b5ece3ec78812816248b54a9"
+  },
+  "targets/macrodetails/proportions/male-old-maxmuscle-averageweight-idealproportions.target.gz": {
+   "bytes": 38089,
+   "sha256": "456ed4fcd20130dd660f6aeca984d2f73879374b36b913e09d848f42659da8c7"
+  },
+  "targets/macrodetails/proportions/male-old-maxmuscle-minweight-idealproportions.target.gz": {
+   "bytes": 38085,
+   "sha256": "9a9a2f109abefb19331dded6d553abcac42e3527a9ef62cb249483af43672bef"
+  },
+  "targets/macrodetails/proportions/male-young-averagemuscle-averageweight-idealproportions.target.gz": {
+   "bytes": 39334,
+   "sha256": "b6cccc61b5f5af2e7c668b0a18013e5f3fa8ff082bf8513dcb9578c41275baeb"
+  },
+  "targets/macrodetails/proportions/male-young-averagemuscle-maxweight-idealproportions.target.gz": {
+   "bytes": 39136,
+   "sha256": "89e85432718a5cb0b0d57ce0837eec05ebf114cc139f00da344ba1012e8d8ebe"
+  },
+  "targets/macrodetails/proportions/male-young-averagemuscle-minweight-idealproportions.target.gz": {
+   "bytes": 40700,
+   "sha256": "e6cdfe84dfa8599a9be59466833356b70fe994b494165fd74d92e0abe06c0351"
+  },
+  "targets/macrodetails/proportions/male-young-maxmuscle-averageweight-idealproportions.target.gz": {
+   "bytes": 38091,
+   "sha256": "6a6dee42f9acddd3cf4c29eb498757e4cde1b694ade455298d38ee56dbe7f25a"
+  },
+  "targets/macrodetails/proportions/male-young-maxmuscle-maxweight-idealproportions.target.gz": {
+   "bytes": 38087,
+   "sha256": "4f0c94305105ab3578f52027de3678bac3f4c101fb7894f7c8b5c26099a34d67"
+  },
+  "targets/macrodetails/proportions/male-young-maxmuscle-minweight-idealproportions.target.gz": {
+   "bytes": 38087,
+   "sha256": "f12e767c9ebe5d87c312b2c086e64fb53e57e5caf3eed3b7b51b89ed6c5d3a02"
+  },
+  "targets/macrodetails/universal-female-young-averagemuscle-averageweight.target.gz": {
+   "bytes": 78,
+   "sha256": "30046c85a461249824548d5319d74c16392842a1ee00ca9a4485ea3eeb06e2e8"
+  },
+  "targets/macrodetails/universal-male-child-averagemuscle-averageweight.target.gz": {
+   "bytes": 76,
+   "sha256": "2249784050014a68afac7efdbb9cae9e427fd8bdd2d7965f7898a6e8aec019dc"
+  },
+  "targets/macrodetails/universal-male-child-maxmuscle-averageweight.target.gz": {
+   "bytes": 45422,
+   "sha256": "bc06bec601982fafeb01d5a06912d5937b4a965af1fb8fa943e10fa0c43b8672"
+  },
+  "targets/macrodetails/universal-male-old-averagemuscle-averageweight.target.gz": {
+   "bytes": 74,
+   "sha256": "3721ecc3f7a6af1d7c22ef20c709b1d37402445b3d203fe31e762b12356b59a6"
+  },
+  "targets/macrodetails/universal-male-old-averagemuscle-minweight.target.gz": {
+   "bytes": 43380,
+   "sha256": "c9698e079ab31870666948b804c1f3b633338c16a216e2494ede7809969dee40"
+  },
+  "targets/macrodetails/universal-male-old-maxmuscle-averageweight.target.gz": {
+   "bytes": 46209,
+   "sha256": "d2443e0ce0b3acc60ee68e5617ab15c9ee2dffc646ef4ea2411ab4d123310327"
+  },
+  "targets/macrodetails/universal-male-old-maxmuscle-maxweight.target.gz": {
+   "bytes": 57285,
+   "sha256": "d62997eae51a94b30ab91fb04c34698e2a019c43a36c21b975b8024649eed941"
+  },
+  "targets/macrodetails/universal-male-old-maxmuscle-minweight.target.gz": {
+   "bytes": 47390,
+   "sha256": "7636801e3281c99fc0738d1e89685141fe5b31627fcb16e183b329b343a07d86"
+  },
+  "targets/macrodetails/universal-male-young-averagemuscle-averageweight.target.gz": {
+   "bytes": 76,
+   "sha256": "e814651195c53971503d9823d6841216718a561951ef064f81d132297f4fa494"
+  },
+  "targets/macrodetails/universal-male-young-averagemuscle-maxweight.target.gz": {
+   "bytes": 45230,
+   "sha256": "13b79074ecf00a0d028495a51865ae9e86c06b5801b6a614257b455ffbec7d10"
+  },
+  "targets/macrodetails/universal-male-young-averagemuscle-minweight.target.gz": {
+   "bytes": 42696,
+   "sha256": "e4a993057e265088e082ee2aeccc860505e759b27251dc63a78314e1f8c78a16"
+  },
+  "targets/macrodetails/universal-male-young-maxmuscle-averageweight.target.gz": {
+   "bytes": 45597,
+   "sha256": "833caafc302bd9306de494f32ee1bc51d3a2e6641183329b031ac06ef0f4277e"
+  },
+  "targets/macrodetails/universal-male-young-maxmuscle-maxweight.target.gz": {
+   "bytes": 57195,
+   "sha256": "4c88d7850d64ae8a455bd375755769a2153cce98a7e0b1acce6fa0454083d14d"
+  },
+  "targets/macrodetails/universal-male-young-maxmuscle-minweight.target.gz": {
+   "bytes": 47278,
+   "sha256": "0323cb5c604d13207d1a10ade8ce165df1cbf14d91de48ad959a082297669905"
+  },
+  "targets/mouth/mouth-angles-down.target.gz": {
+   "bytes": 1796,
+   "sha256": "5c760f5bd32c6f7a0c3298840dcad2bc4a20eaf5dd167a7a548553d5c0e1f5d5"
+  },
+  "targets/mouth/mouth-angles-up.target.gz": {
+   "bytes": 1529,
+   "sha256": "81fb84776356e4f1f1f99bd6f7d16707f385568ed585df4d1826de8ff76e778f"
+  },
+  "targets/mouth/mouth-cupidsbow-decr.target.gz": {
+   "bytes": 253,
+   "sha256": "69de11f939c169eb8d779332779039c88f12eddf2b617eb7470fa84f9ad2fd7e"
+  },
+  "targets/mouth/mouth-cupidsbow-incr.target.gz": {
+   "bytes": 483,
+   "sha256": "b8d7bfcdb811d56ab47d5a0c87c5de083695670a59126bb3e792cb8a0d760813"
+  },
+  "targets/mouth/mouth-dimples-out.target.gz": {
+   "bytes": 316,
+   "sha256": "2b924409c3e2ccac947f36b8d61f53be5f18a3846b3ad874d0fdc40e00a199dc"
+  },
+  "targets/mouth/mouth-laugh-lines-out.target.gz": {
+   "bytes": 387,
+   "sha256": "f37954bccb4d39c3e6c6054d91e88326c66cc274e262cc3001ba124588de7b96"
+  },
+  "targets/mouth/mouth-lowerlip-ext-up.target.gz": {
+   "bytes": 400,
+   "sha256": "d43f4bd02628f543ce880af9c1166671cd580cad3be42e6cfa826d528570d111"
+  },
+  "targets/mouth/mouth-lowerlip-height-incr.target.gz": {
+   "bytes": 367,
+   "sha256": "13f667854a83f0c3a4481ec266bbe4d5f1dba6a403c884c1b6b44606cb41f513"
+  },
+  "targets/mouth/mouth-lowerlip-volume-incr.target.gz": {
+   "bytes": 896,
+   "sha256": "6eefdf010318ac86aa59aeefffdf1f7e566f280a04e9843003b0543b4dc99179"
+  },
+  "targets/mouth/mouth-philtrum-volume-incr.target.gz": {
+   "bytes": 154,
+   "sha256": "17c101012d90e60e1e58a942589d2c40bd9b6d92e19b08be9dc961353992c8ef"
+  },
+  "targets/mouth/mouth-scale-horiz-decr.target.gz": {
+   "bytes": 3038,
+   "sha256": "aed1a3c27224d12828de1ffc3fe9c2895f4389417d016016dd4f1fefccdbc6c9"
+  },
+  "targets/mouth/mouth-scale-horiz-incr.target.gz": {
+   "bytes": 3925,
+   "sha256": "3bd6ff8195f77f0bcb586f3efec0eea1ae615eecba516e4d121025e40ed0ead2"
+  },
+  "targets/mouth/mouth-trans-down.target.gz": {
+   "bytes": 3391,
+   "sha256": "3f8810e0cc8d97c1dcdc5d28efedd2f9cff3ca1faa8a9c5f1661f5fc70f24f49"
+  },
+  "targets/mouth/mouth-trans-forward.target.gz": {
+   "bytes": 3622,
+   "sha256": "d9ff6e5d30bea3b7fdd20a47f2d39a97c635462dcb15b8a6609249234195ecb7"
+  },
+  "targets/mouth/mouth-upperlip-ext-up.target.gz": {
+   "bytes": 399,
+   "sha256": "33f822cdf57e6bc63f36d592011b2a70386e90898ec412eb3808f93f69868ad1"
+  },
+  "targets/mouth/mouth-upperlip-height-incr.target.gz": {
+   "bytes": 1036,
+   "sha256": "4c221c1f99e6f7c253cea0b2a3bc29d44751932928693006b352fc7ece95f6d6"
+  },
+  "targets/mouth/mouth-upperlip-volume-incr.target.gz": {
+   "bytes": 861,
+   "sha256": "e11c109910b3941d5b6c809f6a1c28c12bf08f67f5c126d109002c1aacd43ef6"
+  },
+  "targets/neck/measure-neck-circ-decr.target.gz": {
+   "bytes": 2780,
+   "sha256": "dd21174568f6b9c5914cf7978ab046cd15425f5d5feb853fa281c39c2a59c21d"
+  },
+  "targets/neck/measure-neck-circ-incr.target.gz": {
+   "bytes": 4382,
+   "sha256": "17c6cd87a9de589706ea5fc3047aead3e28d1d7ffdd13788ef7546cdb7df741e"
+  },
+  "targets/neck/measure-neck-height-decr.target.gz": {
+   "bytes": 15562,
+   "sha256": "a52bc3df37722ffb1cb4b9ab5e57a0d760d8ff3fc8c32047c79dac291b82ae6b"
+  },
+  "targets/neck/measure-neck-height-incr.target.gz": {
+   "bytes": 15019,
+   "sha256": "a8a742d8752e29df405aa92c06be6288c8de28aa68e5a5a6e051fa863d4da0af"
+  },
+  "targets/neck/neck-back-scale-depth-incr.target.gz": {
+   "bytes": 998,
+   "sha256": "ee81c54012be3e1c5bedbfefbb9fbf8d720fee266edd37d576fa4f35457e5456"
+  },
+  "targets/neck/neck-double-decr.target.gz": {
+   "bytes": 981,
+   "sha256": "78ad59b1a7dadbf02de2f19245383b181cc7ba1e95ece78cb5b164705bf70a33"
+  },
+  "targets/neck/neck-scale-depth-incr.target.gz": {
+   "bytes": 3348,
+   "sha256": "c80de7e4c766b51a0a20f732f9153114686c4fe79adb4846d0aec00f7ea16883"
+  },
+  "targets/neck/neck-scale-horiz-decr.target.gz": {
+   "bytes": 2195,
+   "sha256": "64a6cff62244705a3ea3f005889dfb56641e8ed43389e2e1cb0b8bed0660dc53"
+  },
+  "targets/neck/neck-scale-horiz-incr.target.gz": {
+   "bytes": 2830,
+   "sha256": "8428be2a7c0e1554dbf6bb516e6ffbdfa564a8cc94d6a9ff08580c0127e44aeb"
+  },
+  "targets/neck/neck-trans-forward.target.gz": {
+   "bytes": 2972,
+   "sha256": "41e6972f6801635d2a414638888fbe0bf0934c7e02a7558fa1f99411e32efa2b"
+  },
+  "targets/nose/nose-base-down.target.gz": {
+   "bytes": 1016,
+   "sha256": "d7672a1bb3412ba0a55d0a92e87c36cc1625baf56a78dc931c642e4f92f69768"
+  },
+  "targets/nose/nose-flaring-incr.target.gz": {
+   "bytes": 778,
+   "sha256": "36413e04c15c2672d1b158621381c793c6fc2228ea4626cec70afbbf746528a2"
+  },
+  "targets/nose/nose-hump-decr.target.gz": {
+   "bytes": 200,
+   "sha256": "f24247d606ad4a9b3f15f6afa187009865cfadcd1669d79d30876a8085cadb53"
+  },
+  "targets/nose/nose-nostrils-angle-down.target.gz": {
+   "bytes": 806,
+   "sha256": "01e88f10c24d1ecbdf2e764b929d0ff100ebf70691085790626d9eae57c93214"
+  },
+  "targets/nose/nose-nostrils-width-incr.target.gz": {
+   "bytes": 1121,
+   "sha256": "bc3d4108a0d10e8ef7dea5ebc7cbdc89da476285ff8413f58bcb4401bf2b122b"
+  },
+  "targets/nose/nose-point-down.target.gz": {
+   "bytes": 508,
+   "sha256": "58498fbb0b77572e90bf4fd50ca30f4cb6c402a5720b0161b26a8497f897ded6"
+  },
+  "targets/nose/nose-point-width-incr.target.gz": {
+   "bytes": 322,
+   "sha256": "bf5f782b014675be57aba4c840261308cc0d408660ecdfd22a42d47a756a016c"
+  },
+  "targets/nose/nose-scale-depth-decr.target.gz": {
+   "bytes": 1503,
+   "sha256": "0842aa0f4265fef85b6e708cdd0b0665e9a951c08a1c768dc285206f0ae4c7ad"
+  },
+  "targets/nose/nose-scale-depth-incr.target.gz": {
+   "bytes": 1384,
+   "sha256": "49f63b72f04f637ed38061acce579c0948d29175d949bf21e6bfed354c0a10bf"
+  },
+  "targets/nose/nose-scale-horiz-incr.target.gz": {
+   "bytes": 1802,
+   "sha256": "ba550cc15c894a4412bb368acc92bd6ad94bbb63d0135c561fe30230ef6344bd"
+  },
+  "targets/nose/nose-scale-vert-incr.target.gz": {
+   "bytes": 1580,
+   "sha256": "63d297c237e7054a1ea700b83454ef508bf5f42ba8f2eb6bc1eb747ad261f34b"
+  },
+  "targets/nose/nose-trans-forward.target.gz": {
+   "bytes": 1389,
+   "sha256": "cce0ba778feb8d2262bf2fe29fe1ceb6ce87f32e8ab6295c9f718412a47868a5"
+  },
+  "targets/nose/nose-volume-incr.target.gz": {
+   "bytes": 790,
+   "sha256": "52c8b7528e3a817a21a17c6d5f9a0fb1c3a1b980d685024f90489386c037cc21"
+  },
+  "targets/nose/nose-width1-decr.target.gz": {
+   "bytes": 297,
+   "sha256": "2810435d8aa494ddfbfebb69fa04cdf0f3e4587129c8aa051c9364c00849ce7f"
+  },
+  "targets/nose/nose-width1-incr.target.gz": {
+   "bytes": 311,
+   "sha256": "6818e340a06a968a51fb52a32c749dff0ec69fefbfc80a67c118d5e1f26ccb97"
+  },
+  "targets/nose/nose-width2-incr.target.gz": {
+   "bytes": 465,
+   "sha256": "c33140385195e670d434e43861621eb477cfba4e438cdc4762d9a3c8371cb65a"
+  },
+  "targets/nose/nose-width3-incr.target.gz": {
+   "bytes": 1657,
+   "sha256": "6a6ae8f5dcf5b72e12fa9a79539b9ae44b53565f687040efead2b73189eb8a4b"
+  },
+  "targets/pelvis/pelvis-tone-incr.target.gz": {
+   "bytes": 5315,
+   "sha256": "e4fe7f48c9be24d88b260e690a57272fa75d76acc6af0e75ea38072048f8c9f4"
+  },
+  "targets/stomach/stomach-pregnant-decr.target.gz": {
+   "bytes": 1274,
+   "sha256": "1667a6f0a54a7102e3dc21e991051441558a7dfc74e30baa1c04e9831ffecebf"
+  },
+  "targets/stomach/stomach-tone-incr.target.gz": {
+   "bytes": 1003,
+   "sha256": "a40bfc3398ef6907600b439e18dae77469db15482353c8fffe0c85b0fdb276d1"
+  },
+  "targets/target.json": {
+   "bytes": 160626,
+   "sha256": "ef93e754554f8ac0cc783802522e1dcc2a2efd9203aa449ada216d23927f939b"
+  },
+  "targets/torso/measure-bust-circ-incr.target.gz": {
+   "bytes": 12404,
+   "sha256": "d80557578cb087287e299025e1c4aa60d9b119fb8ab003d42e34bba0d01c92ff"
+  },
+  "targets/torso/measure-frontchest-dist-incr.target.gz": {
+   "bytes": 3717,
+   "sha256": "7ce12290327713c57be5261e6b400535e44a1ee3d4ecc4caa90e504fb837614b"
+  },
+  "targets/torso/measure-hips-circ-decr.target.gz": {
+   "bytes": 7527,
+   "sha256": "326177958c09515f4c3612e270eb4a9e7670289a6c5de3a2c6ca6557aafd3c7b"
+  },
+  "targets/torso/measure-hips-circ-incr.target.gz": {
+   "bytes": 7970,
+   "sha256": "fe642001634d6c63080e0d75d8d835aeb406f04ee8e7ec3eaf7a6f085c8dd9db"
+  },
+  "targets/torso/measure-napetowaist-dist-decr.target.gz": {
+   "bytes": 39610,
+   "sha256": "28d34163dd8aae0cb89e1c5b1837ffc4b1e91c31f29d0f1a6efb4ef1ea6341f7"
+  },
+  "targets/torso/measure-napetowaist-dist-incr.target.gz": {
+   "bytes": 39924,
+   "sha256": "165dc185743f8a782fd72c9e78f8ec8f7253587aae60728c8117cf9e0cc84bbf"
+  },
+  "targets/torso/measure-shoulder-dist-decr.target.gz": {
+   "bytes": 16887,
+   "sha256": "6eef8cfafd4021579645565040f14113b5156d6c1d9069d39c76b732527a1709"
+  },
+  "targets/torso/measure-shoulder-dist-incr.target.gz": {
+   "bytes": 15015,
+   "sha256": "d9508362063fee6f697bee2d7204cb6a799d9711fb2436f93f781242a104494f"
+  },
+  "targets/torso/measure-underbust-circ-incr.target.gz": {
+   "bytes": 12341,
+   "sha256": "6d1e86d9a86744f2ee4adb5f2791a27f8f397e621c181aaada47c45aa3bc6dc0"
+  },
+  "targets/torso/measure-waist-circ-decr.target.gz": {
+   "bytes": 8182,
+   "sha256": "be10c1d44a229f1faf302f7d51f45a0146e70a1912d3f9022c0ce5a3761ebb88"
+  },
+  "targets/torso/measure-waist-circ-incr.target.gz": {
+   "bytes": 8032,
+   "sha256": "dcbca91a872f64c9015ecc3473a6769e2ccbb2ad551dce1a7692d277a88d39a1"
+  },
+  "targets/torso/torso-muscle-dorsi-incr.target.gz": {
+   "bytes": 5003,
+   "sha256": "db0e47dd5138a0b397cc4304c529e1ad6ed704f13f9ee5c24aa91c0798c4382f"
+  },
+  "targets/torso/torso-muscle-pectoral-incr.target.gz": {
+   "bytes": 5271,
+   "sha256": "83831fd65509c729bc0b5b3311b5f63bf35a37728e7c22d4425a3c620f2e4069"
+  },
+  "targets/torso/torso-scale-depth-decr.target.gz": {
+   "bytes": 11498,
+   "sha256": "d38951b5d6e539df8343b82e87693a462db70e0d1c3e279c4f477a421a90f13d"
+  },
+  "targets/torso/torso-scale-depth-incr.target.gz": {
+   "bytes": 11212,
+   "sha256": "80abc3d1725bdf7f82cb1804fed3bc10e01a58b38b24f986e1f8083c5f3c68f1"
+  },
+  "targets/torso/torso-scale-horiz-incr.target.gz": {
+   "bytes": 22955,
+   "sha256": "58978f5cd896b6c457c147a4312c76b079e499c9b721f06e735112df3ec0235f"
+  },
+  "targets/torso/torso-scale-vert-decr.target.gz": {
+   "bytes": 39045,
+   "sha256": "c6624bda038ce3cc91e7d29e1324a7fadd1e51a095c32ce04c95b0cab91c46a5"
+  },
+  "targets/torso/torso-vshape-incr.target.gz": {
+   "bytes": 19019,
+   "sha256": "e1fb879d1a59229f0127af161f7dcdb6a476b734ed3bcf84bea2b379590ce371"
+  }
+ }
+}

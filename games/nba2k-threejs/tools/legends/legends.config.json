@@ -12,12 +12,21 @@
     "Yao: torso-scale-horiz 0.4 and measure-bust-circ 0.2 added (his chest was the narrowest of the six).",
     "Zero-valued profile modifiers were omitted; measure-* modifiers are unsided; asym-* modifiers are unsided bipolar (+ = the -r target).",
     "meta.stats.standingReachM for Jordan set to 2.65 (profile estimate 2.67) to match Kobe (same height and wingspan); every model no-shrug overhead reach is 22-27 cm under the listed reach, i.e. the six reach figures are mutually consistent.",
-    "expressions are runtime blend descriptors (validated by bake, not baked yet). appearance.beard.style needs per-style masks/shells: the shared beard shell is a full beard."
+    "v2 (SPEC-v2 §10.3 round 1): likeness modifiers changed as listed in SPEC-v2 §10.3, then calibrate.mjs --write re-solved the calibration knobs.",
+    "expressions: the 9 channels of SPEC-v2 §3.9 per player ({modifiers, jaw {rotDeg, translate}, tongue {translate}, lids}); baked as sparse morph deltas by lib/morphs.mjs.",
+    "appearance: bake-time grooming geometry (hair hairline/layers, beard components/layers, eyebrows) per SPEC-v2 §2.8, plus the runtime look (§2.6) and kit data (§2.7) passed through to the header.",
+    "meta.stats keys match src/legends.js (heightM, barefootM, weightKg, wingspanM, reachM); unit-lineup.mjs compares them with the header.",
+    "meta.calibration.headH / craniumFace use the v2 measure.mjs menton = the frozen ME landmark (crown -> ME). The PoC heuristic picked the lips or the nose tip as pogonion whenever they protruded, so its values (24.0 ... 26.4 cm) were not anatomical. Each target = the v1 bake re-measured with the ME landmark + the SPEC-v2 §10.3 delta (Kobe craniumFace -0.03; Giannis headH -0.004 m, craniumFace +0.05); the §10.2 face bands were derived from those same v1 faces.",
+    "hair.hairline.aboveCm is the forehead height measured up the forehead midline surface from the glabella (bake converts it per player to a height); as a vertical offset 6-7.5 cm left only 2-3 cm of scalp in front of the vertex on these heads.",
+    "Hairline: a temporal line (WP1 addition) descends from the temple corner (phiC - 0.35 rad) to ET.y + earGap at the sideburn front; without it the temples were bare up to Gy + 5-6 cm (flat-cap look in 3/4 and profile).",
+    "Ear exclusion for grooming/masks uses the refined ear set (box vertices protruding past |x| 0.074 plus their side-view hull); the SPEC box set (|x| > 0.071) also caught the skull above the ear. The earOut metric keeps the box set.",
+    "Landmark SN is base.obj vertex 343 (the midline vertex at the quoted coordinates); the quoted 342 is 1.4 mm right of the midline.",
+    "Lip seam: 36 vertices shared by upper- and lower-lip faces are split into coincident upper/lower copies so jawOpen/roar open the mouth onto the teeth instead of stretching the lip contact into a curtain."
   ],
-  "output": "../../test/scratch/legends-poc/assets",
+  "output": "../../assets/legends",
+  "mpfbRef": "d0a32e57a7f915cb2f2b95410e2117648c7bbb7e",
   "lods": [{"ratio": 0.5, "lockHead": true}, {"ratio": 0.25, "lockHead": true}, {"ratio": 0.12}],
-  "keepMouth": false,
-  "shells": "default",
+  "keepMouth": true,
   "players": [
     {
       "id": "kobe",
@@ -28,10 +37,10 @@
         "nameEn": "Kobe Bryant",
         "era": "2008-10",
         "number": "24",
-        "stats": {"listedHeightM": 1.98, "barefootHeightM": 1.96, "weightKg": 96, "wingspanM": 2.11, "standingReachM": 2.64},
+        "stats": {"heightM": 1.98, "barefootM": 1.96, "weightKg": 96, "wingspanM": 2.11, "reachM": 2.64},
         "calibration": {
-          "craniumFace": 0.98,
-          "headH": 0.24,
+          "craniumFace": 0.891,
+          "headH": 0.2483,
           "shoulderJoints": 0.455,
           "wingspan": 2.11,
           "handLen": 0.232,
@@ -50,25 +59,25 @@
       },
       "targets": {
         "head/head-oval": 0.6,
-        "head/head-scale-vert-decr-incr": 0.14,
-        "head/head-scale-horiz-decr-incr": -0.15,
+        "head/head-scale-vert-decr-incr": 0.01,
+        "head/head-scale-horiz-decr-incr": -0.3,
         "head/head-back-scale-depth-decr-incr": 0.15,
-        "head/head-fat-decr-incr": -0.4,
+        "head/head-fat-decr-incr": -0.5,
         "head/head-age-decr-incr": 0.05,
-        "forehead/forehead-scale-vert-decr-incr": -0.26,
+        "forehead/forehead-scale-vert-decr-incr": -0.21,
         "forehead/forehead-trans-backward-forward": -0.15,
         "forehead/forehead-temple-decr-incr": -0.15,
-        "eyebrows/eyebrows-trans-down-up": -0.2,
+        "eyebrows/eyebrows-trans-down-up": -0.3,
         "eyebrows/eyebrows-angle-down-up": -0.15,
         "eyebrows/eyebrows-trans-backward-forward": 0.3,
         "eyes/eye-scale-decr-incr": -0.15,
-        "eyes/eye-height2-decr-incr": -0.25,
-        "eyes/eye-push1-in-out": -0.2,
+        "eyes/eye-height2-decr-incr": -0.35,
+        "eyes/eye-push1-in-out": -0.35,
         "eyes/eye-eyefold-down-up": -0.2,
         "eyes/eye-corner2-down-up": 0.1,
         "eyes/eye-bag-decr-incr": 0.15,
         "nose/nose-scale-horiz-decr-incr": 0.2,
-        "nose/nose-flaring-decr-incr": 0.35,
+        "nose/nose-flaring-decr-incr": 0.25,
         "nose/nose-nostrils-width-decr-incr": 0.3,
         "nose/nose-width3-decr-incr": 0.25,
         "nose/nose-point-width-decr-incr": 0.2,
@@ -76,7 +85,7 @@
         "nose/nose-hump-decr-incr": -0.1,
         "nose/nose-volume-decr-incr": 0.1,
         "nose/nose-nostrils-angle-down-up": -0.05,
-        "mouth/mouth-scale-horiz-decr-incr": 0.2,
+        "mouth/mouth-scale-horiz-decr-incr": 0.3,
         "mouth/mouth-lowerlip-volume-decr-incr": 0.3,
         "mouth/mouth-upperlip-volume-decr-incr": 0.15,
         "mouth/mouth-lowerlip-height-decr-incr": 0.15,
@@ -84,14 +93,14 @@
         "mouth/mouth-angles-down-up": -0.15,
         "mouth/mouth-laugh-lines-in-out": 0.2,
         "mouth/mouth-philtrum-volume-decr-incr": 0.1,
-        "chin/chin-prominent-decr-incr": 0.45,
-        "chin/chin-prognathism-decr-incr": 0.35,
-        "chin/chin-height-decr-incr": 0.2,
-        "chin/chin-bones-decr-incr": 0.35,
+        "chin/chin-prominent-decr-incr": 0.65,
+        "chin/chin-prognathism-decr-incr": 0.55,
+        "chin/chin-height-decr-incr": 0.45,
+        "chin/chin-bones-decr-incr": 0.45,
         "chin/chin-width-decr-incr": 0.1,
         "chin/chin-jaw-drop-decr-incr": -0.1,
-        "cheek/cheek-bones-decr-incr": 0.45,
-        "cheek/cheek-volume-decr-incr": -0.45,
+        "cheek/cheek-bones-decr-incr": 0.55,
+        "cheek/cheek-volume-decr-incr": -0.6,
         "cheek/cheek-inner-decr-incr": -0.25,
         "cheek/cheek-trans-down-up": 0.15,
         "ears/ear-scale-decr-incr": 0.1,
@@ -118,7 +127,7 @@
         "arms/lowerarm-muscle-decr-incr": 0.3,
         "arms/upperarm-fat-decr-incr": -0.4,
         "arms/lowerarm-fat-decr-incr": -0.3,
-        "hands/hand-scale-decr-incr": 0.05,
+        "hands/hand-scale-decr-incr": 0.03,
         "hands/hand-fingers-length-decr-incr": 0.25,
         "hands/measure-wrist-circ-decr-incr": -0.1,
         "legs/measure-upperleg-height-decr-incr": 0.15,
@@ -132,66 +141,140 @@
         "feet/foot-scale-decr-incr": 0.23,
         "feet/measure-ankle-circ-decr-incr": -0.15
       },
-      "expressions": {"jawJut": {"chin/chin-prognathism-decr-incr": 1, "mouth/mouth-lowerlip-ext-down-up": 0.4}},
+      "expressions": {
+        "jawOpen": {"jaw": {"rotDeg": 18}},
+        "jawJut": {
+          "modifiers": {
+            "chin/chin-prognathism-decr-incr": 1,
+            "mouth/mouth-lowerlip-ext-down-up": 0.4,
+            "mouth/mouth-lowerlip-volume-decr-incr": 0.3
+          },
+          "jaw": {"rotDeg": 0, "translate": [0, 0.002, 0.008]}
+        },
+        "scowl": {
+          "modifiers": {
+            "eyebrows/eyebrows-trans-down-up": -1,
+            "eyebrows/eyebrows-angle-down-up": -0.6,
+            "eyes/eye-height1-decr-incr": -0.4,
+            "eyes/eye-height2-decr-incr": -0.5,
+            "eyes/eye-height3-decr-incr": -0.4,
+            "eyes/eye-bag-decr-incr": 0.3,
+            "cheek/cheek-trans-down-up": 0.2
+          }
+        },
+        "blink": {"lids": true}
+      },
       "appearance": {
         "skin": "#8B5A3C",
-        "skinRoughness": 0.48,
         "lips": "#6a4030",
         "palms": "#b48466",
-        "iris": "#2B1A12",
+        "skinRoughness": 0.48,
+        "warmK": 0.45,
+        "cavityK": 1,
+        "hlK": 0.1,
+        "tattooK": 0,
+        "stubbleHair": 1,
+        "scalpDarken": 0.38,
+        "scalpRoughness": 0.62,
+        "beardSkinDarken": 0.35,
+        "browDarken": 0.35,
+        "glossBase": 0,
+        "clearcoatRoughness": 0.3,
+        "sheenColor": "#6a5a50",
+        "iris": "#2A1A12",
+        "idleFace": {"scowl": 0.35},
         "hair": {
-          "shell": "hair",
           "style": "buzz",
           "lengthMm": 1.5,
           "color": "#151010",
-          "coverage": 0.4,
-          "hairline": {"aboveBrowCm": 6.8, "templeRecessionCm": 1},
-          "sheen": 0.15
+          "hairline": {
+            "aboveCm": 6.8,
+            "frontCurveCm": 0.3,
+            "recCm": 1,
+            "temple": "round",
+            "sideburnBottom": "mid-ear",
+            "sideburnWidthCm": 1.4,
+            "earGapMm": 8,
+            "napeBelowLobeCm": 2.5,
+            "nape": "square"
+          },
+          "layers": [{"name": "inner", "offsetMm": 0.6, "family": {"stipple": 0.7, "straight": 0.3}, "density": 0.42, "fadeMm": 4}]
         },
-        "eyebrows": {"shell": "eyebrows", "color": "#151010", "density": 0.8, "shape": "straight-low"},
         "beard": {
-          "shell": "beard",
           "style": "moustache-goatee",
           "color": "#151010",
-          "lengthMm": 2.5,
-          "density": {"moustache": 0.55, "goatee": 0.6, "jawShadow": 0.15}
+          "components": {
+            "M": {"heightMm": 6, "gapMm": 1.5, "dropMm": 4, "density": 0.55, "centreScale": 0.7, "centreMm": 4},
+            "Gt": {"wCm": 2.5, "hCm": 2, "soulWCm": 1, "density": 0.6},
+            "Lk": {"density": 0.15, "widthMm": 4},
+            "J": {"jaw": 0.45, "bandM": 0.015}
+          },
+          "layers": [{"name": "inner", "offsetMm": 1, "family": {"stipple": 0.6, "straight": 0.4}, "fadeMm": 1.5}]
         },
-        "accessories": [
-          {"type": "sleeve", "shell": "sleeve_r", "side": "r", "color": "#111111", "default": true},
-          {
-            "type": "fingerTape",
-            "side": "r",
-            "fingers": ["index", "middle"],
-            "colorHome": "#f4f4f4",
-            "colorAway": "#111111"
-          }
-        ],
+        "eyebrows": {
+          "gap": 0.0235,
+          "arch": 0.0025,
+          "tail": -0.002,
+          "hIn": 0.0045,
+          "hOut": 0.002,
+          "density": 0.8,
+          "shape": "straight-low",
+          "offsetMm": 1,
+          "color": "#151010"
+        },
+        "tattoos": [],
         "kit": {
-          "number": "24",
-          "default": "home",
-          "shortsHem": "above-knee",
+          "number": "#552583",
+          "backName": "BRYANT",
+          "classic": "home",
+          "glyph": "rounded",
+          "base": "#FDB927",
+          "outline": "#FFFFFF",
+          "keyline": null,
+          "neckArm": [["#552583", 9], ["#FFFFFF", 3]],
+          "shortsStripe": [["#FFFFFF", 6], ["#552583", 30], ["#FFFFFF", 6]],
+          "waistband": [["#552583", 40]],
+          "hem": [["#552583", 12]],
+          "socks": {"shell": "socks_high_brace", "color": "#FFFFFF", "brace": true},
           "fit": "baggy-2000s",
           "home": {"base": "#FDB927", "number": "#552583", "outline": "#FFFFFF", "trim": "#552583"},
-          "away": {"base": "#552583", "number": "#FDB927", "outline": "#FFFFFF", "trim": "#FDB927"},
-          "alt": {"number": "8", "headband": "#FFFFFF"}
+          "away": {"base": "#552583", "number": "#FDB927", "outline": "#FFFFFF", "trim": "#FDB927"}
         },
-        "socks": {"shell": "socks", "length": "mid-calf", "colorHome": "#FFFFFF", "colorAway": "#111111"},
-        "shoes": {"cut": "low", "home": ["#FFFFFF", "#FDB927", "#552583"], "away": ["#552583", "#111111", "#FDB927"]}
+        "shoes": {
+          "cut": "low",
+          "home": ["#FFFFFF", "#FDB927", "#552583"],
+          "away": ["#552583", "#111111", "#FDB927"],
+          "classic": "home"
+        },
+        "accessories": [
+          {
+            "type": "sleeve",
+            "shell": "sleeve_r",
+            "cuffCm": 2.5,
+            "cuffRoughness": 0.35,
+            "colors": {"classic": "#111111", "allstarA": "#111111", "allstarB": "#111111"}
+          },
+          {
+            "type": "fingerTape",
+            "shell": "tape_r_im",
+            "colors": {"classic": "#f4f4f4", "allstarA": "#f4f4f4", "allstarB": "#111111"}
+          }
+        ]
       }
     },
     {
       "id": "jordan",
-      "label": "Michael Jordan (1995-98, #23)",
+      "label": "Michael Jordan (1991-98, #23)",
       "height": 1.96,
       "meta": {
         "nameZh": "迈克尔·乔丹",
         "nameEn": "Michael Jordan",
-        "era": "1995-98",
+        "era": "1991-98",
         "number": "23",
-        "stats": {"listedHeightM": 1.98, "barefootHeightM": 1.96, "weightKg": 98, "wingspanM": 2.11, "standingReachM": 2.65},
+        "stats": {"heightM": 1.98, "barefootM": 1.96, "weightKg": 98, "wingspanM": 2.11, "reachM": 2.65},
         "calibration": {
-          "craniumFace": 1.04,
-          "headH": 0.245,
+          "craniumFace": 0.924,
+          "headH": 0.2605,
           "shoulderJoints": 0.46,
           "wingspan": 2.11,
           "handLen": 0.245,
@@ -210,19 +293,19 @@
       },
       "targets": {
         "head/head-oval": 0.55,
-        "head/head-scale-vert-decr-incr": 0.39,
-        "head/head-scale-horiz-decr-incr": -0.12,
+        "head/head-scale-vert-decr-incr": 0.25,
+        "head/head-scale-horiz-decr-incr": -0.2,
         "head/head-back-scale-depth-decr-incr": 0.3,
         "head/head-fat-decr-incr": -0.3,
         "head/head-age-decr-incr": 0.1,
-        "forehead/forehead-scale-vert-decr-incr": -0.67,
+        "forehead/forehead-scale-vert-decr-incr": -0.56,
         "forehead/forehead-nubian-decr-incr": 0.3,
         "forehead/forehead-trans-backward-forward": 0.12,
         "forehead/forehead-temple-decr-incr": -0.15,
-        "ears/ear-scale-decr-incr": 0.45,
+        "ears/ear-scale-decr-incr": 0.55,
         "ears/ear-scale-vert-decr-incr": 0.2,
-        "ears/ear-wing-decr-incr": 0.6,
-        "ears/ear-flap-decr-incr": 0.3,
+        "ears/ear-wing-decr-incr": 0.85,
+        "ears/ear-flap-decr-incr": 0.45,
         "ears/ear-rot-backward-forward": 0.1,
         "ears/ear-lobe-decr-incr": 0.2,
         "ears/ear-shape-square-round": 0.3,
@@ -230,13 +313,13 @@
         "eyebrows/eyebrows-trans-backward-forward": 0.25,
         "eyebrows/eyebrows-angle-down-up": 0.05,
         "eyes/eye-scale-decr-incr": -0.15,
-        "eyes/eye-height2-decr-incr": -0.2,
-        "eyes/eye-eyefold-down-up": -0.3,
+        "eyes/eye-height2-decr-incr": -0.3,
+        "eyes/eye-eyefold-down-up": -0.45,
         "eyes/eye-corner2-down-up": -0.15,
         "eyes/eye-trans-in-out": 0.05,
         "eyes/eye-bag-decr-incr": 0.15,
-        "nose/nose-scale-horiz-decr-incr": 0.35,
-        "nose/nose-flaring-decr-incr": 0.5,
+        "nose/nose-scale-horiz-decr-incr": 0.45,
+        "nose/nose-flaring-decr-incr": 0.65,
         "nose/nose-nostrils-width-decr-incr": 0.45,
         "nose/nose-width3-decr-incr": 0.3,
         "nose/nose-width1-decr-incr": -0.1,
@@ -246,16 +329,16 @@
         "nose/nose-hump-decr-incr": -0.2,
         "mouth/mouth-scale-horiz-decr-incr": 0.25,
         "mouth/mouth-upperlip-volume-decr-incr": 0.3,
-        "mouth/mouth-lowerlip-volume-decr-incr": 0.45,
+        "mouth/mouth-lowerlip-volume-decr-incr": 0.55,
         "mouth/mouth-trans-backward-forward": 0.15,
         "mouth/mouth-angles-down-up": -0.1,
-        "chin/chin-height-decr-incr": 0.25,
+        "chin/chin-height-decr-incr": 0.4,
         "chin/chin-prominent-decr-incr": 0.25,
         "chin/chin-width-decr-incr": -0.1,
         "chin/chin-jaw-drop-decr-incr": 0.1,
         "chin/chin-bones-decr-incr": 0.2,
         "cheek/cheek-bones-decr-incr": 0.35,
-        "cheek/cheek-volume-decr-incr": -0.35,
+        "cheek/cheek-volume-decr-incr": -0.45,
         "cheek/cheek-inner-decr-incr": -0.2,
         "neck/measure-neck-height-decr-incr": 0.25,
         "neck/measure-neck-circ-decr-incr": 0.2,
@@ -288,56 +371,135 @@
         "feet/measure-ankle-circ-decr-incr": -0.2,
         "feet/foot-scale-decr-incr": 0.17
       },
-      "expressions": {"tongueOut": {"chin/chin-jaw-drop-decr-incr": 0.6}},
+      "expressions": {
+        "jawOpen": {"jaw": {"rotDeg": 18}},
+        "tongueOut": {"jaw": {"rotDeg": 11}, "tongue": {"translate": [0.005, -0.01, 0.03]}},
+        "smirk": {
+          "modifiers": {"asym/asym-mouth-1-l-r": 0.4, "mouth/mouth-angles-down-up": 0.15, "cheek/cheek-trans-down-up": 0.15}
+        },
+        "scowl": {
+          "modifiers": {
+            "eyebrows/eyebrows-trans-down-up": -1,
+            "eyebrows/eyebrows-angle-down-up": -0.6,
+            "eyes/eye-height1-decr-incr": -0.4,
+            "eyes/eye-height2-decr-incr": -0.5,
+            "eyes/eye-height3-decr-incr": -0.4,
+            "eyes/eye-bag-decr-incr": 0.3,
+            "cheek/cheek-trans-down-up": 0.2
+          }
+        },
+        "blink": {"lids": true}
+      },
       "appearance": {
         "skin": "#4E3122",
-        "skinRoughness": 0.45,
-        "subsurface": "#7A3A26",
         "lips": "#3A221B",
         "palms": "#A9785E",
+        "skinRoughness": 0.45,
+        "warmK": 0.45,
+        "cavityK": 1,
+        "hlK": 0.1,
+        "tattooK": 0,
+        "stubbleHair": 0,
+        "scalpDarken": 0,
+        "scalpRoughness": 0.32,
+        "beardSkinDarken": 0.4,
+        "browDarken": 0.35,
+        "glossBase": 0.55,
+        "clearcoatRoughness": 0.22,
+        "sheenColor": "#6a5a50",
         "iris": "#2A1A12",
-        "hair": {"shell": null, "style": "bald", "color": "#0E0A09", "coverage": 0.12, "scalpRoughness": 0.32, "sheen": 0.6},
-        "eyebrows": {"shell": "eyebrows", "color": "#0E0A09", "density": 0.7, "shape": "thin-low-straight"},
+        "idleFace": {"jawOpenGum": [0.06, 0.06, 1.5]},
+        "hair": {
+          "style": "bald",
+          "color": "#0E0A09",
+          "layers": [],
+          "horseshoe": {"phiMin": 1, "top": "ET.y+0.04", "density": 0.12, "fadeMm": 4},
+          "gloss": {"aboveGyM": 0.06, "fadeCm": 2}
+        },
         "beard": {
-          "shell": "beard",
           "style": "moustache-goatee",
           "color": "#0E0A09",
-          "lengthMm": 3,
-          "density": {"moustache": 0.85, "goatee": 0.85, "ring": 0.4, "cheeks": 0}
+          "components": {
+            "M": {"heightMm": 7.5, "gapMm": 1, "dropMm": 5, "density": 0.85, "outerScale": 0.8, "outerMm": 15},
+            "Gt": {"wCm": 3, "hCm": 2.5, "soulWCm": 1.2, "density": 0.85},
+            "Lk": {"density": 0.4, "widthMm": 4}
+          },
+          "layers": [{"name": "inner", "offsetMm": 1.2, "family": {"stipple": 0.5, "straight": 0.5}, "fadeMm": 1.2}]
         },
-        "accessories": [{"type": "wristband", "side": "l", "position": "mid-forearm", "widthCm": 9, "colorMatchesKit": true}],
+        "eyebrows": {
+          "gap": 0.0225,
+          "arch": 0.003,
+          "tail": -0.003,
+          "hIn": 0.0035,
+          "hOut": 0.0015,
+          "density": 0.7,
+          "shape": "thin-low-straight",
+          "offsetMm": 1,
+          "color": "#0E0A09",
+          "archOuter": true
+        },
+        "tattoos": [],
         "kit": {
-          "number": "23",
-          "default": "away",
-          "shortsHem": "knee",
-          "fit": "baggy-1990s",
-          "undershort": "#9bc4e2",
-          "away": {"base": "#CE1141", "number": "#FFFFFF", "outline": "#000000", "trim": "#000000"},
+          "number": "#FFFFFF",
+          "backName": "JORDAN",
+          "classic": "away",
+          "glyph": "block",
+          "base": "#CE1141",
+          "outline": "#000000",
+          "keyline": null,
+          "neckArm": [["#000000", 5], ["#FFFFFF", 3], ["#000000", 5]],
+          "shortsStripe": [["#000000", 12], ["#FFFFFF", 6]],
+          "waistband": [["#000000", 8], ["#FFFFFF", 4], ["#000000", 8]],
+          "hem": [["#000000", 6]],
+          "socks": {"shell": "socks_low", "color": "#000000"},
+          "fit": "baggy-1990s-knee",
+          "undershort": {"color": "#9bc4e2", "widthCm": 1.5},
+          "shortsNumber": {"heightM": 0.075, "u": 0.82, "aboveHemM": 0.1, "leg": "l"},
           "home": {"base": "#FFFFFF", "number": "#CE1141", "outline": "#000000", "trim": "#CE1141"},
-          "alt": {"base": "#000000", "number": "#CE1141", "outline": "#FFFFFF", "trim": "#CE1141", "pinstripe": "#CE1141"}
+          "away": {"base": "#CE1141", "number": "#FFFFFF", "outline": "#000000", "trim": "#000000"}
         },
-        "socks": {"shell": "socks", "length": "low-crew", "colorHome": "#FFFFFF", "colorAway": "#000000"},
         "shoes": {
-          "cut": "mid-high",
+          "cut": "midhigh",
           "home": ["#FFFFFF", "#0a0a0a", "#a8d8f0"],
           "away": ["#0a0a0a", "#0a0a0a", "#CE1141"],
-          "patentMudguard": true
-        }
+          "classic": "away",
+          "overrides": {
+            "jordanHome": {
+              "mudguard": {"color": "#0a0a0a", "roughness": 0.1},
+              "sidePanel": false,
+              "outsole": {"color": "#a8d8f0", "roughness": 0.3}
+            },
+            "jordanAway": {
+              "upper": {"color": "#0a0a0a", "roughness": 0.8},
+              "mudguard": {"color": "#0a0a0a", "roughness": 0.1},
+              "heelTab": "#CE1141",
+              "midsole": "#FFFFFF",
+              "outsole": {"color": "#CE1141"}
+            }
+          }
+        },
+        "accessories": [
+          {
+            "type": "wristband",
+            "shell": "wristband_l",
+            "colors": {"classic": "#CE1141", "allstarA": "#FFFFFF", "allstarB": "#111111"}
+          }
+        ]
       }
     },
     {
       "id": "lebron",
-      "label": "LeBron James (2015-16, #23)",
+      "label": "LeBron James (2016-18, #23)",
       "height": 2.03,
       "meta": {
         "nameZh": "勒布朗·詹姆斯",
         "nameEn": "LeBron James",
-        "era": "2015-16",
+        "era": "2016-18",
         "number": "23",
-        "stats": {"listedHeightM": 2.06, "barefootHeightM": 2.03, "weightKg": 113.4, "wingspanM": 2.14, "standingReachM": 2.69},
+        "stats": {"heightM": 2.06, "barefootM": 2.03, "weightKg": 113.4, "wingspanM": 2.14, "reachM": 2.69},
         "calibration": {
-          "craniumFace": 1.02,
-          "headH": 0.245,
+          "craniumFace": 0.9,
+          "headH": 0.2608,
           "shoulderJoints": 0.505,
           "wingspan": 2.14,
           "handLen": 0.238,
@@ -349,30 +511,30 @@
         "gender": 1,
         "ageYears": 31,
         "muscle": 0.95,
-        "weight": 0.25,
+        "weight": 0.23,
         "height": "auto",
         "proportions": 0.8,
         "race": {"african": 0.85, "caucasian": 0.13, "asian": 0.02}
       },
       "targets": {
-        "head/head-square": 0.55,
+        "head/head-square": 0.7,
         "head/head-rectangular": 0.3,
-        "head/head-scale-horiz-decr-incr": 0.15,
+        "head/head-scale-horiz-decr-incr": 0.25,
         "head/head-scale-vert-decr-incr": 0.29,
         "head/head-scale-depth-decr-incr": 0.05,
         "head/head-fat-decr-incr": -0.3,
         "head/head-age-decr-incr": 0.1,
-        "forehead/forehead-scale-vert-decr-incr": -0.35,
+        "forehead/forehead-scale-vert-decr-incr": -0.3,
         "forehead/forehead-nubian-decr-incr": 0.3,
         "forehead/forehead-temple-decr-incr": -0.1,
         "forehead/forehead-trans-backward-forward": 0.1,
-        "eyebrows/eyebrows-trans-backward-forward": 0.45,
+        "eyebrows/eyebrows-trans-backward-forward": 0.6,
         "eyebrows/eyebrows-trans-down-up": -0.25,
         "eyebrows/eyebrows-angle-down-up": -0.15,
         "eyes/eye-scale-decr-incr": -0.15,
-        "eyes/eye-height2-decr-incr": -0.25,
-        "eyes/eye-eyefold-down-up": -0.3,
-        "eyes/eye-push1-in-out": -0.2,
+        "eyes/eye-height2-decr-incr": -0.4,
+        "eyes/eye-eyefold-down-up": -0.45,
+        "eyes/eye-push1-in-out": -0.35,
         "eyes/eye-corner2-down-up": -0.15,
         "eyes/eye-bag-decr-incr": 0.2,
         "eyes/eye-epicanthus-in-out": -0.1,
@@ -381,7 +543,7 @@
         "nose/nose-nostrils-width-decr-incr": 0.5,
         "nose/nose-point-width-decr-incr": 0.4,
         "nose/nose-volume-decr-incr": 0.3,
-        "nose/nose-scale-vert-decr-incr": 0.2,
+        "nose/nose-scale-vert-decr-incr": 0.3,
         "nose/nose-width1-decr-incr": 0.15,
         "nose/nose-width2-decr-incr": 0.3,
         "nose/nose-width3-decr-incr": 0.35,
@@ -397,7 +559,7 @@
         "mouth/mouth-trans-backward-forward": 0.15,
         "mouth/mouth-cupidsbow-decr-incr": -0.1,
         "mouth/mouth-laugh-lines-in-out": 0.15,
-        "chin/chin-width-decr-incr": 0.5,
+        "chin/chin-width-decr-incr": 0.6,
         "chin/chin-bones-decr-incr": 0.55,
         "chin/chin-prominent-decr-incr": 0.25,
         "chin/chin-height-decr-incr": 0.2,
@@ -406,7 +568,7 @@
         "cheek/cheek-volume-decr-incr": -0.25,
         "cheek/cheek-inner-decr-incr": -0.1,
         "ears/ear-scale-decr-incr": -0.2,
-        "ears/ear-flap-decr-incr": -0.35,
+        "ears/ear-flap-decr-incr": -0.5,
         "ears/ear-wing-decr-incr": -0.2,
         "ears/ear-trans-down-up": -0.1,
         "ears/ear-lobe-decr-incr": -0.1,
@@ -461,74 +623,153 @@
         "asym/asym-brown-1-l-r": 0.1,
         "asym/asym-mouth-1-l-r": 0.05
       },
-      "expressions": {"roar": {"chin/chin-jaw-drop-decr-incr": 1}},
+      "expressions": {
+        "jawOpen": {"jaw": {"rotDeg": 18}},
+        "roar": {
+          "modifiers": {
+            "mouth/mouth-upperlip-ext-down-up": 1,
+            "nose/nose-flaring-decr-incr": 0.6,
+            "nose/nose-nostrils-width-decr-incr": 0.3,
+            "mouth/mouth-scale-horiz-decr-incr": 0.25,
+            "mouth/mouth-laugh-lines-in-out": 0.6,
+            "eyebrows/eyebrows-trans-down-up": -0.8
+          },
+          "jaw": {"rotDeg": 22}
+        },
+        "scowl": {
+          "modifiers": {
+            "eyebrows/eyebrows-trans-down-up": -1,
+            "eyebrows/eyebrows-angle-down-up": -0.6,
+            "eyes/eye-height1-decr-incr": -0.4,
+            "eyes/eye-height2-decr-incr": -0.5,
+            "eyes/eye-height3-decr-incr": -0.4,
+            "eyes/eye-bag-decr-incr": 0.3,
+            "cheek/cheek-trans-down-up": 0.2
+          }
+        },
+        "puff": {
+          "modifiers": {
+            "cheek/cheek-volume-decr-incr": 1,
+            "cheek/cheek-inner-decr-incr": 1,
+            "mouth/mouth-scale-horiz-decr-incr": -0.2,
+            "mouth/mouth-trans-backward-forward": 0.2
+          }
+        },
+        "blink": {"lids": true}
+      },
       "appearance": {
         "skin": "#6A4530",
-        "skinRoughness": 0.42,
         "lips": "#4a2e22",
         "palms": "#A47A5E",
-        "iris": "#2B1A12",
+        "skinRoughness": 0.42,
+        "warmK": 0.45,
+        "cavityK": 1,
+        "hlK": 0.1,
+        "tattooK": 1,
+        "stubbleHair": 0.5,
+        "scalpDarken": 0.6,
+        "scalpRoughness": 0.7,
+        "beardSkinDarken": 0.55,
+        "browDarken": 0.35,
+        "glossBase": 0,
+        "clearcoatRoughness": 0.3,
+        "sheenColor": "#6a5a50",
+        "iris": "#2A1A12",
         "hair": {
-          "shell": "hair",
           "style": "buzz-receded",
           "lengthMm": 4,
           "color": "#141010",
-          "coverage": 0.85,
-          "hairline": {"aboveBrowCm": 7.5, "templeRecessionCm": 2.5},
-          "taperSidesMm": 2.5
+          "hairline": {
+            "aboveCm": 7.5,
+            "frontCurveCm": 0.4,
+            "recCm": 2.5,
+            "temple": "round",
+            "sideburnBottom": "beard",
+            "sideburnWidthCm": 1.8,
+            "earGapMm": 5,
+            "napeBelowLobeCm": 3,
+            "nape": "square"
+          },
+          "layers": [{"name": "inner", "offsetMm": 1.5, "family": {"stipple": 0.5, "coil": 0.5}, "density": 0.85, "fadeMm": 3}]
         },
-        "eyebrows": {"shell": "eyebrows", "color": "#141010", "density": 0.95, "shape": "thick-low-straight"},
         "beard": {
-          "shell": "beard",
           "style": "full",
           "color": "#120E0C",
-          "lengthMm": 12,
-          "cheekLine": "high-crisp",
-          "neckline": "2.5cm-below-jaw",
-          "offsetMm": {"chin": 6, "cheeks": 3},
-          "density": {"all": 0.95}
+          "components": {
+            "F": {
+              "yA": "T.y-0.004",
+              "dA": 0.01,
+              "yB": "CH.y+0.004",
+              "dB": 0.015,
+              "dN": 0.025,
+              "moustache": true,
+              "moustacheGapMm": 0.5,
+              "zones": {"all": 0.95}
+            }
+          },
+          "layers": [
+            {"name": "inner", "offsetMm": 1.5, "family": {"coil": 1}, "fadeMm": 0.8},
+            {"name": "outer", "chinMm": 6, "cheeksMm": 3, "density": 0.6, "insetMm": 2, "fadeMm": 2}
+          ]
+        },
+        "eyebrows": {
+          "gap": 0.0225,
+          "arch": 0.0015,
+          "tail": -0.004,
+          "hIn": 0.0055,
+          "hOut": 0.003,
+          "density": 0.95,
+          "shape": "thick-low-straight",
+          "offsetMm": 1,
+          "color": "#141010"
+        },
+        "tattoos": [{"kind": "armBlobs", "coverageUpper": 0.7, "coverageFore": 0.35}, {"kind": "backArch", "dyM": 0}],
+        "kit": {
+          "number": "#FFB81C",
+          "backName": "JAMES",
+          "classic": "away",
+          "glyph": "block",
+          "base": "#6F263D",
+          "outline": "#041E42",
+          "keyline": null,
+          "neckArm": [["#FFB81C", 8], ["#041E42", 4]],
+          "shortsStripe": [["#041E42", 10], ["#FFB81C", 20], ["#041E42", 10]],
+          "waistband": [["#FFB81C", 6]],
+          "hem": [["#041E42", 6]],
+          "socks": {"shell": "socks_crew", "color": "#111111"},
+          "fit": "2010s-knee",
+          "home": {"base": "#FFFFFF", "number": "#6F263D", "outline": "#FFB81C", "trim": "#6F263D"},
+          "away": {"base": "#6F263D", "number": "#FFB81C", "outline": "#041E42", "trim": "#FFB81C"}
+        },
+        "shoes": {
+          "cut": "high",
+          "home": ["#FFFFFF", "#FFB81C", "#6F263D"],
+          "away": ["#6F263D", "#FFB81C", "#111111"],
+          "classic": "away"
         },
         "accessories": [
           {
             "type": "headband",
-            "shell": "headband",
-            "colorAway": "#111111",
-            "colorHome": "#FFFFFF",
-            "position": "high-level",
-            "default": true
-          },
-          {
-            "type": "tattoo",
-            "regions": ["upperarm_l", "upperarm_r", "lowerarm_l", "lowerarm_r", "upper-back"],
-            "darken": 0.12
+            "shell": "headband_high",
+            "colors": {"classic": "#111111", "allstarA": "#FFFFFF", "allstarB": "#111111"}
           }
-        ],
-        "kit": {
-          "number": "23",
-          "default": "away",
-          "shortsHem": "knee",
-          "fit": "2010s",
-          "away": {"base": "#6F263D", "number": "#FFB81C", "outline": "#041E42", "trim": "#FFB81C"},
-          "home": {"base": "#FFFFFF", "number": "#6F263D", "outline": "#FFB81C", "trim": "#6F263D"}
-        },
-        "socks": {"shell": "socks", "length": "mid-calf", "colorHome": "#FFFFFF", "colorAway": "#111111"},
-        "shoes": {"cut": "high", "home": ["#FFFFFF", "#FFB81C", "#6F263D"], "away": ["#6F263D", "#FFB81C", "#111111"]}
+        ]
       }
     },
     {
       "id": "giannis",
-      "label": "Giannis Antetokounmpo (2020-21, #34)",
+      "label": "Giannis Antetokounmpo (2019-21, #34)",
       "height": 2.09,
       "meta": {
         "nameZh": "扬尼斯·阿德托昆博",
         "nameEn": "Giannis Antetokounmpo",
         "nickZh": "字母哥",
-        "era": "2020-21",
+        "era": "2019-21",
         "number": "34",
-        "stats": {"listedHeightM": 2.11, "barefootHeightM": 2.09, "weightKg": 110, "wingspanM": 2.21, "standingReachM": 2.81},
+        "stats": {"heightM": 2.11, "barefootM": 2.09, "weightKg": 110, "wingspanM": 2.21, "reachM": 2.81},
         "calibration": {
-          "craniumFace": 1.05,
-          "headH": 0.236,
+          "craniumFace": 0.76,
+          "headH": 0.2819,
           "shoulderJoints": 0.485,
           "wingspan": 2.21,
           "handLen": 0.252,
@@ -540,19 +781,19 @@
         "gender": 1,
         "ageYears": 26,
         "muscle": 0.82,
-        "weight": 0.61,
+        "weight": 0.63,
         "height": "auto",
         "proportions": 1,
         "race": {"african": 0.86, "caucasian": 0.11, "asian": 0.03}
       },
       "targets": {
         "head/head-rectangular": 0.25,
-        "head/head-scale-horiz-decr-incr": -0.25,
-        "head/head-scale-vert-decr-incr": 1,
+        "head/head-scale-horiz-decr-incr": -0.3,
+        "head/head-scale-vert-decr-incr": 0.97,
         "head/head-fat-decr-incr": -0.5,
-        "head/head-back-scale-depth-decr-incr": 0.1,
+        "head/head-back-scale-depth-decr-incr": -0.15,
         "head/head-age-decr-incr": 0.1,
-        "forehead/forehead-scale-vert-decr-incr": -0.99,
+        "forehead/forehead-scale-vert-decr-incr": -0.8,
         "forehead/forehead-trans-backward-forward": -0.1,
         "forehead/forehead-temple-decr-incr": -0.2,
         "eyebrows/eyebrows-trans-down-up": -0.25,
@@ -587,7 +828,7 @@
         "mouth/mouth-cupidsbow-decr-incr": 0.1,
         "mouth/mouth-philtrum-volume-decr-incr": 0.1,
         "mouth/mouth-laugh-lines-in-out": 0.25,
-        "chin/chin-height-decr-incr": 0.85,
+        "chin/chin-height-decr-incr": 0.55,
         "chin/chin-prominent-decr-incr": 0.25,
         "chin/chin-bones-decr-incr": 0.35,
         "chin/chin-jaw-drop-decr-incr": 0.2,
@@ -595,10 +836,10 @@
         "chin/chin-triangle": 0.15,
         "cheek/cheek-bones-decr-incr": 0.5,
         "cheek/cheek-trans-down-up": 0.2,
-        "cheek/cheek-volume-decr-incr": -0.45,
+        "cheek/cheek-volume-decr-incr": -0.55,
         "cheek/cheek-inner-decr-incr": -0.3,
         "ears/ear-scale-decr-incr": 0.35,
-        "ears/ear-wing-decr-incr": 0.35,
+        "ears/ear-wing-decr-incr": 0.55,
         "ears/ear-flap-decr-incr": 0.15,
         "ears/ear-shape-square-round": 0.2,
         "ears/ear-lobe-decr-incr": 0.1,
@@ -630,7 +871,7 @@
         "arms/upperarm-fat-decr-incr": -0.6,
         "arms/lowerarm-fat-decr-incr": -0.6,
         "arms/measure-upperarm-circ-decr-incr": 0.1,
-        "hands/hand-scale-decr-incr": 0.01,
+        "hands/hand-scale-decr-incr": 0.03,
         "hands/hand-fingers-length-decr-incr": 0.5,
         "hands/hand-fingers-diameter-decr-incr": 0.1,
         "hands/measure-wrist-circ-decr-incr": -0.1,
@@ -642,64 +883,156 @@
         "legs/lowerleg-fat-decr-incr": -0.6,
         "legs/measure-calf-circ-decr-incr": -0.1,
         "legs/measure-knee-circ-decr-incr": -0.1,
-        "feet/foot-scale-decr-incr": 0.29,
+        "feet/foot-scale-decr-incr": 0.3,
         "feet/measure-ankle-circ-decr-incr": -0.2
       },
-      "expressions": {"roar": {"chin/chin-jaw-drop-decr-incr": 1}},
+      "expressions": {
+        "jawOpen": {"jaw": {"rotDeg": 18}},
+        "roar": {
+          "modifiers": {
+            "mouth/mouth-upperlip-ext-down-up": 1,
+            "nose/nose-flaring-decr-incr": 0.6,
+            "nose/nose-nostrils-width-decr-incr": 0.3,
+            "mouth/mouth-scale-horiz-decr-incr": 0.25,
+            "mouth/mouth-laugh-lines-in-out": 0.6,
+            "eyebrows/eyebrows-trans-down-up": -0.4
+          },
+          "jaw": {"rotDeg": 22}
+        },
+        "grin": {
+          "modifiers": {
+            "mouth/mouth-angles-down-up": 1,
+            "mouth/mouth-scale-horiz-decr-incr": 0.45,
+            "mouth/mouth-laugh-lines-in-out": 0.8,
+            "cheek/cheek-trans-down-up": 0.5,
+            "cheek/cheek-volume-decr-incr": 0.3,
+            "mouth/mouth-dimples-in-out": 0.3,
+            "eyes/eye-height2-decr-incr": -0.5
+          },
+          "jaw": {"rotDeg": 6}
+        },
+        "scowl": {
+          "modifiers": {
+            "eyebrows/eyebrows-trans-down-up": -1,
+            "eyebrows/eyebrows-angle-down-up": -0.6,
+            "eyes/eye-height1-decr-incr": -0.4,
+            "eyes/eye-height2-decr-incr": -0.5,
+            "eyes/eye-height3-decr-incr": -0.4,
+            "eyes/eye-bag-decr-incr": 0.3,
+            "cheek/cheek-trans-down-up": 0.2
+          }
+        },
+        "blink": {"lids": true}
+      },
       "appearance": {
         "skin": "#523326",
-        "skinRoughness": 0.45,
-        "skinHighlight": "#6A4432",
-        "skinShadow": "#3A2219",
         "lips": "#3e261c",
         "palms": "#9c705a",
-        "iris": "#2B1A12",
+        "skinRoughness": 0.45,
+        "warmK": 0.45,
+        "cavityK": 1,
+        "hlK": 0.1,
+        "tattooK": 0,
+        "stubbleHair": 0,
+        "scalpDarken": 0.85,
+        "scalpRoughness": 0.75,
+        "beardSkinDarken": 0.45,
+        "browDarken": 0.35,
+        "glossBase": 0,
+        "clearcoatRoughness": 0.3,
+        "sheenColor": "#6a5a50",
+        "iris": "#2A1A12",
         "hair": {
-          "shell": "hair",
           "style": "short-coils-fade",
           "lengthMm": 10,
-          "sidesMm": 3,
           "color": "#141110",
-          "coverage": 0.95,
-          "hairline": {"aboveBrowCm": 6.5, "templeRecessionCm": 0.5, "edgeUp": true},
-          "extraOffsetMm": 4
+          "hairline": {
+            "aboveCm": 6.5,
+            "frontCurveCm": 0.1,
+            "recCm": 0.5,
+            "temple": "square",
+            "sideburnBottom": "beard",
+            "sideburnWidthCm": 1.6,
+            "earGapMm": 4,
+            "napeBelowLobeCm": 3.5,
+            "nape": "taper"
+          },
+          "layers": [
+            {"name": "inner", "offsetMm": 1.5, "family": {"coil": 1}, "density": 0.95, "fadeMm": 0.8},
+            {"name": "outer", "offsetMm": 7, "sidesScale": 0.2, "density": 0.55, "insetMm": 3, "fadeMm": 2.5}
+          ]
         },
-        "eyebrows": {"shell": "eyebrows", "color": "#141110", "density": 0.9, "shape": "thick-low-straight-down-outer"},
         "beard": {
-          "shell": "beard",
           "style": "short-full",
           "color": "#141110",
-          "lengthMm": 5,
-          "cheekLine": "low",
-          "density": {"jaw": 0.8, "chin": 0.9, "moustache": 0.7, "cheeks": 0.35}
+          "components": {
+            "F": {
+              "yA": "EL.y+0.002",
+              "dA": 0.009,
+              "yB": "CH.y-0.006",
+              "dB": 0.006,
+              "dN": 0.006,
+              "moustache": false,
+              "zones": {"jaw": 0.8, "chin": 0.9, "cheeks": 0.35}
+            },
+            "M": {"heightMm": 4, "gapMm": 2, "dropMm": 3, "density": 0.7}
+          },
+          "layers": [
+            {"name": "inner", "offsetMm": 1, "family": {"coil": 1}, "fadeMm": 1},
+            {"name": "outer", "chinMm": 2.5, "cheeksMm": 2, "density": 0.5, "insetMm": 2, "fadeMm": 2}
+          ]
         },
-        "accessories": [],
+        "eyebrows": {
+          "gap": 0.0225,
+          "arch": 0.001,
+          "tail": -0.005,
+          "hIn": 0.0055,
+          "hOut": 0.0028,
+          "density": 0.9,
+          "shape": "thick, outer ends down",
+          "offsetMm": 1,
+          "color": "#141110"
+        },
+        "tattoos": [],
         "kit": {
-          "number": "34",
-          "default": "away",
-          "shortsHem": "knee",
-          "fit": "2020s",
-          "away": {"base": "#00471B", "number": "#EEE1C6", "outline": "#FFFFFF", "trim": "#EEE1C6"},
+          "number": "#EEE1C6",
+          "backName": "ANTETOKOUNMPO",
+          "classic": "away",
+          "glyph": "block",
+          "base": "#00471B",
+          "outline": "#FFFFFF",
+          "keyline": null,
+          "neckArm": [["#EEE1C6", 8], ["#0077C0", 2]],
+          "shortsStripe": [["#0077C0", 2], ["#EEE1C6", 40], ["#0077C0", 2]],
+          "waistband": [["#EEE1C6", 6]],
+          "hem": [["#EEE1C6", 6]],
+          "socks": {"shell": "socks_mid", "color": "#FFFFFF"},
+          "fit": "2020s-knee",
           "home": {"base": "#F4F0E6", "number": "#00471B", "outline": "#EEE1C6", "trim": "#00471B"},
-          "accent": "#0077C0"
+          "away": {"base": "#00471B", "number": "#EEE1C6", "outline": "#FFFFFF", "trim": "#EEE1C6"}
         },
-        "socks": {"shell": "socks", "length": "mid-calf", "colorHome": "#FFFFFF", "colorAway": "#FFFFFF"},
-        "shoes": {"cut": "low-mid", "home": ["#FFFFFF", "#00471B", "#EEE1C6"], "away": ["#111111", "#00471B", "#EEE1C6"]}
+        "shoes": {
+          "cut": "lowmid",
+          "home": ["#FFFFFF", "#00471B", "#EEE1C6"],
+          "away": ["#111111", "#00471B", "#EEE1C6"],
+          "classic": "away"
+        },
+        "accessories": []
       }
     },
     {
       "id": "yao",
-      "label": "Yao Ming (2006-09, #11)",
+      "label": "Yao Ming (2004-09, #11)",
       "height": 2.27,
       "meta": {
         "nameZh": "姚明",
         "nameEn": "Yao Ming",
-        "era": "2006-09",
+        "era": "2004-09",
         "number": "11",
-        "stats": {"listedHeightM": 2.29, "barefootHeightM": 2.27, "weightKg": 141, "wingspanM": 2.26, "standingReachM": 2.95},
+        "stats": {"heightM": 2.29, "barefootM": 2.27, "weightKg": 141, "wingspanM": 2.26, "reachM": 2.95},
         "calibration": {
-          "craniumFace": 0.98,
-          "headH": 0.265,
+          "craniumFace": 0.86,
+          "headH": 0.2827,
           "shoulderJoints": 0.49,
           "wingspan": 2.26,
           "handLen": 0.262,
@@ -717,35 +1050,35 @@
         "race": {"asian": 0.85, "caucasian": 0.12, "african": 0.03}
       },
       "targets": {
-        "head/head-rectangular": 0.45,
+        "head/head-rectangular": 0.6,
         "head/head-oval": 0.3,
-        "head/head-scale-vert-decr-incr": 0.22,
-        "head/head-scale-horiz-decr-incr": -0.1,
+        "head/head-scale-vert-decr-incr": 0.03,
+        "head/head-scale-horiz-decr-incr": -0.2,
         "head/head-fat-decr-incr": -0.2,
         "head/head-back-scale-depth-decr-incr": -0.15,
-        "forehead/forehead-scale-vert-decr-incr": -0.45,
+        "forehead/forehead-scale-vert-decr-incr": -0.26,
         "forehead/forehead-temple-decr-incr": -0.1,
         "eyebrows/eyebrows-trans-down-up": -0.25,
         "eyebrows/eyebrows-angle-down-up": 0.15,
         "eyebrows/eyebrows-trans-backward-forward": 0.05,
-        "eyes/eye-scale-decr-incr": -0.2,
-        "eyes/eye-height2-decr-incr": -0.25,
-        "eyes/eye-eyefold-down-up": -0.3,
-        "eyes/eye-epicanthus-in-out": 0.2,
+        "eyes/eye-scale-decr-incr": -0.35,
+        "eyes/eye-height2-decr-incr": -0.65,
+        "eyes/eye-eyefold-down-up": -0.5,
+        "eyes/eye-epicanthus-in-out": 0.4,
         "eyes/eye-corner2-down-up": 0.1,
         "eyes/eye-bag-decr-incr": 0.1,
         "eyes/eye-trans-in-out": 0.05,
-        "nose/nose-scale-vert-decr-incr": 0.35,
+        "nose/nose-scale-vert-decr-incr": 0.45,
         "nose/nose-scale-depth-decr-incr": 0.2,
         "nose/nose-width1-decr-incr": 0.05,
         "nose/nose-width3-decr-incr": 0.2,
-        "nose/nose-scale-horiz-decr-incr": 0.15,
-        "nose/nose-point-width-decr-incr": 0.3,
+        "nose/nose-scale-horiz-decr-incr": 0.3,
+        "nose/nose-point-width-decr-incr": 0.4,
         "nose/nose-nostrils-width-decr-incr": 0.3,
         "nose/nose-flaring-decr-incr": 0.25,
         "nose/nose-hump-decr-incr": -0.1,
         "nose/nose-point-down-up": -0.05,
-        "mouth/mouth-scale-horiz-decr-incr": 0.25,
+        "mouth/mouth-scale-horiz-decr-incr": 0.35,
         "mouth/mouth-trans-down-up": -0.15,
         "mouth/mouth-upperlip-volume-decr-incr": 0.05,
         "mouth/mouth-lowerlip-volume-decr-incr": 0.2,
@@ -754,7 +1087,7 @@
         "cheek/cheek-bones-decr-incr": 0.25,
         "cheek/cheek-volume-decr-incr": -0.15,
         "cheek/cheek-inner-decr-incr": -0.1,
-        "chin/chin-height-decr-incr": 0.35,
+        "chin/chin-height-decr-incr": 0.55,
         "chin/chin-jaw-drop-decr-incr": 0.25,
         "chin/chin-bones-decr-incr": 0.3,
         "chin/chin-width-decr-incr": 0.2,
@@ -779,7 +1112,7 @@
         "arms/upperarm-muscle-decr-incr": 0.05,
         "arms/upperarm-fat-decr-incr": 0.1,
         "arms/upperarm-shoulder-muscle-decr-incr": -0.05,
-        "hands/hand-scale-decr-incr": 0.04,
+        "hands/hand-scale-decr-incr": 0.02,
         "hands/hand-fingers-length-decr-incr": 0.2,
         "legs/upperlegs-height-decr-incr": 0.1,
         "legs/measure-thigh-circ-decr-incr": 0.25,
@@ -788,55 +1121,157 @@
         "legs/measure-knee-circ-decr-incr": 0.15,
         "feet/foot-scale-decr-incr": 0,
         "torso/torso-scale-horiz-decr-incr": 0.4,
-        "torso/measure-bust-circ-decr-incr": 0.2
+        "torso/measure-bust-circ-decr-incr": 0.2,
+        "eyes/eye-height1-decr-incr": -0.4,
+        "eyes/eye-height3-decr-incr": -0.4
       },
-      "expressions": {"grin": {"mouth/mouth-angles-down-up": 0.8, "mouth/mouth-scale-horiz-decr-incr": 0.5}},
+      "expressions": {
+        "jawOpen": {"jaw": {"rotDeg": 18}},
+        "roar": {
+          "modifiers": {
+            "mouth/mouth-upperlip-ext-down-up": 1,
+            "nose/nose-flaring-decr-incr": 0.6,
+            "nose/nose-nostrils-width-decr-incr": 0.3,
+            "mouth/mouth-scale-horiz-decr-incr": 0.25,
+            "mouth/mouth-laugh-lines-in-out": 0.6,
+            "eyebrows/eyebrows-trans-down-up": -0.8
+          },
+          "jaw": {"rotDeg": 22}
+        },
+        "grin": {
+          "modifiers": {
+            "mouth/mouth-angles-down-up": 1,
+            "mouth/mouth-scale-horiz-decr-incr": 0.45,
+            "mouth/mouth-laugh-lines-in-out": 0.8,
+            "cheek/cheek-trans-down-up": 0.5,
+            "cheek/cheek-volume-decr-incr": 0.3,
+            "mouth/mouth-dimples-in-out": 0.3,
+            "eyes/eye-height1-decr-incr": -0.7,
+            "eyes/eye-height2-decr-incr": -0.7,
+            "eyes/eye-height3-decr-incr": -0.7
+          },
+          "jaw": {"rotDeg": 6}
+        },
+        "scowl": {
+          "modifiers": {
+            "eyebrows/eyebrows-trans-down-up": -1,
+            "eyebrows/eyebrows-angle-down-up": -0.6,
+            "eyes/eye-height1-decr-incr": -0.4,
+            "eyes/eye-height2-decr-incr": -0.5,
+            "eyes/eye-height3-decr-incr": -0.4,
+            "eyes/eye-bag-decr-incr": 0.3,
+            "cheek/cheek-trans-down-up": 0.2
+          }
+        },
+        "puff": {
+          "modifiers": {
+            "cheek/cheek-volume-decr-incr": 1,
+            "cheek/cheek-inner-decr-incr": 1,
+            "mouth/mouth-scale-horiz-decr-incr": -0.2,
+            "mouth/mouth-trans-backward-forward": 0.2
+          }
+        },
+        "blink": {"lids": true}
+      },
       "appearance": {
         "skin": "#D8A985",
-        "skinRoughness": 0.5,
         "lips": "#b8786a",
         "palms": "#e4bea0",
-        "iris": "#1e1410",
+        "skinRoughness": 0.5,
+        "warmK": 0.6,
+        "cavityK": 0.7,
+        "hlK": 0.05,
+        "tattooK": 0,
+        "stubbleHair": 0,
+        "scalpDarken": 0.85,
+        "scalpRoughness": 0.7,
+        "beardSkinDarken": 1,
+        "browDarken": 0.35,
+        "glossBase": 0,
+        "clearcoatRoughness": 0.3,
+        "sheenColor": "#8090a0",
+        "iris": "#2A1A12",
         "hair": {
-          "shell": "hair",
           "style": "crew-cut-straight",
           "lengthMm": 15,
-          "sidesMm": 6,
           "color": "#121010",
-          "coverage": 0.98,
-          "hairline": {"aboveBrowCm": 6, "templeRecessionCm": 0.4, "straight": true},
-          "extraOffsetMm": 6,
-          "sheen": "cool"
+          "hairline": {
+            "aboveCm": 6,
+            "frontCurveCm": 0,
+            "recCm": 0.4,
+            "temple": "round",
+            "sideburnBottom": "mid-ear",
+            "sideburnWidthCm": 1.3,
+            "earGapMm": 6,
+            "napeBelowLobeCm": 3,
+            "nape": "taper"
+          },
+          "layers": [
+            {"name": "inner", "offsetMm": 2, "family": {"straight": 1}, "density": 0.98, "fadeMm": 2},
+            {
+              "name": "outer",
+              "offsetMm": 9,
+              "sidesScale": 0.33,
+              "density": 0.6,
+              "insetMm": 0,
+              "fadeMm": 3,
+              "fringe": {"depthCm": 1.5, "scale": 1.25}
+            }
+          ]
         },
-        "eyebrows": {"shell": "eyebrows", "color": "#121010", "density": 0.95, "shape": "thick-low-straight-up-outer"},
-        "beard": null,
-        "stubbleShadow": {"color": "#2a2420", "opacity": 0.07},
-        "accessories": [],
+        "beard": {"style": "none", "color": "#2a2420", "components": {"J": {"upperLip": 0.07, "chin": 0.07}}, "layers": []},
+        "eyebrows": {
+          "gap": 0.0235,
+          "arch": 0.001,
+          "tail": 0.003,
+          "hIn": 0.0055,
+          "hOut": 0.0032,
+          "density": 0.95,
+          "shape": "thick, outer ends up",
+          "offsetMm": 1,
+          "color": "#121010"
+        },
+        "tattoos": [],
         "kit": {
-          "number": "11",
-          "default": "away",
-          "shortsHem": "knee",
+          "number": "#FFFFFF",
+          "backName": "YAO",
+          "classic": "away",
+          "glyph": "block",
+          "serifOne": true,
+          "base": "#CE1141",
+          "outline": "#C4CED4",
+          "keyline": "#000000",
+          "neckArm": [["#FFFFFF", 6], ["#C4CED4", 4]],
+          "shortsStripe": [["#FFFFFF", 12], ["#C4CED4", 8], ["#000000", 4]],
+          "waistband": [["#FFFFFF", 6]],
+          "hem": [["#C4CED4", 6]],
+          "socks": {"shell": "socks_crew_brace", "color": "#FFFFFF", "brace": true},
           "fit": "baggy-2000s",
-          "away": {"base": "#CE1141", "number": "#FFFFFF", "outline": "#C4CED4", "keyline": "#000000", "trim": "#C4CED4"},
-          "home": {"base": "#FFFFFF", "number": "#CE1141", "outline": "#C4CED4", "keyline": "#000000", "trim": "#CE1141"}
+          "home": {"base": "#FFFFFF", "number": "#CE1141", "outline": "#C4CED4", "keyline": "#000000", "trim": "#CE1141"},
+          "away": {"base": "#CE1141", "number": "#FFFFFF", "outline": "#C4CED4", "keyline": "#000000", "trim": "#C4CED4"}
         },
-        "socks": {"shell": "socks", "length": "mid-calf", "colorHome": "#FFFFFF", "colorAway": "#FFFFFF", "ankleBraces": true},
-        "shoes": {"cut": "high", "home": ["#FFFFFF", "#CE1141", "#FFFFFF"], "away": ["#CE1141", "#FFFFFF", "#111111"]}
+        "shoes": {
+          "cut": "high",
+          "home": ["#FFFFFF", "#CE1141", "#FFFFFF"],
+          "away": ["#CE1141", "#FFFFFF", "#111111"],
+          "classic": "away"
+        },
+        "accessories": []
       }
     },
     {
       "id": "kyrie",
-      "label": "Kyrie Irving (2015-17, #2)",
+      "label": "Kyrie Irving (2014-17, #2)",
       "height": 1.87,
       "meta": {
         "nameZh": "凯里·欧文",
         "nameEn": "Kyrie Irving",
-        "era": "2015-17",
+        "era": "2014-17",
         "number": "2",
-        "stats": {"listedHeightM": 1.88, "barefootHeightM": 1.87, "weightKg": 88, "wingspanM": 1.93, "standingReachM": 2.515},
+        "stats": {"heightM": 1.88, "barefootM": 1.87, "weightKg": 88, "wingspanM": 1.93, "reachM": 2.515},
         "calibration": {
-          "craniumFace": 1,
-          "headH": 0.232,
+          "craniumFace": 0.882,
+          "headH": 0.2481,
           "shoulderJoints": 0.425,
           "wingspan": 1.93,
           "handLen": 0.212,
@@ -854,9 +1289,9 @@
         "race": {"african": 0.65, "caucasian": 0.3, "asian": 0.05}
       },
       "targets": {
-        "head/head-oval": 0.5,
-        "head/head-scale-horiz-decr-incr": -0.15,
-        "head/head-scale-vert-decr-incr": 0.46,
+        "head/head-oval": 0.6,
+        "head/head-scale-horiz-decr-incr": -0.25,
+        "head/head-scale-vert-decr-incr": 0.38,
         "head/head-scale-depth-decr-incr": 0.05,
         "forehead/forehead-scale-vert-decr-incr": -0.59,
         "forehead/forehead-temple-decr-incr": -0.1,
@@ -865,7 +1300,7 @@
         "eyebrows/eyebrows-angle-down-up": -0.1,
         "eyebrows/eyebrows-trans-backward-forward": 0.1,
         "eyes/eye-height2-decr-incr": -0.25,
-        "eyes/eye-eyefold-down-up": -0.2,
+        "eyes/eye-eyefold-down-up": -0.4,
         "eyes/eye-corner2-down-up": 0.1,
         "eyes/eye-scale-decr-incr": -0.05,
         "eyes/eye-bag-decr-incr": 0.1,
@@ -878,19 +1313,19 @@
         "nose/nose-volume-decr-incr": 0.1,
         "nose/nose-hump-decr-incr": -0.1,
         "mouth/mouth-scale-horiz-decr-incr": 0.1,
-        "mouth/mouth-upperlip-volume-decr-incr": 0.35,
-        "mouth/mouth-lowerlip-volume-decr-incr": 0.4,
+        "mouth/mouth-upperlip-volume-decr-incr": 0.45,
+        "mouth/mouth-lowerlip-volume-decr-incr": 0.5,
         "mouth/mouth-cupidsbow-decr-incr": 0.2,
         "mouth/mouth-angles-down-up": -0.05,
         "chin/chin-prominent-decr-incr": 0.15,
-        "chin/chin-height-decr-incr": 0.1,
+        "chin/chin-height-decr-incr": 0.2,
         "chin/chin-bones-decr-incr": 0.1,
-        "chin/chin-width-decr-incr": -0.05,
-        "cheek/cheek-bones-decr-incr": 0.35,
-        "cheek/cheek-volume-decr-incr": -0.3,
+        "chin/chin-width-decr-incr": -0.15,
+        "cheek/cheek-bones-decr-incr": 0.5,
+        "cheek/cheek-volume-decr-incr": -0.45,
         "cheek/cheek-inner-decr-incr": -0.2,
         "ears/ear-scale-decr-incr": -0.1,
-        "ears/ear-flap-decr-incr": -0.25,
+        "ears/ear-flap-decr-incr": -0.35,
         "ears/ear-lobe-decr-incr": -0.1,
         "neck/measure-neck-circ-decr-incr": 0.2,
         "neck/neck-scale-horiz-decr-incr": 0.1,
@@ -915,50 +1350,126 @@
         "hip/hip-scale-horiz-decr-incr": -0.1,
         "feet/foot-scale-decr-incr": 0.13
       },
-      "expressions": {"smirk": {"asym/asym-mouth-1-l-r": 0.4, "mouth/mouth-angles-down-up": 0.15}},
+      "expressions": {
+        "jawOpen": {"jaw": {"rotDeg": 18}},
+        "smirk": {
+          "modifiers": {"asym/asym-mouth-1-l-r": 0.4, "mouth/mouth-angles-down-up": 0.15, "cheek/cheek-trans-down-up": 0.15}
+        },
+        "scowl": {
+          "modifiers": {
+            "eyebrows/eyebrows-trans-down-up": -1,
+            "eyebrows/eyebrows-angle-down-up": -0.6,
+            "eyes/eye-height1-decr-incr": -0.4,
+            "eyes/eye-height2-decr-incr": -0.5,
+            "eyes/eye-height3-decr-incr": -0.4,
+            "eyes/eye-bag-decr-incr": 0.3,
+            "cheek/cheek-trans-down-up": 0.2
+          }
+        },
+        "blink": {"lids": true}
+      },
       "appearance": {
         "skin": "#8A5A3B",
-        "skinRoughness": 0.46,
         "lips": "#5e3a2c",
         "palms": "#b88a6c",
-        "iris": "#2B1A12",
+        "skinRoughness": 0.46,
+        "warmK": 0.45,
+        "cavityK": 0.85,
+        "hlK": 0.1,
+        "tattooK": 1,
+        "stubbleHair": 0,
+        "scalpDarken": 0.85,
+        "scalpRoughness": 0.75,
+        "beardSkinDarken": 0.55,
+        "browDarken": 0.35,
+        "glossBase": 0,
+        "clearcoatRoughness": 0.3,
+        "sheenColor": "#6a5a50",
+        "iris": "#2A1A12",
         "hair": {
-          "shell": "hair",
           "style": "short-coils-taper",
           "lengthMm": 10,
-          "sidesMm": 5,
           "color": "#141010",
-          "coverage": 0.95,
-          "hairline": {"aboveBrowCm": 6.2, "templeRecessionCm": 0.3, "edgeUp": true, "squaredTemples": true},
-          "extraOffsetMm": 4
+          "hairline": {
+            "aboveCm": 6.2,
+            "frontCurveCm": 0,
+            "recCm": 0.3,
+            "temple": "square",
+            "sideburnBottom": "beard",
+            "sideburnWidthCm": 1.6,
+            "earGapMm": 4,
+            "napeBelowLobeCm": 3,
+            "nape": "square"
+          },
+          "layers": [
+            {"name": "inner", "offsetMm": 1.5, "family": {"coil": 1}, "density": 0.95, "fadeMm": 0.8},
+            {"name": "outer", "offsetMm": 6, "sidesScale": 0.4, "density": 0.5, "insetMm": 2, "fadeMm": 2}
+          ]
         },
-        "eyebrows": {"shell": "eyebrows", "color": "#141010", "density": 0.95, "shape": "thick-low-straight"},
         "beard": {
-          "shell": "beard",
           "style": "full",
           "color": "#121010",
-          "lengthMm": 10,
-          "cheekLine": "high-crisp",
-          "neckline": "2cm-above-adams-apple",
-          "offsetMm": {"chin": 6, "cheeks": 3},
-          "density": {"all": 0.95}
+          "components": {
+            "F": {
+              "yA": "T.y-0.002",
+              "dA": 0.008,
+              "yB": "CH.y+0.012",
+              "dB": 0.008,
+              "dN": 0.022,
+              "moustache": true,
+              "moustacheGapMm": 0.5,
+              "zones": {"all": 0.95}
+            }
+          },
+          "layers": [
+            {"name": "inner", "offsetMm": 1.5, "family": {"coil": 1}, "fadeMm": 0.6},
+            {"name": "outer", "chinMm": 6, "cheeksMm": 3, "density": 0.6, "insetMm": 2, "fadeMm": 2}
+          ]
+        },
+        "eyebrows": {
+          "gap": 0.0235,
+          "arch": 0.002,
+          "tail": -0.002,
+          "hIn": 0.005,
+          "hOut": 0.0028,
+          "density": 0.95,
+          "shape": "thick-low-straight",
+          "offsetMm": 1,
+          "color": "#141010"
+        },
+        "tattoos": [{"kind": "dottedBracket"}],
+        "kit": {
+          "number": "#FFB81C",
+          "backName": "IRVING",
+          "classic": "away",
+          "glyph": "block",
+          "base": "#6F263D",
+          "outline": "#FFFFFF",
+          "keyline": null,
+          "neckArm": [["#FFB81C", 8], ["#FFFFFF", 3]],
+          "shortsStripe": [["#FFFFFF", 6], ["#FFB81C", 24], ["#FFFFFF", 6]],
+          "waistband": [["#FFB81C", 6]],
+          "hem": [["#FFB81C", 6]],
+          "socks": {"shell": "socks_crew", "color": "#FFFFFF"},
+          "fit": "2010s-knee",
+          "home": {"base": "#FFFFFF", "number": "#FFB81C", "outline": "#6F263D", "trim": "#6F263D"},
+          "away": {"base": "#6F263D", "number": "#FFB81C", "outline": "#FFFFFF", "trim": "#FFB81C"}
+        },
+        "shoes": {
+          "cut": "low",
+          "home": ["#FFFFFF", "#6F263D", "#FFB81C"],
+          "away": ["#111111", "#FFB81C", "#111111"],
+          "classic": "away"
         },
         "accessories": [
-          {"type": "mouthguard", "color": "#f2f2f2", "state": "half-out"},
-          {"type": "tattoo", "regions": ["lowerarm_l"], "darken": 0.12, "motif": "abstract-wordmark"},
-          {"type": "headband", "shell": "headband", "color": "#111111", "default": false, "altOnly": true}
-        ],
-        "kit": {
-          "number": "2",
-          "default": "home",
-          "shortsHem": "knee",
-          "fit": "2010s",
-          "home": {"base": "#FFFFFF", "number": "#FFB81C", "outline": "#6F263D", "trim": "#6F263D"},
-          "away": {"base": "#6F263D", "number": "#FFB81C", "outline": "#FFFFFF", "trim": "#FFB81C"},
-          "alt": {"number": "11", "base": "#0064B1", "trim": "#FFFFFF"}
-        },
-        "socks": {"shell": "socks", "length": "crew", "colorHome": "#FFFFFF", "colorAway": "#FFFFFF"},
-        "shoes": {"cut": "low", "home": ["#FFFFFF", "#6F263D", "#FFB81C"], "away": ["#111111", "#FFB81C", "#111111"]}
+          {
+            "type": "headband",
+            "shell": "headband_low",
+            "worn": false,
+            "colors": {"classic": "#111111", "allstarA": "#111111", "allstarB": "#111111"}
+          },
+          {"type": "mouthguard", "color": "#f2f2f2", "tier": "high"}
+        ]
       }
     }
   ]

@@ -1,6 +1,6 @@
 {
   "name": "poc",
-  "output": "../../../test/scratch/legends-poc/assets",
+  "output": "../out/poc",
   "lods": [
     {
       "ratio": 0.5,
@@ -34,16 +34,17 @@
       },
       "targets": {},
       "appearance": {
-        "skin": "#d9b08c",
-        "iris": "#2a1a10",
-        "hair": {
-          "shell": "hair",
-          "color": "#0d0a08",
-          "style": "short-straight"
+        "note": "PoC test body: no grooming (v2 groom data lives in legends.config.json)"
+      },
+      "expressions": {
+        "jawOpen": {
+          "jaw": {
+            "rotDeg": 18
+          }
         },
-        "eyebrows": true,
-        "beard": null,
-        "accessories": []
+        "blink": {
+          "lids": true
+        }
       }
     },
     {
@@ -72,23 +73,19 @@
         "eyebrows/eyebrows-trans-backward-forward": 0.3
       },
       "appearance": {
-        "skin": "#5a3a28",
-        "iris": "#3a2414",
-        "hair": {
-          "shell": "hair",
-          "color": "#0d0a08",
-          "style": "buzz"
+        "note": "PoC test body: no grooming (v2 groom data lives in legends.config.json)"
+      },
+      "expressions": {
+        "jawOpen": {
+          "jaw": {
+            "rotDeg": 18
+          }
         },
-        "eyebrows": true,
-        "beard": {
-          "shell": "beard",
-          "color": "#0d0a08"
-        },
-        "accessories": [
-          "headband",
-          "sleeve_r"
-        ]
+        "blink": {
+          "lids": true
+        }
       }
     }
-  ]
+  ],
+  "mpfbRef": "d0a32e57a7f915cb2f2b95410e2117648c7bbb7e"
 }

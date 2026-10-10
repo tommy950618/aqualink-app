@@ -1,3 +1,8 @@
+/**
+ * calibrate.mjs — solves the calibration knobs per player against meta.calibration (unchanged knob set, v2 reads
+ * the edited targets of SPEC-v2 §10.3: Giannis headH 0.232 / craniumFace 1.10, Kobe craniumFace 0.95).
+ * Each iteration re-bakes with `bake(…, {fast: true})` (no shells, morphs, masks or LODs) and re-measures.
+ */
 // Solves a few "calibration knobs" per player so the baked body hits measured anthropometrics, keeping every
 // likeness modifier of the config untouched. Targets live in players[].meta.calibration:
 //   { headH, shoulderJoints, wingspan, handLen, footLen, massKg }   (metres / kg, see measure.mjs)
@@ -44,7 +49,7 @@ const r2 = (v) => Math.round(v * 100) / 100;
 
 async function measureAll() {
   const log = console.log; console.log = () => {};
-  try { await bake(work, { outDir, name: 'cal' }); } finally { console.log = log; }
+  try { await bake(work, { outDir, name: 'cal', fast: true }); } finally { console.log = log; }
   return Object.fromEntries(measureHeader(path.join(outDir, 'cal.json')).map((m) => [m.id, m]));
 }
 

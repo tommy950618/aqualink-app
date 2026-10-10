@@ -1,4 +1,5 @@
-// Runtime loader prototype for the baked legends format (see FORMAT.md).
+// Phase-A runtime loader prototype for the legends format VERSION 1 (PoC page test/scratch/legends-poc only;
+// the game reads format v2 through src/legends/, see FORMAT.md).
 //
 //   import { loadLegends } from './loader-prototype.js';
 //   const lib = await loadLegends('assets/poc.json');           // fetches header + shared bin
