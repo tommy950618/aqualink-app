@@ -1,0 +1,597 @@
+[
+ {
+  "title": "Portrait camera hides most of the players and wastes the top ~45% of the screen",
+  "file": "src/camera.js",
+  "line": 12,
+  "severity": "major",
+  "category": "camera-framing",
+  "evidence": "Measured with Playwright (390x844, seed 7, after damping converged): with the ball handler on the right wing (5.4,-7.6) the camera sits at (4.03, 11, 8) fov 70 and the NDC x of the other players are: left-wing teammate feet -1.53, left-corner teammate -1.41, two defenders -1.29/-1.25 -> 4 of 6 players are off-screen, rim at x=-0.57 (screenshot test/scratch/shots/phonePortrait-wing.png shows only 2 players). In the CHECK formation the court spans NDC y 0.106 (far baseline) .. -0.621 (half-court line) = 36% of the screen height, the banner top is at y 0.517 so 24% of the screen is pure black above the arena and ~21% is crowd/banner; the near end of the court is 1.9x the viewport width (near corners at x=-1.83/+1.95). PORTRAIT = { fov: 70, kx: 0.80, y: 11.0, z0: 8.0 } (spec section 9 numbers) produces this.",
+  "failure": "On a phone held upright the user cannot see the teammates they are passing to or the defenders on the weak side whenever the ball is on a wing, and the hoop slides to the screen edge; the playable court is a 36%-tall band in the middle of the screen while the top quarter is empty background.",
+  "proposedFix": "Change the portrait framing (spec section 9 values need updating with it): reduce kx to ~0.35 so the far side stays in view, lower the camera (y ~9.5, z0 ~7) and tilt the look point nearer (lookZ ~-8, lookY ~1.5) so the far baseline lands around NDC y 0.5 and the half-court line near -0.8; keep the paint zoom and verify A21 (rim + ball in [-1,1]) and A20/A26 still pass. Alternatively use a wider horizontal fov by setting fov from the horizontal angle (fov = 2*atan(tan(hfov/2)/aspect)) so aspect 0.46 keeps the whole 15.2 m width.",
+  "verification": "2/3 verifiers confirmed",
+  "adjustedFixes": [
+   "Minimal, spec-consistent tweak (update SPEC.md section 9 portrait line together with it): in src/camera.js change only PORTRAIT.lookZ from -9.0 to -7.0 (optionally -6.0). Offline projection with the vendored three.js (same maths as camera.js) at aspect 390/844: lookZ -7 moves the CHECK court band from NDC y 0.11..-0.62 to 0.19..-0.53 (lookZ -6: 0.23..-0.48) and the backboard top from 0.32 to 0.41, reclaiming roughly 8-12% of the screen height from the empty top band; A21 worst |ndc| stays 0.87 (rim + ball in view for every clamped ball position), kx/fov/y/z0 unchanged so A20/A26 and the paint zoom are unaffected. If the weak side should also be less cut off, the best framing that still passes A21 is PORTRAIT = { fov: 74, kx: 0.65, y: 12.5, z0: 9.5, lookY: 1.0, lookZ: -7.0 } (A21 worst 0.60, wing-handler rim x -0.43 instead of -0.61, left defender x -0.87 on-screen instead of -1.15, weak-side wing -1.21 instead of -1.58, court band 0.17..-0.43, handler ~45 px tall instead of 57); it cannot bring the opposite wing fully on-screen, so do not adopt the finding's kx 0.35 or the horizontal-fov formula. Keep the existing #rotateHint as the answer for full-width visibility. Verify with node test/acceptance.cjs A20 A21 A26.",
+   "In src/camera.js line 12 change PORTRAIT to { fov: 74, kx: 0.40, y: 13.0, z0: 10.0, kz: 0, lookY: 0.0, lookZ: -6.0 } (higher, further back, slightly wider, looking nearer, panning less with the ball). Verified by projection at aspect 390/844: with the ball at (5.4,-7.6) the left wing / left corner / weak-side defenders land at x -0.99 / -0.95 / -0.77 / -0.81 (all on screen, rim at about -0.3); over all clamped ball extremes ((+-7.62, 0), (+-7.62,-14.3), etc.) rim and ball stay within |NDC| <= 0.87 so A21 keeps passing; the court band becomes y 0.26..-0.31 with the backboard top at 0.42 (centred instead of sunk to the lower half), and viewport coverage of the offensive half rises from 62% to 85%. If fov must stay 70, the best alternative is { fov: 70, kx: 0.45, y: 12, z0: 10, lookY: 0, lookZ: -6 } (coverage 78%, wing players at -1.14/-1.08/-0.89/-0.93, so the far corner is still marginal). Update SPEC section 9 line 378 to the new portrait line and line 379's paint-zoom value (74 -> 70 in portrait), and A21's expected portrait fov (70 -> 74; its +-4 tolerance would still pass 74 but the expectation should match). Keep kz = 0 and the paint zoom of -4 unchanged; re-run 'node test/acceptance.cjs A20 A21 A26' and the camera unit test. Do not adopt the finding's kx 0.35 / y 9.5 / z0 7 / lookZ -8 values (ball at the near sideline goes off-screen at x=1.50)."
+  ]
+ },
+ {
+  "title": "Landscape framing cuts off the near 1.9 m of the half court, the half-court line and players standing there",
+  "file": "src/camera.js",
+  "line": 11,
+  "severity": "minor",
+  "category": "camera-framing",
+  "evidence": "Measured (1280x720 and 844x390, ball at z=-4.8): camera (x, 8, 5.34) fov 44; half-court line (0,0,0) projects to NDC y -1.444, near corners (+-7.62,0,0) to x +-1.26 / +-1.05; bisection gives the floor visible only for z <= -1.86 (with the ball at z=0 the camera backs to z 6.3 and the cut is still z ~ -0.9). A handler teleported to (0,-1): feet NDC y -1.08, head -0.72 (screenshot test/scratch/shots/desktop-nearline.png shows the controlled player cut at the shins, no half-court line or centre circle visible). Top 42% of the frame (NDC y 0.168..1) is crowd/banner.",
+  "failure": "When the user backs the handler toward the half-court line (or a loose ball rolls there) the controlled player's legs and the backcourt boundary are off-screen, so the OOB/backcourt line where a turnover happens is never visible in landscape.",
+  "proposedFix": "Lower the landscape look point / raise kz: e.g. lookZ -8.0 and camera z0 5.5 with kz 0.25 (or fov 48) so z=0 projects at NDC y ~ -0.95 while the rim stays near y 0.45; re-check A21 and the paint zoom. Numbers live in LANDSCAPE at camera.js:11 and spec section 9.",
+  "verification": "2/3 verifiers confirmed",
+  "adjustedFixes": [
+   "Minimal, spec-consistent: change only the landscape framing constants, in both places. src/camera.js:11 -> `const LANDSCAPE = { fov: 44, kx: 0.35, y: 8.0, z0: 5.5, kz: 0.25, lookY: 1.0, lookZ: -8.0 };` (line 31's initial pos derives from z0/kz automatically). SPEC.md section 9 landscape line -> `camPos = (0.35*ballX, 8.0, 5.5 + 0.25*(ballZ + 9)) ; lookAt = (0.35*ballX, 1.0, -8.0)`; leave portrait, fov 44, paint zoom -4 and damping rates unchanged. Verified in Node with these numbers (16:9 and 844x390): ball z=0 -> half line (0,0,0) NDC y -1.00, corner x within +-1.03/0.84; handler at z=-1 with ball at -1.2 -> feet -0.80, head -0.46; rim stays y 0.45-0.66 and board top <= 0.82 across ballZ 0..-14.3 including the paint zoom (fov 40), so A21's rim/ball-inside-NDC check still passes (ball NDC y ranges -0.91..0.38 vs -1.17..0.31 today, which also removes a latent A21 failure when the ball sits at z~0). Cost: baseline moves from y 0.15-0.25 to 0.17-0.31 (slightly more crowd at top); the 'fov 48' alternative alone is insufficient (half line still -1.15 at ballZ 0). Optionally add an acceptance assertion: in landscape, teleport the handler to (0,-1), wait 1 s, and require feet (p.x,0,p.z) NDC y >= -1 and half line (0,0,0) NDC y >= -1.05.",
+   "In src/camera.js line 11 change LANDSCAPE to { fov: 46, kx: 0.35, y: 8.0, z0: 5.5, kz: 0.25, lookY: 1.0, lookZ: -8.0 } (y, kx, lookY unchanged; paint zoom then targets 42). Verified projections (16:9): ball z=0 -> half-court line y -0.95, ball -0.86, rim 0.43, backboard top 0.54; ball z=-4.8 -> feet of a player at z=-1 at -0.90, rim 0.47; ball z=-12 -> rim 0.54, backboard top 0.68; all inside [-1,1], and A21's rim+ball test now holds for every clamped ball z. Update to match: spec section 9 landscape line (fov 46; camPos z = 5.5 + 0.25*(ballZ+9); lookAt z -8.0; paint zoom 42/66) and the A21 wording (fov 46 landscape); test/unit-ball.mjs lines 347 and 349 (fov 46; position.z = 5.5 + 0.25*3) and the paint-zoom expectations at lines 358-361 (44->46, 40->42); test/acceptance.cjs A21 check(44,...) -> 46 (46 already passes the +-4 window but the wanted value should track the spec). Re-run node test/unit-ball.mjs and node test/acceptance.cjs A21."
+  ]
+ },
+ {
+  "title": "Adaptive DPR downgrade keys on the rAF interval, so a throttled display (30 Hz / low-power mode) permanently halves resolution",
+  "file": "src/main.js",
+  "line": 248,
+  "severity": "minor",
+  "category": "performance",
+  "evidence": "perfMon.frame(frameDt * 1000) records the requestAnimationFrame interval (frameDt = min((now-last)/1000, 0.1)), not the time spent in game.render + renderer.render. shouldDowngrade() (scene.js:313) is sticky: after 5 s of frames averaging > 24 ms it calls renderer.setPixelRatio(1.0) once for the session (main.js:249-255). The loop also runs (and is measured) while the main menu is open before the game starts.",
+  "failure": "On an iPhone in Low Power Mode (Safari caps rAF at 30 fps -> 33 ms frames), on 30 Hz external displays, or when the artifact iframe is throttled/occluded, the game drops from DPR 1.5 to 1.0 after 5 s even though the GPU is idle, and the softer image never comes back for the session. The downgrade frame also renders twice (resize() at main.js:253 renders, then renderFrame renders again).",
+  "proposedFix": "Feed the monitor the measured busy time of the frame (performance.now() around game.render + renderer.render + hud.update) instead of the rAF interval, or ignore samples where busy time < 60% of the interval; start the monitor only once state is LIVE (reset it in game 'start'); skip the extra render in resize() when called from the downgrade path.",
+  "verification": "1/3 verifiers confirmed",
+  "adjustedFixes": [
+   "Keep the rAF-interval signal (it is the only JS-visible symptom of a GPU-bound device) but stop it misfiring on throttled displays, and fix the two side issues: (1) In main.js, before startLoop() at boot, sample ~20 requestAnimationFrame intervals with no rendering (median = the display/rAF cadence, e.g. 16.7 ms on 60 Hz, 33 ms on 30 Hz or iOS Low Power Mode) and construct PerfMonitor with thresholdMs = Math.max(PERF.DOWNGRADE_MS, 1.4 * cadenceMs); a 60 Hz display keeps the spec's 24 ms threshold while a 30 Hz display needs > 46 ms average frames (a real slowdown) to downgrade. (2) Start counting only once the game is LIVE: recreate/reset the PerfMonitor in hud.cb.onStart (or on game 'start'), so menu time never contributes to the 5 s warm-up (consistent with SPEC A25 measuring performance 'after 5 s of LIVE'). (3) Avoid the double render on the downgrade frame: give resize() a parameter (e.g. resize(skipRender)) and call resize(true) from the downgrade path since renderFrame renders immediately afterwards. No change to PerfMonitor or constants; the sticky-for-session behaviour required by the spec stays."
+  ]
+ },
+ {
+  "title": "Shot meter is projected with the previous frame's camera matrixWorldInverse",
+  "file": "src/hud.js",
+  "line": 359,
+  "severity": "minor",
+  "category": "correctness",
+  "evidence": "game.render() (game.js:1167-1183) runs cam.update() then renderMeter() -> hud.projectMeter() -> SCRATCH.v3a.set(x,y,z).project(cam). Vector3.project uses camera.matrixWorldInverse, which three.js only refreshes inside renderer.render() (called afterwards in main.js renderFrame, line 224). camera.apply() (camera.js:94-104) only sets position/rotation and updates the projection matrix.",
+  "failure": "While the camera is still panning/zooming during a windup or layup (ball entering the paint triggers the fov damp and the x follow), the meter is drawn against the shooter's head position of one frame ago, so it visibly trails the head by a few px each frame instead of sticking to it.",
+  "proposedFix": "In BroadcastCamera.apply() after setting position/rotation call c.updateMatrixWorld(true); c.matrixWorldInverse.copy(c.matrixWorld).invert(); (or do that in projectMeter before .project). Cost is one 4x4 inverse per frame.",
+  "verification": "2/3 verifiers confirmed",
+  "adjustedFixes": [
+   "Minimal, localized fix in src/hud.js projectMeter (line ~359): refresh the camera's world matrix (which in r186 also recomputes matrixWorldInverse via the Camera override, with no allocation) before projecting:\n\n  const v = SCRATCH.v3a.set(x, y, z);\n  if (cam.matrixWorldAutoUpdate !== false && cam.parent === null) cam.updateMatrixWorld();\n  v.project(cam);\n\nThis only runs while the meter is visible (windup/layup), so it adds one matrix compose + 4x4 inverse per frame only during a windup, and renderer.render's own later update is then a cheap no-op-equivalent. The alternative from the finding (calling c.updateMatrixWorld() at the end of BroadcastCamera.apply()) is also correct and allocation-free (spec section 9 requires no per-frame allocations) but does the work every frame; prefer the hud-local version. Verify with the repro script: after the fix the meter transform must equal the projection composed from cam.position/quaternion on the same frame (errPx ~0).",
+   "Minimal, spec-consistent fix in src/hud.js projectMeter(), immediately before line 359:\n\n    if (cam.parent === null) cam.updateMatrixWorld(true);\n    const v = SCRATCH.v3a.set(x, y, z).project(cam);\n\nCamera.updateMatrixWorld recomputes matrix from the position/rotation apply() just set, copies it to matrixWorld and refreshes matrixWorldInverse, so the projection uses this frame's pose. Cost: one 4x4 invert per frame only while the meter is active (renderer.render will redo it, which is harmless). Guarding on parent===null keeps the call correct for the current unparented broadcast camera; if a parented camera is ever passed, use cam.updateWorldMatrix(true, false) instead. Doing it in BroadcastCamera.apply() (as the finding proposes) also works but pays the invert every frame, not just during windups, and is not needed since nothing else reads the camera's world matrices between apply() and renderer.render()."
+  ]
+ },
+ {
+  "title": "Ball allocates its own blob texture and shadow plane instead of sharing the humanoid ones",
+  "file": "src/ball.js",
+  "line": 62,
+  "severity": "minor",
+  "category": "resource-sharing",
+  "evidence": "ball.js:62-64: new THREE.PlaneGeometry(0.9,0.9).rotateX(...) and blob = makeBlobTexture() (a second 64x64 canvas + GPU texture) although humanoid.js:81/94 already builds the identical shared shadow geometry and blob texture (spec section 6: 'Ball shadow same texture scaled 0.35'). Measured renderer.info.memory: textures 6 (court, ball, board, banner, blob x2), geometries 21. Budget numbers otherwise fine: 91 draw calls (menu 88), 9212 triangles, 64 line segments, 11 programs; scene.children 21 and info.memory unchanged after 5 rematch() and 5 quit()/start() cycles; heap sampling shows ~0 allocations in game.step/game.render/hud.update/input.sample (three's own renderer.render ~660 B/frame).",
+  "failure": "One redundant 64x64 texture upload and one extra geometry per boot; no visible effect, but violates the shared-asset rule and duplicates the shadow look-alike if either is tuned later.",
+  "proposedFix": "Export the shared shadow geometry/material from humanoid.js (buildSharedGeometry().shadow and getSharedMaterials().blob) and reuse them in Ball, creating only the per-ball MeshBasicMaterial (opacity is animated) with map: sharedBlob.",
+  "verification": "2/3 verifiers confirmed",
+  "adjustedFixes": [
+   "In src/humanoid.js export the material accessor (change `function getSharedMaterials()` at line 89 to `export function getSharedMaterials()`), or add a tiny `export function getSharedShadowAssets() { return { geometry: buildSharedGeometry().shadow, blob: getSharedMaterials().blob }; }`. In src/ball.js replace lines 62-64: drop the `makeBlobTexture` import (keep makeBallTexture), import `{ buildSharedGeometry, getSharedMaterials }` from './humanoid.js', and use `const shadowGeo = buildSharedGeometry().shadow; const blob = getSharedMaterials().blob;` (getSharedMaterials already wraps makeBlobTexture in try/catch and yields blob=null in headless node, so the existing `color: blob ? 0xffffff : 0x000000` fallback still works). Keep the per-ball MeshBasicMaterial since its opacity is animated (0.5 -> 0.15 with height), unlike the shared humanoid material at opacity 0.45. Do not add any dispose() of the shadow geometry/texture in Ball (nothing disposes today, and they are now shared). Expected result: renderer.info.memory.textures drops from 6 to 5 and geometries by 1; run `node test/unit-ball.mjs`, `node test/unit-humanoid.mjs` and `node test/acceptance.cjs` to confirm nothing regresses.",
+   "In src/humanoid.js, export getSharedMaterials (change `function getSharedMaterials()` to `export function getSharedMaterials()`; buildSharedGeometry is already exported). In src/ball.js, replace the import of makeBlobTexture with `import { buildSharedGeometry, getSharedMaterials } from './humanoid.js';` (keep makeBallTexture from scene.js), and replace lines 62-64 with: `const shadowGeo = buildSharedGeometry().shadow; const blob = getSharedMaterials().blob;` (getSharedMaterials already wraps makeBlobTexture in try/catch and yields blob=null headlessly, so the existing `color: blob ? 0xffffff : 0x000000` fallback still works). Keep the per-ball `this.shadowMat = new THREE.MeshBasicMaterial({ map: blob, ... })` since its opacity is animated in update(). Optionally add an assertion in test/unit-humanoid.mjs or a new ball unit test that `ball.shadow.geometry === buildSharedGeometry().shadow` and `ball.shadowMat.map === getSharedMaterials().blob`, and update the acceptance/perf expectation from 6 textures to 5."
+  ]
+ },
+ {
+  "title": "Backboard is a DoubleSide transparent box with depthWrite off, so its faces stack and it reads ~0.6 opaque instead of 0.35",
+  "file": "src/court.js",
+  "line": 202,
+  "severity": "minor",
+  "category": "visual",
+  "evidence": "court.js:199-204: BoxGeometry (6 faces) with MeshLambertMaterial { transparent, opacity 0.35, depthWrite: false, side: THREE.DoubleSide }. From the court-side camera the front face, the back face (visible through the front because nothing writes depth) and the 4 edge faces are all blended: 1 - 0.65^2 = 0.58 effective opacity, and the 256^2 target-square texture is also stretched onto the 4 thin edge faces. Visible in test/shots/integ-desktop-live.png as a milky grey slab rather than a glass board.",
+  "failure": "The board looks like a translucent grey block, the target square/orange border are washed out and doubled at the edges; the crowd behind it is dimmer than the intended 35% tint.",
+  "proposedFix": "Use side: THREE.FrontSide (the camera never sees the back), or replace the box with a PlaneGeometry(1.83,1.07) at z = BOARD.max.z for the face plus a thin opaque dark frame box; keep depthWrite false and renderOrder after the net so the rim/net still show through.",
+  "verification": "2/3 verifiers confirmed",
+  "adjustedFixes": [
+   "Minimal, spec-consistent change in /home/user/aqualink-app/games/nba2k-threejs/src/court.js line 202: replace `side: THREE.DoubleSide` with `side: THREE.FrontSide` (or simply delete the `side:` entry, since FrontSide is the default). Keep the BoxGeometry 1.83x1.07x0.04, opacity 0.35, transparent and depthWrite:false exactly as the spec lists them; no change to renderOrder, the net or the rim is needed (the front face still blends over them, and the runtime test above shows the measured tint drops from ~0.57 to ~0.35 with just this edit). The camera is always on the +z side of the board, so no visible face is lost.",
+   "Minimal, spec-consistent fix in /home/user/aqualink-app/games/nba2k-threejs/src/court.js line 202: change `side: THREE.DoubleSide` to `side: THREE.FrontSide` (or simply delete the `side:` entry, since FrontSide is the default). Keep the BoxGeometry, `transparent: true, opacity: 0.35, depthWrite: false` exactly as the spec describes, so the rim/net still draw through the board. No other change needed: with FrontSide only the +z face (and a 0.04 m sliver of the top edge face, since the camera sits above the board) is blended, giving the intended ~35% tint. Verification: the same sampling shows the on-board pixel value drop from ~130 to ~94 over a ~39 background, i.e. 0.35 effective opacity."
+  ]
+ },
+ {
+  "title": "Game-over panel is clipped (no scroll) on short landscape viewports; Rematch/Main Menu buttons cut off",
+  "file": "css/style.css",
+  "line": 359,
+  "severity": "major",
+  "category": "mobile-layout",
+  "evidence": ".panel { max-height:100%; overflow:hidden } (lines 356-369) with the fixed-height box score (6 rows) and, in English, the 22 px final-score line wrapping to two lines (#menuOver .final, line 418). Measured with test/scratch/mobile-audit.cjs via __game.hud.showMenu('over', 6 rows): 851x337 (Pixel-class landscape with Chrome toolbar) en: panel clientH 305 < scrollH 320, #btnRematch bottom 323.6 vs panel bottom 321; 740x304 (360-wide Galaxy-class phone in Chrome landscape) zh: rematch 253-295 vs panel bottom 288, en: rematch 281.6-323.6 vs panel bottom 288 (only ~6 px of the button visible); 667x331 en clipped; 640x300 en: rematch top 281.6 vs panel bottom 284. Screenshots test/scratch/shots/over-851x337-en.png and over-740x304-zh.png show the buttons sliced off at the panel edge. Main and pause panels fit at the same sizes (menus 740x304: btnStart bottom 276 < panel 288).",
+  "failure": "After a game on a 360-393 px wide Android phone held in landscape with the browser toolbar visible (or any viewport under ~340 px tall), the English box-score panel hides the Rematch and Main Menu buttons behind overflow:hidden with no way to scroll; the player cannot leave the game-over screen except by reloading. In Chinese the buttons are half cut off.",
+  "proposedFix": "Make .panel scrollable instead of clipping: `.panel{overflow-y:auto;-webkit-overflow-scrolling:touch;touch-action:pan-y}` (scrolling still works under #app's touch-action:none because the .panel is the nearest scroll container), keep `.actions` visible by giving it `flex-shrink:0`, and under `@media (orientation:landscape) and (max-height:360px)` shrink #menuOver: `.final{font-size:18px}`, `#boxScore{font-size:12px}`, rows 15 px, and put the two action buttons in the same row (already), or `white-space:nowrap` on `.final` with ellipsis so the English score line stays on one line.",
+  "verification": "3/3 verifiers confirmed",
+  "adjustedFixes": [
+   "CSS-only, in /home/user/aqualink-app/games/nba2k-threejs/css/style.css, add after the existing `@media (orientation: landscape) and (max-height: 420px)` block (line ~491): `@media (orientation: landscape) and (max-height: 360px) { .panel { padding: 10px 14px; gap: 6px; } .panel .title { font-size: 16px; } #menuOver .final { font-size: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } #boxScore { font-size: 12px; } #boxScore th, #boxScore td { padding: 1px 4px; height: 15px; line-height: 15px; } #menuOver .primary, #menuOver .secondary { height: 38px; } }`. Verified by injection: #menuOver clientHeight = scrollHeight = 241 px and both buttons fully visible/tappable at 740x304, 800x304, 640x300, 667x331, 851x337 and 600x280 in zh and en; the 18 px English score line stays on one line at max-width 360 (no ellipsis triggered). Do NOT rely on `.panel{overflow-y:auto}` alone: the spec-mandated document touchmove preventDefault in src/input.js:127 blocks touch scrolling of the panel. Optionally, as belt-and-braces for even shorter viewports, also add `.panel{overflow-y:auto}` AND change that handler to skip targets inside a `.panel` (`if (e.cancelable && !(e.target.closest && e.target.closest('.panel'))) e.preventDefault();`), but the media-query shrink is the minimal spec-consistent fix.",
+   "Two small changes (CSS alone is not enough on touch devices):\n\n1) /home/user/aqualink-app/games/nba2k-threejs/css/style.css, `.panel` rule (line 365): replace `overflow: hidden;` with\n   `overflow-x: hidden; overflow-y: auto; touch-action: pan-y; overscroll-behavior: contain;`\n   and add `.panel .actions { flex-shrink: 0; }` next to the `.actions` rule (line 416). Optionally, inside the existing `@media (orientation: landscape) and (max-height: 420px)` block (line 491), add `#menuOver .final { font-size: 18px; }` so the English score line wraps less and scrolling is rarely needed. Do not use nowrap/ellipsis on `.final` (it would truncate team names).\n\n2) /home/user/aqualink-app/games/nba2k-threejs/src/input.js line 127: let touches inside a menu panel scroll it, i.e.\n   `this._on(doc, 'touchmove', (e) => { if (e.cancelable && !(e.target && e.target.closest && e.target.closest('.panel'))) e.preventDefault(); }, nonPassive);`\n   The page itself still cannot scroll (html/body/#app remain overflow:hidden with overscroll-behavior:none, and the panel's touch-action:pan-y forbids pinch), so spec section 11 mobile hygiene and acceptance A20 remain satisfied; verified with a CDP touch drag: panel scrollTop 48, window.scrollY 0, Rematch fully visible and hittable at 740x304.",
+   "CSS-only, in /home/user/aqualink-app/games/nba2k-threejs/css/style.css, next to the existing short-landscape rule (line 491): add\n\n@media (orientation: landscape) and (max-height: 360px) {\n  #menuOver .title { font-size: 16px; }\n  #menuOver .final { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\n  #boxScore th, #boxScore td { padding: 1px 4px; height: 15px; line-height: 15px; }\n}\n\n(13 px table font is kept, satisfying the spec's 13 px minimum; 15 px keeps \"Harbor Tide 108 : 102 Redrock Foxes\" under the 328 px content width, 16 px truncates 3-digit scores by 5 px.) Verified at runtime: panel scrollHeight == clientHeight == 253 and Rematch/Main Menu fully visible at 640x300, 740x304, 800x304, 667x331, 851x337 (zh and en); 844x390 unchanged. Do NOT rely on the finding's overflow-y:auto + touch-action:pan-y idea on its own: src/input.js:127 preventDefault()s all document touchmove events, so the panel would not scroll on touch. If a scroll fallback is still wanted as belt-and-braces (e.g. for the artifact host's safe-area padding), it needs `.panel{overflow-y:auto}` PLUS an exemption in input.js line 127 such as `if (e.target && e.target.closest && e.target.closest('.panel')) return;` before the preventDefault. Optionally add an acceptance check (A9/A20 style) asserting #btnRematch and #btnQuitOver are fully inside #menuOver's box at 740x304 and 851x337 in both languages."
+  ]
+ },
+ {
+  "title": "Rotate hint stays on screen during play, covering the play-by-play caption and intercepting touches",
+  "file": "src/hud.js",
+  "line": 402,
+  "severity": "major",
+  "category": "mobile-hud",
+  "evidence": "showMenu() (lines 399-410) only toggles PANELS/OVERLAYS and #menus; #rotateHint is never hidden when the game starts (game.start -> hud.showMenu(null)). CSS: #rotateHint { z-index:12; top:calc(80px + safe-top); pointer-events:auto } (lines 447-465) vs #caption { top:calc(84px + safe-top) } inside #hud (z-index 1). Measured in 390x844 after tapping Start without dismissing (test/scratch/misc2.cjs): state LIVE, hintVisible true, hint box [96,80,198,48], caption text box [112,85,166,21], overlap true, document.elementFromPoint at the hint centre returns the hint, not the HUD. Screenshot test/scratch/shots/portrait-live-hint.png: the '横屏体验更佳 / 知道了' pill sits over the caption slot on top of the court during LIVE play.",
+  "failure": "A first-time portrait player who taps 开始比赛 without tapping 知道了 (the natural flow: the big orange Start button is the obvious target) plays the whole game with the hint pill floating over the court exactly where captions (三分命中, 抢断, 违例…) render; the captions are hidden behind it for the entire session and the pill eats taps in that area.",
+  "proposedFix": "Hide the hint whenever gameplay starts: in HUD.showMenu(null) (or in the onStart callback) call this.dismissRotateHint() (or just add the 'hidden' class without persisting the flag so it can show again next launch). Alternatively give #rotateHint an auto-timeout (e.g. 6 s) and place it below the caption band. Also consider showing it only while #menuMain is visible (`#menus.hidden ~ #rotateHint{display:none}`).",
+  "verification": "3/3 verifiers confirmed",
+  "adjustedFixes": [
+   "Minimal fix in src/hud.js showMenu(): when gameplay resumes (name falsy), hide the hint without persisting the seen-flag so it can still be shown on the next launch's main menu. E.g. after `this.menu = name || null;` add: `if (!name && e.rotateHint) e.rotateHint.classList.add('hidden');`. (If you prefer treating Start as acknowledgement, call `this.dismissRotateHint()` there instead, which also sets the localStorage flag.) No CSS change needed; A22 remains valid because the main menu still shows the hint on first portrait load and 知道了 still persists.",
+   "Minimal, in /home/user/aqualink-app/games/nba2k-threejs/src/hud.js showMenu(): when gameplay starts or resumes (name is null/falsy) hide the pill without persisting the localStorage flag, so A22 semantics (persist only on explicit 知道了; hint reappears at the main menu on the next launch until acknowledged) are unchanged. After the PANELS/OVERLAYS toggles add: `if (!name && e.rotateHint) e.rotateHint.classList.add('hidden');`. Do not call dismissRotateHint() there (it would set hoop.rotateHintSeen without the user acknowledging). The existing resize handler and btnRotateDismiss stay as they are. Verify with `node test/acceptance.cjs A22 A21` and the portrait repro (hintVisible must be false in LIVE, caption text no longer occluded).",
+   "Minimal, spec-consistent (keeps A22: shown on first portrait load, 知道了 persists the flag): in HUD.showMenu (src/hud.js ~line 404, after the PANELS/OVERLAYS toggles) hide the hint whenever gameplay takes over, without persisting the localStorage flag so the hint can still appear on the next launch until the user explicitly dismisses it:\n\n  if (!name && e.rotateHint) e.rotateHint.classList.add('hidden');\n\n(i.e. showMenu(null) from game.start/resume hides it; 'main'/'pause'/'over'/'halftime' leave it as-is; maybeShowRotateHint is untouched.) Optionally also guard in game.start via hud.dismissRotateHint() if the team prefers 'starting the game counts as having seen it' — but that changes the persistence semantics beyond what §11 requires. No CSS change needed; leave z-index/top alone so the pill still sits above the main menu on first load."
+  ]
+ },
+ {
+  "title": "Joystick starts moving the player immediately when the thumb lands within 24 px of a screen edge (clamp shifts the ring centre but the vector is computed from the original touch point)",
+  "file": "src/input.js",
+  "line": 196,
+  "severity": "minor",
+  "category": "touch-feel",
+  "evidence": "_onStickDown clamps s.cx/s.cy to >= 24 px from the viewport edge (lines 191-197) and then immediately calls _updateStickVector(e.clientX, e.clientY) (line 203) with the unclamped finger position, so the first sample already carries a deflection. Measured on 844x390 LIVE via CDP touch with no touchMove (test/scratch/absence.cjs): touchStart at x=4 -> stick cx=24, intent.move = {x:-0.24, z:0, mag:0.24}; touchStart at y=386 -> intent.move.z = +0.24 (player walks backward toward the baseline).",
+  "failure": "In landscape the joystick zone reaches the bottom edge, and thumbs routinely land in the bottom 24 px; the controlled player drifts sideways/backward at ~24 % speed without any thumb movement, which reads as input lag or 'the player moves on his own', and can push the ball handler out of bounds near the sideline.",
+  "proposedFix": "Keep the clamp for the drawn ring but make the initial vector zero: after clamping, set s.vx=s.vz=s.mag=0, s.knobX=e.clientX-s.cx, s.knobY=e.clientY-s.cy and only call _updateStickVector from pointermove; or offset the vector origin by the clamp delta (store s.ox=e.clientX-s.cx, s.oy=e.clientY-s.cy and subtract it in _updateStickVector until the finger has moved more than the dead zone).",
+  "verification": "2/3 verifiers confirmed",
+  "adjustedFixes": [
+   "Minimal change in src/input.js _onStickDown: keep the clamp for the ring position, but do not derive the initial vector from the unclamped touch point. Replace line 203 `this._updateStickVector(e.clientX, e.clientY);` with nothing (the vector/knob were already zeroed on line 200), so the first non-zero sample only comes from pointermove via the existing _onStickMove -> _updateStickVector path. Because subsequent pointermove samples still measure from the clamped centre, a finger that lands at x=4 and then moves 1 px will jump to ~0.24 deflection; if that step is considered unacceptable, additionally record the clamp offset in _onStickDown (`s.ox = e.clientX - s.cx; s.oy = e.clientY - s.cy;`) and in _updateStickVector use `dx = (px - s.ox) - s.cx, dy = (py - s.oy) - s.cy`, decaying s.ox/s.oy to 0 once the finger has left the dead zone (or simply keeping the offset for the life of that touch, which makes the ring a purely visual clamp and the vector origin the real touch point, consistent with §3.2 \"ring appears at the touch point\"). Reset s.ox = s.oy = 0 in _releaseStick. Add a regression check (e.g. in test/acceptance A7 or a new unit test) asserting that a touchStart at (4,300) and (150,386) with no move leaves intent.move.mag === 0.",
+   "Minimal, spec-consistent: in src/input.js _onStickDown, delete the call `this._updateStickVector(e.clientX, e.clientY);` at line 203. Line 200 already zeroes s.vx/s.vz/s.mag/s.knobX/s.knobY, so the first sample after a landing is 0 and the drawn ring/knob appear centred at the clamped position; the vector is then computed exactly as today from the first pointermove via _onPointerMove (line 309), so normal drags, tethering and A6/A7 are unaffected. (The offset-origin variant is not recommended: with an origin shifted by the clamp delta, a thumb landing at x=4 could never reach more than 4/56 deflection toward the edge, which is worse than the current 24/56.) Add a regression probe (test/integ-input.cjs or acceptance): phoneLandscape LIVE, CDP touchStart at (4,300) and at (150,386) with no touchMove -> input.sample(); intent.move.mag === 0 and controlled.pos unchanged after __game.fastForward(1.0); then a touchMove of +60 px still yields mag > 0.5 to guard the drag path."
+  ]
+ },
+ {
+  "title": "Tethered joystick ring drifts out of the zone and is drawn over the right cluster during long strafes",
+  "file": "src/input.js",
+  "line": 213,
+  "severity": "minor",
+  "category": "touch-visual",
+  "evidence": "_updateStickVector moves s.cx/s.cy with the finger once len > RADIUS (lines 211-217) and never re-clamps them to the zone / 24 px edge margin; _drawStick (233) translates #stickRing to that centre. Measured on 844x390 LIVE (test/scratch/absence.cjs): after a drag from x=150 to x=780 at y=250 the stick is still owned (good), mag=1, but s.cx=704 and #stickRing's left edge is at x=644, i.e. the 120 px ring overlaps #btnSecondary/#btnTertiary (cluster x 672-828). Screenshot test/scratch/shots/strafe-ring.png shows the ring and knob rendered across the 换人/抢断 buttons.",
+  "failure": "During a long right strafe the translucent ring and the 52 px white knob slide under the action buttons, visually obscuring their labels at the moment the player wants to tap them with the other thumb.",
+  "proposedFix": "After the tether update, clamp s.cx/s.cy to the same [minX..maxX]/[minY..maxY] box computed in _onStickDown (store it on s) and recompute dx/dy from the clamped centre (or stop tethering at the zone's right edge and just saturate the vector); alternatively render #stickRing before #cluster with `#cluster{position:relative;z-index:1}` so buttons always paint above it.",
+  "verification": "0/3 verifiers confirmed",
+  "adjustedFixes": []
+ },
+ {
+  "title": "Main-menu row labels wrap onto two lines on every phone width below 400 px (48 px flex-basis)",
+  "file": "css/style.css",
+  "line": 486,
+  "severity": "minor",
+  "category": "legibility",
+  "evidence": ".row .lbl { flex: 0 0 60px } (line 374) is reduced to 48px under @media (max-width:399px) (line 486) but the 13 px labels need 52 px ('选择球队', '每节时长') or 50-58 px ('Quarter Length', 'Difficulty'). Measured with test/scratch/mobile-audit.cjs at 360x780 and 390x844, zh and en: 选择球队 / 每节时长 / Your Team / Quarter Length all report 2 lines (text box height 31.9 px vs 15 px for one line). Visible in test/shots/menu-390x844.png ('选择球\\n队', '每节时\\n长') and test/scratch/shots/menu-androidPortrait-en.png ('Your\\nTeam', 'Quarter\\nLength').",
+  "failure": "On iPhone 11/12/13/14 (390 px) and most Android phones (360-393 px), i.e. the primary targets, the settings labels break mid-word/mid-phrase, which looks broken and pushes the rows taller than the 38 px they were designed for.",
+  "proposedFix": "Give the label enough room or let it shrink the text: `.row .lbl{flex:0 0 auto;min-width:52px;white-space:nowrap}` at all widths (the segments already `flex:1 1 0;min-width:0`), or drop the 48 px override and use `font-size:12px` for `.lbl` under 400 px.",
+  "verification": "3/3 verifiers confirmed",
+  "adjustedFixes": [
+   "In /home/user/aqualink-app/games/nba2k-threejs/css/style.css line 486, inside `@media (max-width: 399px)`, change `.row .lbl { flex-basis: 48px; }` to `.row .lbl { flex-basis: 52px; }`. Verified at 360x780 and 390x844: all zh labels become 1 line (52px), rows stay 38px, segment chips lose only ~2px each (e.g. 118->116px team chips, 57->56px minute chips) with no ellipsis; English behaviour is unchanged from desktop (Difficulty 58px 1 line; 'Your Team'/'Quarter Length' break at the word boundary exactly as they already do at >=400px). Do not add white-space:nowrap or flex-basis:auto at all widths: that ellipsizes the English 360px minute/team chips.",
+   "Minimal, spec-consistent fix in /home/user/aqualink-app/games/nba2k-threejs/css/style.css inside `@media (max-width: 399px)` (line 486): change `.row .lbl { flex-basis: 48px; }` to `.row .lbl { flex-basis: 52px; }` (52px = 4 CJK glyphs at 13px, so 选择球队/每节时长 fit on one line; 难度 unaffected). At 360px width the 4-way quarter segment still gets (360 - 2*16 gutter - 2*16 panel padding - 52 - 8 gap) = 236px, i.e. ~56px per option, so '5 分钟'/'5 min' keep fitting. English two-word labels continue to wrap at their word boundary exactly as they already do at the 60px basis on wider screens (row stays 38px tall), so no behaviour changes there. Optionally verify with the same probe: every #menuMain .lbl with zh text should report 1 client rect at 360x780 and 390x844.",
+   "In /home/user/aqualink-app/games/nba2k-threejs/css/style.css, inside `@media (max-width: 399px)` (line ~486), change `.row .lbl { flex-basis: 48px; }` to `.row .lbl { flex-basis: 52px; word-break: keep-all; }`. 52 px fits the four-character CJK labels on one line (13 px x 4); `word-break: keep-all` guarantees a CJK label is never split mid-word even if a device font is slightly wider (the item then grows to its min-content width, as 'Difficulty'/'Language' already do). English 'Your Team' / 'Quarter Length' still wrap at word boundaries inside the unchanged 38 px row. Budget check at 360 px: panel inner width 296, seg = 296 - 52 - 8 = 236 -> quarter row 56 px per option (text ~38 px), team row 116 px per option ('Redrock Foxes' ~95 px), so no option is squeezed or ellipsised."
+  ]
+ },
+ {
+  "title": "Touch targets below the 44 px minimum: rotate-hint dismiss button (32 px), menu option buttons (38 px), secondary buttons (42 px)",
+  "file": "css/style.css",
+  "line": 468,
+  "severity": "minor",
+  "category": "touch-targets",
+  "evidence": "#rotateHint button { height:32px } (lines 467-475); .seg .opt { height:38px } (line 380); .panel .secondary { height:42px } (line 408); landscape <=420 px also lowers .panel .primary to 42px (line 495). Measured bounding boxes: #btnRotateDismiss 63x32 (zh) / 65x32 (en) at 360 and 390 px; every .seg .opt 34 px client height + 2 px border = 38 px. SPEC §3.2 states 'All targets ≥ 44 px'.",
+  "failure": "The dismiss button of the hint (which, per the finding above, otherwise stays on screen all game) and the difficulty / quarter / team / sound toggles are undersized for thumbs; mis-taps land on the neighbouring option or on the blurred backdrop.",
+  "proposedFix": "Raise `#rotateHint button` to `height:44px;padding:0 14px` (the pill grows to ~60 px which still fits above the menu), set `.seg .opt{height:44px}` and `.panel .secondary{height:44px}`; keep the panel short in landscape by reducing `.rows` gap to 4 px instead of shrinking buttons.",
+  "verification": "2/3 verifiers confirmed",
+  "adjustedFixes": [
+   "In /home/user/aqualink-app/games/nba2k-threejs/css/style.css: (1) `.seg .opt { height: 38px }` -> `height: 44px` (line 380); (2) `.panel .secondary { height: 42px }` -> `height: 44px` (line 408); (3) `#rotateHint button { height: 32px; padding: 0 12px }` -> `height: 44px; padding: 0 14px` (lines 468-469; the pill grows to 60 px and stays above the menu panel in every portrait viewport tested); (4) in `@media (orientation: landscape) and (max-height: 420px)` replace `.rows { gap: 6px }` with `.rows { gap: 4px }` and delete the `.panel .primary { height: 42px }` override (lines 494-495) so the primary keeps its 46 px. Verified by runtime injection: main menu panel 297 px and pause panel 281 px tall in 812x375 with no overflow/scroll, all targets >= 44 px in 812x375, 375x812 and 360x780. No src/, index.html or test changes needed; acceptance A9/A20/A22 assertions are unaffected (they test the HUD cluster, score bug vs #btnPrimary, and hint dismissal, not menu button sizes).",
+   "In css/style.css only: (1) `.row { min-height: 44px; }` and `.seg .opt { height: 44px; }` (lines 374/380); (2) `.panel .secondary { height: 44px; }` (line 408); (3) `#rotateHint button { height: 44px; padding: 0 14px; }` (lines 468-469); (4) in the `@media (orientation: landscape) and (max-height: 420px)` block, change `.panel .primary { height: 42px; }` to `44px` and `.rows { gap: 6px; }` to `4px` so the main menu still fits (measured 295 px on 844x390). Optionally add a regression check to test/acceptance.cjs asserting every visible `#menus button, #rotateHint button, #btnPause` has getBoundingClientRect().height >= 44 on phonePortrait and phoneLandscape. No src/ changes needed."
+  ]
+ },
+ {
+  "title": "Sticky DPR downgrade is judged from frames rendered under the menu/pause backdrop-filter blur, not from gameplay frames",
+  "file": "src/main.js",
+  "line": 143,
+  "severity": "minor",
+  "category": "perf",
+  "evidence": "frame() calls perfMon.frame(frameDt*1000) and shouldDowngrade() on every rAF regardless of game.state (lines 143-150), and the PerfMonitor warm-up (PERF.WARMUP_S 5) starts at boot, i.e. while #menuMain is displayed. #menus (css lines 339-354) and .overlay use `backdrop-filter: blur(6px)` over the full-screen WebGL canvas that keeps re-rendering the arena at DPR 1.5 every frame (renderer.render in renderFrame is unconditional). The downgrade is sticky (downgraded=true, PerfMonitor.downgraded) and can therefore be triggered by a 2 s window spent in the main menu or pause menu, where the fullscreen blur of a live canvas is the most expensive frame the page ever produces on mid-range Android GPUs; the decision is never revisited when the blur goes away.",
+  "failure": "On a phone whose blurred-menu frames exceed 24 ms but whose gameplay frames would not, the renderer is permanently dropped to DPR 1.0 before the first possession (visibly softer court and jerseys for the whole session), and there is no way back except reloading.",
+  "proposedFix": "Only feed the PerfMonitor while the game is live and no menu is shown (e.g. `if (!hud.menu && game.state !== 'MENU') perfMon.frame(...)`), reset its window when a menu closes, and/or stop calling renderer.render while a menu with backdrop-filter covers the canvas (render one frame on open and freeze); consider replacing the blur by a plain translucent backdrop on touch devices.",
+  "verification": "2/3 verifiers confirmed",
+  "adjustedFixes": [
+   "Minimal, spec-consistent change confined to src/main.js frame(): feed and evaluate the PerfMonitor only when no menu overlay covers the canvas and the game is not in MENU, e.g. replace lines 143-150 with `const judge = !hud.menu && game.state !== 'MENU'; if (judge) { perfMon.frame(frameDt * 1000); if (!downgraded && perfMon.shouldDowngrade()) { ...existing downgrade body... } }` (keep the 1 s perf-object refresh as is; perfMon.avg/fps then reflect gameplay frames). Optionally, when a menu closes (hud.menu transitions from non-null to null), discard the stale window by constructing a fresh PerfMonitor or adding a small `reset()` to PerfMonitor (scene.js) that zeroes head/count/sum but keeps elapsedMs, so the 2 s window is not contaminated by the last blurred frames. Do not change PERF constants, the sticky semantics, or the unit test in test/unit-court.mjs:181 (it exercises PerfMonitor directly and stays valid). Replacing the backdrop blur or freezing renderer.render under menus is not needed for the fix and would touch spec-described rendering behaviour, so leave it out.",
+   "Minimal, spec-consistent change in /home/user/aqualink-app/games/nba2k-threejs/src/main.js only: feed the monitor solely with gameplay frames. Replace line 143 `perfMon.frame(frameDt * 1000);` with a gated call, e.g. `const live = !hud.menu && !game.paused && game.state !== 'MENU' && game.state !== 'GAME_OVER'; if (live) perfMon.frame(frameDt * 1000);` and keep the existing `if (!downgraded && perfMon.shouldDowngrade())` block unchanged (shouldDowngrade already returns false while count===0 / not warmed up, so the 5 s warm-up now counts gameplay time and the 2 s window holds only gameplay frames). Optionally add a small `resetWindow()` to PerfMonitor (drop buffered frames, keep elapsedMs/downgraded) and call it when a menu closes (`hud.cb.onStart`, `onResume`, `onRematch`) so a stale window is not judged on the first frame back; that is not strictly required since the window is time-sliding and only the frames it contains are averaged. Do not change the render loop, the blur, or PerfMonitor semantics (unit-court.mjs:181 tests PerfMonitor directly; A25/A26 do not assert dpr). Replacing the backdrop blur with a plain translucent backdrop on touch devices is a separate, optional perf tweak, not needed for correctness of the downgrade decision."
+  ]
+ },
+ {
+  "title": "Shot value (2/3) is fixed at the press, not at the shooter's feet at release; momentum carries a running shooter 2-3 m inside the arc and still scores 3",
+  "file": "src/game.js",
+  "line": 781,
+  "severity": "major",
+  "category": "rules-scoring",
+  "evidence": "startShot() line 737 classifies once (`const kind = classifyShot(p, w)` at press) and shoot() line 781 uses `const points = kind === 'three' ? 3 : 2`, while the make roll uses the release distance (line 754 `const d = shotDistance(p, w)`). Playwright scenario feetAtRelease (test/scratch/rules-audit.cjs): shooter sprinting toward the rim, debugShoot({p:1}) fired when feet were at d=7.318 m (outside the 7.24 m arc): at release feet were at d=4.244 m (isThree=false, jumpY 0.25) → score [3,0], shotInfo.points 3, caption cap.make3. Without sprint: press d=7.302 → release d=4.891 → still +3. Player.step keeps horizontal velocity through the jump ('No air control: momentum carries'), so this happens on every running shot pressed near the line.",
+  "failure": "A player who presses SHOOT while running at the three-point line releases from mid-range (~4-5 m) with the easier mid-range make probability and is awarded 3 points and a 3PM stat; spec §1 says 3 only if the feet are outside the line at release. Exploitable and visibly wrong on the score bug/box score (and the reverse case under-pays a shooter drifting outward).",
+  "proposedFix": "In shoot(), decide the value at release for jumpers: `const three = kind !== 'layup' && kind !== 'dunk' && isThree(p.pos.x, p.pos.z); const points = three ? 3 : 2;` (import isThree from constants.js), pass the same `three` into shot.kind/caption selection so cap.make3/tpm follow the awarded value; keep classification-at-press only for the animation/meter length.",
+  "verification": "3/3 verifiers confirmed",
+  "adjustedFixes": [
+   "Minimal, spec-consistent (§1, §4.5): decide the value from the feet at release, leave classification-at-press for animation/meter. In /home/user/aqualink-app/games/nba2k-threejs/src/game.js: (1) line 5, add `isThree` to the constants import: `import { RIM, BOARD, BALL, SHOT, MOVE, CLOCK, DIFFICULTY, FORMATION, SLOTS, FIXED_DT, isThree } from './constants.js';` (2) line 781, replace `const points = kind === 'three' ? 3 : 2;` with `const points = kind !== 'layup' && kind !== 'dunk' && isThree(p.pos.x, p.pos.z) ? 3 : 2;`. Nothing else is needed: onScore() (lines 1091-1103) derives score, stats.tpm, the +N banner and cap.make3/cap.make2 from shotInfo.points, and uses shot.kind only for the dunk/layup captions and audio, so shot.kind can stay as classified at press (dunks are launched separately with points: 2 in stepDunks, unaffected). Optional regression test: extend test/scratch/rules-audit.cjs feetAtRelease into a unit/acceptance check asserting shotInfo.points === (isThree(feet at release) ? 3 : 2) for a running press just outside the arc.",
+   "In /home/user/aqualink-app/games/nba2k-threejs/src/game.js, import isThree from './constants.js' (line 5) and in shoot() replace line 781 `const points = kind === 'three' ? 3 : 2;` with `const points = kind !== 'layup' && kind !== 'dunk' && isThree(p.pos.x, p.pos.z) ? 3 : 2;` (feet at release, matching SPEC §1/§4.5; classifyShot at press still drives the animation/meter length/make probability). No other change is needed: the 3PM stat (line 1096 `if (pts === 3) s.tpm++`) and the caption (line 1103 `pts === 3 ? 'cap.make3' : 'cap.make2'`) already derive from shotInfo.points, so they follow the awarded value automatically. Optionally also set shot.kind / the launched info.kind to `points === 3 ? 'three' : 'jumper'` for consistency of the 'release' event payload, but it is not required for scoring, stats or captions.",
+   "In /home/user/aqualink-app/games/nba2k-threejs/src/game.js: (1) add `isThree` to the constants import on line 5: `import { RIM, BOARD, BALL, SHOT, MOVE, CLOCK, DIFFICULTY, FORMATION, SLOTS, FIXED_DT, isThree } from './constants.js';` (2) replace line 781 `const points = kind === 'three' ? 3 : 2;` with `const points = kind !== 'layup' && kind !== 'dunk' && isThree(p.pos.x, p.pos.z) ? 3 : 2;   // Section 4.5: value from the feet at release`. Leave classification-at-press (kind) untouched for meter length/animation and leave shot.kind as is; onScore already derives score, tpm and cap.make2/cap.make3 from shotInfo.points. Optionally add a unit/acceptance check: press outside the arc while running, assert ball.shotInfo.points === 2 when isThree(feet) is false at release (and 3 when a stationary shooter releases outside)."
+  ]
+ },
+ {
+  "title": "Offensive recovery of an untouched air ball resets the shot clock to 14 and credits REB, so an expired shot clock can be dodged by shooting an air ball",
+  "file": "src/game.js",
+  "line": 1016,
+  "severity": "major",
+  "category": "rules-shot-clock",
+  "evidence": "onCatch() lines 1013-1019 reset `w.shotClock` and increment `reb` for any offensive catch with `ctx === 'shot'`, with no check that the shot touched rim/board or was blocked; stepClocks() line 619 treats `ballCtx === 'shot' && bs === 'loose'` as shot-live so no violation fires while the air ball rolls. Scenario airballExpired: shot clock 0.35 at release (jumper from (0,-8.3), e=-0.40), reached 0 during flight, no 'rim'/'board' event ever fired, a teammate picked the ball up → shotClock 14, caption cap.rebound, REB+1, no violation. Scenario airballReset (shot clock 3 s) likewise → 14. Spec §1: reset only 'after a shot touched rim/board or was blocked'.",
+  "failure": "With the shot clock about to expire the offence can throw an air ball, recover it and get a fresh 14 s (and a phantom rebound in the box score) instead of a shot-clock violation; the defence never gets the whistle the rules promise.",
+  "proposedFix": "Track contact on the shot record: set `shot.touched = true` in onShotContact() (rim/board events) and in tryBlocks(); in onCatch() only reset the clock and credit REB when `ctx === 'shot' && this.shot.touched`; when the offence catches an untouched shot leave `w.shotClock` as is (stepClocks will then whistle at 0 on the next step). Optionally also drop the `ballCtx === 'shot' && loose` exemption once the ball has hit the floor without contact.",
+  "verification": "0/3 verifiers confirmed",
+  "adjustedFixes": []
+ },
+ {
+  "title": "Shot released with 0 < shot clock <= 1/60 s is whistled as a violation because the clock decrements before the release edge is processed",
+  "file": "src/game.js",
+  "line": 547,
+  "severity": "minor",
+  "category": "rules-shot-clock",
+  "evidence": "step() calls `this.stepClocks(dt)` (line 547) before `this.processIntents()` (line 554); stepClocks clamps the clock to 0 and calls shotClockViolation() in the same step in which the sampled `primary.justReleased` edge would have launched the shot. Scenario shotClockEdge (human input path through input.intent): windup started, setClock({shot:0.01}), release edge → next step state DEAD, deadReason SHOT_CLOCK, caption cap.shotClock, ball still 'held'. With shot 0.02 → ball 'flight', shot clock 0.003, valid. Spec §1: 'A shot released before 0 is valid.'",
+  "failure": "A release that happened while the HUD still read 1 (clock 0.01-0.0167 s) is turned into a shot-clock turnover instead of a live shot; rare (one fixed-step window per possession) but it is exactly the buzzer-beater moment where it matters.",
+  "proposedFix": "In stepClocks(), when the clock crosses 0 this step, defer the violation to the next step if any offensive handler in windup/layup has `intent.primary.justReleased` (or !held) this step, e.g. `if (w.shotClock <= 0 && !shotLive && !this.releaseEdgePending()) this.shotClockViolation();` where releaseEdgePending() scans offence players in windup with a release edge; alternatively run processIntents() for release edges before stepClocks().",
+  "verification": "1/3 verifiers confirmed",
+  "adjustedFixes": [
+   "Minimal, stateless, keeps §14.1 order: whistle only when the shot clock was already 0 at the START of a step (so the step in which it crosses 0 still runs processIntents and any sampled release launches the shot). In stepClocks() (src/game.js ~604-622): add `const wasZero = w.shotClock <= 0;` before `w.shotClock -= dt;` and change `if (w.shotClock <= 0) {` at line 617 to `if (wasZero) {` (body unchanged: compute shotLive, call shotClockViolation() if not live). Effect: expiring step -> clock clamps to 0, intents processed; release edge -> ball 'flight' -> next step shotLive -> no whistle; no release -> next step whistles, 1/60 s later than today (A17's 1.5 s tolerance and the [0,14] invariant are unaffected; setClock({shot:0}) whistles on the following step). Optionally add a unit/acceptance check: windup + setClock({shot:0.01}) + release edge -> ball.state === 'flight' and state LIVE."
+  ]
+ },
+ {
+  "title": "A shot already rattling on the rim when the game clock hits 0 is killed instantly instead of being resolved (0.5 s loose grace)",
+  "file": "src/game.js",
+  "line": 466,
+  "severity": "minor",
+  "category": "rules-buzzer",
+  "evidence": "onGameClockZero() only defers the period end when `bs === 'flight' || bs === 'scored'`; Ball.step flips a shot to 'loose' on the first rim/board contact, so a shot that touched the rim before the buzzer is `loose` with `ballCtx === 'shot'` and endPeriod() runs immediately. Scenario buzzer.rattler: ball state 'loose', ctx 'shot', gc 28.3 → setClock({game:0.001}) → one step later state QUARTER_END, ctx 'none', ball still 'loose'. Spec §1/§8: a shot released while clock > 0 ends the period 'when the ball is resolved (score or 0.5 s after it becomes LOOSE)'.",
+  "failure": "A shot that hits the rim just before the buzzer and would drop in during the next half second is discarded; the rim-roller buzzer beater never counts.",
+  "proposedFix": "In onGameClockZero() also defer when `this.ballCtx === 'shot' && bs === 'loose'`, seeding `buzzerLooseT` with the time the ball has already been loose (track `looseSince` when Ball flips flight→loose) so stepBuzzer() ends the period at 0.5 s of LOOSE total, and keep the 'score' handling live meanwhile.",
+  "verification": "2/3 verifiers confirmed",
+  "adjustedFixes": [
+   "In src/game.js `onGameClockZero()` (line 466) replace the condition with the same live-shot test used at line 619: `const shotLive = bs === 'flight' || bs === 'scored' || (this.ballCtx === 'shot' && bs === 'loose'); if (shotLive) { this.buzzerPending = true; this.buzzerLooseT = bs === 'loose' ? this.shotLooseT : 0; } else this.endPeriod();`. Add `this.shotLooseT = 0` next to `buzzerLooseT` in the constructor/reset (lines 141, 376) and wherever `ballCtx` is set to 'shot' (lines 787, 818); in `stepClocks` (before the buzzerPending early-return is fine, or in step) do `this.shotLooseT = (this.ballCtx === 'shot' && this.ball.state === 'loose') ? this.shotLooseT + dt : 0;`. `stepBuzzer()` is unchanged: it keeps waiting while 'flight'/'scored', ends the period once the ball has been LOOSE for CLOCK.BUZZER_LOOSE (0.5 s) in total, and `onScore` already prints cap.buzzerBeater while buzzerPending. Add a unit/integ check: shot released with clock > 0, rim contact, then clock 0 -> state stays LIVE with buzzerPending until 0.5 s of loose or a score.",
+   "Minimal and consistent with the shot-clock predicate already at game.js:619. (1) Track time loose in Game.step right after `const events = ball.step(dt, w, this.ballEvents);`: `this.looseT = ball.state === 'loose' ? this.looseT + dt : 0;` (init `this.looseT = 0` in the constructor and reset it wherever buzzerLooseT/ballCtx are reset, lines ~141/246/376). (2) In onGameClockZero(): `const bs = this.ball.state; const shotLoose = this.ballCtx === 'shot' && bs === 'loose'; if (bs === 'flight' || bs === 'scored' || (shotLoose && this.looseT < CLOCK.BUZZER_LOOSE)) { this.buzzerPending = true; this.buzzerLooseT = shotLoose ? this.looseT : 0; } else this.endPeriod();` stepBuzzer() needs no change: it keeps accumulating buzzerLooseT for 'loose', resets it on 'scored', and endPeriod fires at 0.5 s of total LOOSE time or on a catch; onScore already applies the cap.buzzerBeater caption while buzzerPending. Optionally add an acceptance/unit item: loose shot ball with ctx 'shot' at clock 0 -> state stays LIVE with buzzerPending true for (0.5 - looseT) s, then QUARTER_END; a score inside that window counts."
+  ]
+ },
+ {
+  "title": "A three that is deflected/blocked by a defender and still drops is scored as 2 for the shooter",
+  "file": "src/game.js",
+  "line": 1092,
+  "severity": "minor",
+  "category": "rules-scoring",
+  "evidence": "Ball.score() reports points 2 whenever `lastToucher !== shooter` on a loose ball; onScore() then credits the shooter (line 1089 `credit = ... shooter`) but uses `const pts = points === 3 ? 3 : 2` (line 1092), so `ownShot` is true yet the value is 2 and tpm is not incremented. Scenario blockedMake: three from (0,-4.8), in flight, ball state set to 'loose' with lastToucher = defender (a block that does not alter the arc), ball drops → score [2,0], shooter stats pts 2 fgm 1 tpm 0, caption cap.make2, ball.shotInfo.points still 3.",
+  "failure": "A blocked/tipped three-pointer that goes in is worth 2 on the scoreboard and the shooter loses the 3PM; spec §1 defines the value by the shooter's feet, not by who touched it last.",
+  "proposedFix": "In onScore(), when `ownShot` (credit === shot.shooter && shot.pending) use `const pts = shot.kind === 'three' ? 3 : 2` (or ball.shotInfo.points) instead of the Ball.score value; keep 2 for genuine tip-ins by another player.",
+  "verification": "0/3 verifiers confirmed",
+  "adjustedFixes": []
+ },
+ {
+  "title": "Caption queue is not cleared on rematch/quit: the previous game's play-by-play shows over the new game and over the main menu",
+  "file": "src/game.js",
+  "line": 228,
+  "severity": "minor",
+  "category": "state-reset",
+  "evidence": "start() (line 228 `hud.showMenu(null)` then enterCheck) and quit() (lines 247-248) reset score, stats, clocks and banner but never touch HUD._queue/_capT; hud.js has no caption-clear method. Scenario rematch: at GAME_OVER `#caption` = '石岳 两分命中' (show); after game.rematch() + one frame the score bug reads 0-0, 第1节, 00:03 while `#caption` still shows '石岳 两分命中' with class show, and a queued cap.buzzerBeater plays afterwards. Scenario pause.quit: after quit() `#menuMain` visible, `#caption` = '胡烈 投篮不中' still shown over the menu.",
+  "failure": "Rematch/quit visibly carry stale commentary from the finished game (a 'scores' caption during the new game's CHECK, or over the main menu), contradicting the 'rematch resets everything' requirement.",
+  "proposedFix": "Add `HUD.clearCaptions()` that empties `_queue`, sets `_capT = -1`, `_capCur = null` and removes the 'show' class, and call it from Game.start(), Game.quit() and gameOver() (and optionally at each enterCheck for a new period).",
+  "verification": "2/3 verifiers confirmed",
+  "adjustedFixes": [
+   "Minimal, spec-consistent fix: in src/hud.js add `clearCaptions() { this._queue.length = 0; this._capT = -1; this._capFading = false; this._capCur = null; const el = this.els.caption; if (el) { el.classList.remove('show'); this._text(el, ''); } }` and call `if (this.hud) this.hud.clearCaptions();` from Game.start() (next to `this.hud.showMenu(null)`, src/game.js:228; rematch() goes through start() so it is covered) and from Game.quit() (next to `this.banner(null)`, src/game.js:248). Do NOT clear in gameOver(): the spec (§1 quarter buzzer, §8 'buzzer-beater caption on make') requires the final make/`cap.buzzerBeater` caption to be shown, and it is queued immediately before gameOver() runs, so clearing there would suppress it. Likewise do not clear at every enterCheck, which would drop legitimate end-of-period captions queued just before QUARTER_END. Optionally add an acceptance check: after GAME_OVER + rematch(), `__game.hud._queue.length === 0` and `#caption` lacks class 'show'; after quit(), same assertion with #menuMain visible.",
+   "Minimal: add to HUD (src/hud.js, next to caption()):\n  clearCaptions() {\n    this._queue.length = 0;\n    this._capT = -1; this._capFading = false; this._capCur = null;\n    if (this.els.caption) this.els.caption.classList.remove('show');\n  }\nand call `if (this.hud) this.hud.clearCaptions();` in Game.start() (right before `this.hud.showMenu(null)`, covers both fresh start and rematch) and in Game.quit() (next to `this.banner(null)`). Do NOT clear in gameOver(): the final play's caption (e.g. cap.buzzerBeater, spec §8 row \"buzzer-beater caption on make\") should still be allowed to finish under the box-score overlay; start() already covers the rematch path. Clearing at each enterCheck is unnecessary and would cut off legitimate captions (cap.make2 → CHECK 1.5 s later). Keep the 'show' class removal so the CSS opacity transition hides the node immediately rather than waiting for the next tick; the stale textContent is harmless because it is invisible at opacity 0 and _text() rewrites it on the next caption."
+  ]
+ },
+ {
+  "title": "Language toggle does not re-render the banner currently on screen",
+  "file": "src/hud.js",
+  "line": 215,
+  "severity": "minor",
+  "category": "i18n",
+  "evidence": "refreshLang() (lines 215-230) re-labels team buttons, lang button, period (`_lastQ = -1`), the game-over and halftime panels and the current caption, but the banner text set by banner() is never re-rendered. Scenario lang: with the CHECK banner up, hud.toggleLanguage() → period 'Q1', buttons BLOCK/SWITCH/STEAL, caption 'Shi Yue scores', pause panel English, but `#banner` still '发球' (expected 'CHECK BALL'); same for quarter-end/overtime/final banners (up to 2.5 s).",
+  "failure": "Right after toggling language (T key or pause menu) the large centred banner stays in the previous language while everything else switches; spec §11 says all HUD text goes through t() and the toggle relabels everything.",
+  "proposedFix": "Store `_bannerKey/_bannerParams` in banner() and, in refreshLang(), `if (this._bannerT > 0 && this._bannerKey) this._text(this.els.banner, t(this._bannerKey, localizeParams(this._bannerParams)))`; do the same for the meter flash text if desired.",
+  "verification": "2/3 verifiers confirmed",
+  "adjustedFixes": [
+   "In src/hud.js: (1) in the constructor next to `this._bannerT = 0;` add `this._bannerKey = null; this._bannerParams = null;`. (2) In banner(): on the `!key` early-return also clear `this._bannerKey = null;`; otherwise store `this._bannerKey = key; this._bannerParams = params || null;` before `this._text(el, t(key, localizeParams(params)))`. (3) In _tickBanner(), when the banner expires (`_bannerT <= 0`) also set `this._bannerKey = null`. (4) At the end of refreshLang() add: `if (this._bannerT > 0 && this._bannerKey) this._text(this.els.banner, t(this._bannerKey, localizeParams(this._bannerParams)));`. This mirrors the existing `_capCur` handling for captions, keeps all text through t()/localizeParams, and needs no change to game.js or the spec. The meter flash (0.6 s) can be left as is.",
+   "In src/hud.js: in banner(), after the early-return for !key, store `this._bannerKey = key; this._bannerParams = params || null;` (and clear both in the !key branch). In refreshLang(), add `if (this._bannerT > 0 && this._bannerKey) this._text(this.els.banner, t(this._bannerKey, localizeParams(this._bannerParams)));`. Initialise `_bannerKey = null; _bannerParams = null` in the constructor. No change needed for the meter flash (0.6 s, single-word, optional)."
+  ]
+ },
+ {
+  "title": "P/Escape (and M/T) during HALFTIME both skip the halftime and pause/mute/toggle, because the HUD 'any key skips' handler does not exclude the Input hotkeys",
+  "file": "src/hud.js",
+  "line": 136,
+  "severity": "minor",
+  "category": "state-machine-input",
+  "evidence": "hud.js line 136 registers a document keydown that calls onSkip for any key while menu === 'halftime'; input.js line 363 registers its own document keydown that calls _pause() for KeyP/Escape regardless of `enabled`. Both fire (HUD first). Scenario halftimeKey (real page.keyboard.press('KeyP') in HALFTIME): before {state HALFTIME, paused false} → after {state CHECK, quarter 3, paused true, #halftime hidden, #menuPause visible}.",
+  "failure": "A desktop player pressing P/Esc to pause at halftime instead skips the halftime overlay, starts Q3's CHECK and lands in the pause menu; M/T similarly skip the halftime as a side effect.",
+  "proposedFix": "In the HUD halftime keydown handler ignore the reserved codes: `if (['KeyP','Escape','KeyM','KeyT'].includes(ev.code)) return;` (or have Input.onPause consult hud.menu === 'halftime' and no-op), so those keys keep their single meaning.",
+  "verification": "2/3 verifiers confirmed",
+  "adjustedFixes": [
+   "Minimal, spec-consistent fix in /home/user/aqualink-app/games/nba2k-threejs/src/hud.js line 136: exclude the globally reserved Input hotkeys from the 'any key skips halftime' handler so each key keeps its single documented meaning:\n\n    // Any key skips the halftime overlay, except the global hotkeys owned by Input (P/Esc pause, M mute, T language).\n    const RESERVED_KEYS = { KeyP: 1, Escape: 1, KeyM: 1, KeyT: 1 };\n    this._on(this.doc, 'keydown', (ev) => {\n      if (this.menu !== 'halftime' || ev.repeat || RESERVED_KEYS[ev.code] || !this.cb.onSkip) return;\n      this.cb.onSkip();\n    });\n\nWith this, P/Esc at halftime pauses in place (pause() already allows it; skipHalftime() is already guarded by !this.paused, and resume() re-shows the halftime overlay via showMenu('halftime') at game.js:272), and M/T only toggle mute/language. Optionally add an acceptance check next to A18: at HALFTIME press KeyM and assert state stays HALFTIME with #halftime visible and audio.muted toggled; press KeyP and assert state HALFTIME, paused true, quarter still 2. Tap-to-skip (#halftime click) and non-reserved keys are unchanged.",
+   "Minimal, in /home/user/aqualink-app/games/nba2k-threejs/src/hud.js line 136, exclude the Input hotkeys (and text-input targets, matching Input._isTextTarget) from the 'any key skips' handler:\n\n    // Any key skips the halftime overlay, except keys Input owns (pause/mute/lang), which keep their single meaning.\n    const SKIP_IGNORE = { KeyP: 1, Escape: 1, KeyM: 1, KeyT: 1 };\n    this._on(this.doc, 'keydown', (ev) => {\n      if (this.menu !== 'halftime' || ev.repeat || !this.cb.onSkip) return;\n      if (SKIP_IGNORE[ev.code]) return;\n      this.cb.onSkip();\n    });\n\nThis keeps SPEC §8 'HALFTIME: 3.0 s or tap/key -> CHECK(Q3)' for every other key and tap, and keeps 'P/Esc = pause/resume' (SPEC §5 key table, §8 pause valid in any non-MENU/GAME_OVER state) working during halftime, since game.pause()/resume() already handle the HALFTIME case (resume re-shows the halftime overlay). Add an acceptance check next to A10/A18: in HALFTIME press 'p' -> state still HALFTIME, paused true, #menuPause visible; press 'p' again -> #halftime visible again; press any other key (e.g. Space) -> CHECK, quarter 3."
+  ]
+ },
+ {
+  "title": "Pausing during QUARTER_END/CHECK discards the period banner; after the resume countdown nothing restores it",
+  "file": "src/game.js",
+  "line": 260,
+  "severity": "minor",
+  "category": "state-machine-pause",
+  "evidence": "pause() calls `this.banner(null)` (line 260) and stepPaused() shows the countdown then `this.banner(null)` (line 580); the QUARTER_END/CHECK banner key is not remembered. Scenario pause.quarterEndPause: banner '第3节结束' shown → game.pause() → game.resume() + 1.1 s → `#banner` text '1', show class removed, state still QUARTER_END for its remaining time.",
+  "failure": "Pausing right at a quarter buzzer (or when the tab is hidden, which auto-pauses) loses the 'END OF Q3'/'OVERTIME'/'FINAL'/'CHECK BALL' banner; on resume the player sees a silent quarter break with no indication of what happened.",
+  "proposedFix": "In pause(), stash the HUD's current banner key/params and remaining ms (expose them from HUD.banner) and re-issue `this.banner(key, params, remainingMs)` at the end of stepPaused() when the countdown finishes, instead of banner(null).",
+  "verification": "1/3 verifiers confirmed",
+  "adjustedFixes": [
+   "Minimal, spec-consistent: (1) hud.js: in banner(key, params, ms) remember `this._bannerKey = key; this._bannerParams = params || null;` (clear them in the `!key` branch) and add `bannerState() { return this._bannerT > 0 && this._bannerKey ? { key: this._bannerKey, params: this._bannerParams, ms: Math.ceil(this._bannerT * 1000) } : null; }`. (2) game.js pause(): before `this.banner(null)` do `this.pausedBanner = this.hud ? this.hud.bannerState() : null;`. (3) game.js stepPaused(): replace the final `this.banner(null);` with `const b = this.pausedBanner; this.pausedBanner = null; if (b) this.banner(b.key, b.params, b.ms); else this.banner(null);`. (4) Reset `this.pausedBanner = null` in start(), quit() and gameOver() so a stale banner cannot leak across games/menus. This restores END OF Qn / OVERTIME / FINAL / CHECK BALL (and +2/+3) for their remaining duration after the countdown, without touching the state machine or clocks. Add a test: pause during QUARTER_END, resume, fastForward 1.1 s, assert #banner has .show and text matches banner.quarterEnd while state is still QUARTER_END."
+  ]
+ },
+ {
+  "title": "STL is credited (and 'steals it!' captioned) on the poke, even when the offence recovers the ball and keeps possession",
+  "file": "src/game.js",
+  "line": 936,
+  "severity": "minor",
+  "category": "stats-attribution",
+  "evidence": "trySteal() increments `p.stats.stl` and emits cap.steal (lines 936-938) at the moment the ball is knocked loose; onCatch() then gives the loose ball back to the offence with `ctx === 'steal'` and no correction. Scenario stealRecover (human steal from 0.5 m, defenders then teleported away): stl after poke 1, offence (team 1 = w.offense) recovered the ball, shot clock untouched at 13.2, possession unchanged, final stl still 1 and caption '石岳 抢断！' displayed. Spec §1: 'a steal/interception counts as STL for the catcher'.",
+  "failure": "Box score shows steals for possessions that never changed hands and the play-by-play announces a steal that did not happen; a defender can farm STL by repeatedly poking the ball loose.",
+  "proposedFix": "Move the stat/caption to the outcome: in trySteal() only knock the ball loose (remember `this.stealBy = p`), and in onCatch() credit `stl++` + cap.steal when a defender (any defender, or the stealer) catches a `ctx === 'steal'` ball; do nothing when the offence recovers.",
+  "verification": "3/3 verifiers confirmed",
+  "adjustedFixes": [
+   "In src/game.js trySteal() remove the three lines `p.stats.stl++; this.caption('cap.steal', p); this.emit('steal', h, p);` (keep ball.launch, ballCtx='steal', stealVictim=h, shot.pending=false, return true). In onCatch() change the defensive branch to `if (prev === 'pass' || ctx === 'steal') { p.stats.stl++; this.caption('cap.steal', p); this.emit('steal', prev === 'pass' ? ball.passInfo.from : this.stealVictim, p); } else { p.stats.reb++; this.caption('cap.rebound', p); this.emit('rebound', 'defensive', p); }` and make the turnover reason `(prev === 'pass' || ctx === 'steal') ? 'STEAL' : 'REBOUND'`. The offensive-recovery path needs no change (it already resets ballCtx to 'none' without crediting). This credits STL to the catcher as spec §1 line 55 states, keeps A16 (cap.steal coincides with the possession change) and A15 (pass interception path unchanged) passing.",
+   "src/game.js only. (1) trySteal(): keep launching the ball loose, setting ballCtx='steal', stealVictim=h and shot.pending=false, but delete `p.stats.stl++`, `this.caption('cap.steal', p)` and `this.emit('steal', h, p)` (optionally emit a distinct 'poke' event if anyone wants the deflection itself; nothing in src listens today). (2) onCatch(), defensive branch: replace `if (prev === 'pass') { stl++; caption; emit('steal', passInfo.from, p) } else if (ctx !== 'steal') { reb... }` with `if (prev === 'pass' || ctx === 'steal') { p.stats.stl++; this.caption('cap.steal', p); this.emit('steal', prev === 'pass' ? ball.passInfo.from : this.stealVictim, p); } else { p.stats.reb++; this.caption('cap.rebound', p); this.emit('rebound', 'defensive', p); }` and use the same condition for the turnover reason: `this.emit('turnover', (prev === 'pass' || ctx === 'steal') ? 'STEAL' : 'REBOUND', p)`. The offence branch stays as is (no stat, ballCtx reset), so an offensive recovery of a poked ball credits nothing. Crediting the catcher (any defender) rather than remembering the poker matches SPEC line 55 ('STL for the catcher') and needs no new state; clear stealVictim wherever ballCtx is reset to 'none' if you want tidiness. A poked ball that goes out of bounds keeps the current OOB path and credits no STL.",
+   "In src/game.js trySteal() (lines 929-940) keep the launch, `this.ballCtx = 'steal'`, `this.stealVictim = h`, `this.shot.pending = false` and `return true`, but delete `p.stats.stl++`, `this.caption('cap.steal', p)` and `this.emit('steal', h, p)`. In onCatch() change the defensive branch to credit the catcher: `if (prev === 'pass' || ctx === 'steal') { p.stats.stl++; this.caption('cap.steal', p); this.emit('steal', ctx === 'steal' ? this.stealVictim : ball.passInfo.from, p); } else { p.stats.reb++; ...rebound... }` and pass `'STEAL'` to emit('turnover') when `prev === 'pass' || ctx === 'steal'`. The offence branch (line 1012) stays as is: an offensive recovery of a poked ball credits nothing and keeps the possession/shot clock, and an OOB/rest after a poke credits nothing either. Optionally clear `this.stealVictim = null` where ballCtx is reset. Update the stat comment at lines 1005-1006 accordingly; run `node test/acceptance.cjs A15 A16` and test/unit-ai.mjs (its mock already credits STL at the catch, line 126)."
+  ]
+ },
+ {
+  "title": "A pass that touches the floor and is then caught by the defence is booked as a defensive REB instead of a STL",
+  "file": "src/game.js",
+  "line": 1030,
+  "severity": "minor",
+  "category": "stats-attribution",
+  "evidence": "onCatch() decides STL only from `prev === 'pass'` (line 1026); once Ball.step flips a floor-bounced pass to 'loose', the defensive catch falls into the `else if (ctx !== 'steal')` branch (line 1030) → reb++ and cap.rebound even though `this.ballCtx` is still 'pass'. Scenario passLoose: pass thrown onto the floor (ball state 'loose', ballCtx 'pass'), defender walked onto it → DEAD(TURNOVER), caption cap.rebound, events ['rebound','defensive',…], defender stats reb 1 stl 0.",
+  "failure": "Interceptions of bad passes that bounce first show up as rebounds in the box score and play-by-play, while spec §1 counts an interception as STL for the catcher.",
+  "proposedFix": "Use the ball context rather than the raw state: `if (prev === 'pass' || ctx === 'pass') { stl++; cap.steal } else if (ctx !== 'steal') { reb++ }` in onCatch().",
+  "verification": "0/3 verifiers confirmed",
+  "adjustedFixes": []
+ },
+ {
+  "title": "CPU handler shoots the instant it catches (median 0.08 s) and almost always on the move",
+  "file": "src/ai.js",
+  "line": 533,
+  "severity": "major",
+  "category": "ai-feel",
+  "evidence": "Auto game, normal, seed 7 (test/scratch/misc-probe.cjs): catch-to-shot-press delay for CPU handlers: 27 of 28 shots pressed < 0.2 s after the catch, median 0.08 s. Per-shot records from 3 auto games: shots released with shooter speed > 2.5 m/s (move penalty x0.85 applies) = 57/61 normal, 32/52 easy, 31/47 hard; release time since LIVE: normal 56/61 within 1.5-4 s (0.8 s setup + one pass + shot). Possession trace: 't1.2 Hu probe pos(4.1,-7.0) spd3.7 -> t1.4 Hu shoot* windup spd3.7'. Cause: handler() decides on the first 0.1 s tick after hadBall (lines 452-456, 480-512); SHOOT scores 0.5+0.2 = 0.7 > PROBE 0.4 as soon as open >= shootOpen, and the set-feet wait on line 533 only fires when defD > SHOOT_SET_CLEAR (2.2 m), which a guarded receiver never satisfies.",
+  "failure": "CPU offence is a catch-and-shoot machine: pass to the wing, wing fires a running 6.5-7.5 m jumper 1-2 frames after the catch. No dribble, no reading the defence, the meter/windup is never visible on a stationary shooter, and the human on defence never gets a closeout opportunity.",
+  "proposedFix": "Add a minimum hold after a catch before SHOOT is eligible (e.g. 0.3-0.5 s, like PASS_HOLD_MIN), make the set-feet brake apply whenever p.speed > MOVE_SPEED unless a defender is within ~1.0 m, and subtract the move penalty (x0.85) from the SHOOT utility so a running jumper scores below PROBE.",
+  "verification": "2/2 verifiers confirmed",
+  "adjustedFixes": [
+   "In src/ai.js, two small gates, no change to the spec §7.1 SHOOT score formula: (1) add `const SHOOT_HOLD_MIN = 0.35;` and in the utility block make SHOOT eligible only when `t - ai.holdSince >= SHOOT_HOLD_MIN` (same pattern as PASS_HOLD_MIN on line 501; `urgent` still forces SHOOT and the drive branch's startShot at DRIVE_FINISH_D is unaffected). (2) On line 533 lower the brake's defender threshold so it applies whenever the shooter is moving unless a defender can contest: replace `SHOOT_SET_CLEAR = 2.2` with ~1.0 (e.g. `SHOOT_SET_CONTEST = 1.0`), keeping the existing 0.35 s cap (`t - ai.actionT < SHOOT_SET_T`) so the shooter never waits longer than that. Re-run the probe to confirm the median catch-to-press delay rises to >= 0.35 s and most jumpers are released below 2.5 m/s; leave the score formula as specified.",
+   "Two small changes in src/ai.js, keeping the spec 7.1 SHOOT score formula untouched (do not fold the x0.85 move penalty into the utility; that would deviate from the spec's formula). (1) Add `const SHOOT_HOLD_MIN = 0.3;` next to PASS_HOLD_MIN and, in the handler utility block, gate SHOOT eligibility on hold time: compute the SHOOT score as now, then `if (s > bestScore && (t - ai.holdSince >= SHOOT_HOLD_MIN || d <= SHOT.LAYUP_D)) { best = 'shoot'; bestScore = s; }`. The urgent (shotClock < URGENT_CLOCK) path and the isUsersTeammate path are above this block and stay unchanged, so panic shots and the human's-teammate rules are unaffected; with HYSTERESIS 0.4 s the receiver probes for one cycle and the earliest catch-and-shoot lands ~0.4-0.5 s after the catch. (2) Make the set-feet brake fire whenever the shooter is moving unless a defender can reach the release: replace SHOOT_SET_CLEAR = 2.2 with a close-threat radius, e.g. `SHOOT_SET_THREAT = 1.0` (inside CONTEST_R 1.6 and where the 0.35 s BLOCK_WINDOW matters), and change line 533 to `if (p.speed > SHOT.MOVE_SPEED && t - ai.actionT < SHOOT_SET_T && d > SHOT.LAYUP_D && defD > SHOOT_SET_THREAT) break;`. stopMove(it) is already called before the switch, so the `break` path decelerates at MOVE.DECEL 16 m/s^2 and a 4 m/s receiver is under 2.5 m/s within ~0.1 s, well inside SHOOT_SET_T. Update the line-28 comment to say 'brake before a jumper unless a defender is within 1.0 m'. Verify with the repro scripts: normal-difficulty CPU jumpers with catch-to-press < 0.2 s should drop from ~99% to ~0% and releases above 2.5 m/s from ~90% to a minority, while A14 and A19 still pass (node test/acceptance.cjs A14 A19) and node test/unit-ai.mjs stays green."
+  ]
+ },
+ {
+  "title": "DRIVE is starved by the lane test: Redrock Foxes never drive on easy/normal, one team's 2% speed edge decides all drives",
+  "file": "src/ai.js",
+  "line": 490,
+  "severity": "major",
+  "category": "ai-feel",
+  "evidence": "9 seeded auto games (3 seeds x 3 difficulties, test/scratch/sim-audit.cjs, ai-audit.cjs, drive-probe.cjs): handler steps in action 'drive' by team: easy 562/0, normal 442/0 (seed 7), 62/0 (21), 27/0 (99), hard 890/276. Layups+dunks per game: Foxes 0 in all six easy/normal games, Tide 1-9. Same with user team = 1 (drive-n-21-t1: 35/0). Shot-distance histogram on normal: 60 of 62 shots from 4-8 m. Lane-clear samples outside the shooting phase (normal seed 7): Tide handlers 174, Foxes 0; mean lateral offset of the on-ball guard from the handler->rim line 0.84 m vs 0.41 m. laneClear (line 490) needs no defender within DRIVE_LANE_R=1.3 m of the next 3 m of the handler->rim segment, while defence() (lines 727-728) parks the on-ball defender exactly defGap (1.3 normal, 1.7 easy) ON that segment, so the lane is blocked by construction and only opens when the guard lags; Shi Yue 0.92 vs guard Yan Zheng 0.90 and Zhou Chao 1.02 vs Hu Lie 1.00 lag enough, the mirror matchups never do.",
+  "failure": "Half the roster never attacks the rim; on the default difficulty the CPU offence is 97% jump shots from 4-8 m, and which team gets drives is decided by a 0.02 rating difference rather than by beating the defender.",
+  "proposedFix": "Measure lane clearance from ~1 m ahead of the handler (excluding the on-ball gap) or use a smaller lane radius (~0.8 m) plus a lateral-beat test (guard lateral offset > ~0.9 m or guard stunned/behind), and keep the DRIVE_COMMIT hysteresis so drives start when the defender is beaten rather than only when the segment is empty.",
+  "verification": "1/1 verifiers confirmed",
+  "adjustedFixes": [
+   "Keep SPEC's lane geometry for everyone except the assigned on-ball guard, and test the guard by whether he is beaten rather than by segment distance. In handler() (src/ai.js ~line 488-491): const guard = guardOf(p, world); const laneClear = !segmentBlocked(p.pos.x, p.pos.z, p.pos.x + G.x*len, p.pos.z + G.z*len, p.team, world, DRIVE_LANE_R, p, guard) && guardBeaten(p, guard, G); where guardBeaten returns true when guard is null, guard.state === 'stunned', dot(handler->guard, G) < 0 (guard behind the handler), or |cross(handler->guard, G)| > DRIVE_BEAT_LAT (new constant ~0.9 m, i.e. the guard is off the drive line by more than his body plus a step). segmentBlocked already has an unused skipB parameter, so no new helper is needed there. Leave DRIVE_COMMIT / DRIVE_COMMIT_NEAR hysteresis and the 0.6 + 0.05*(d-2) score untouched so a started drive still finishes. Then (a) re-run the drive probe on 3 seeds x 3 difficulties and tune DRIVE_BEAT_LAT (0.8-1.0) so drive ticks are non-zero for both teams and layup+dunk share lands in a plausible band (roughly 15-35% of CPU FGA on normal), (b) confirm A14 (each team FGM >= 1, no invariants) and the shot-distance histogram no longer collapses to 4-8 m, and (c) update SPEC 7.1's laneClear sentence to say the on-ball guard is tested by lateral offset / being behind rather than by the 1.3 m segment radius, since the current wording is what makes the lane unreachable by construction. Do not change defGap or the defence goal: the on-ball placement is correct and is what the probe/crossover is supposed to beat."
+  ]
+ },
+ {
+  "title": "Difficulty does not scale CPU scoring: 69/69/75% FG against a passive human, ~50% CPU-vs-CPU at all levels",
+  "file": "src/constants.js",
+  "line": 191,
+  "severity": "major",
+  "category": "difficulty-scaling",
+  "evidence": "test/scratch/idle-human2.cjs (human never moves, CPU teammates defend, user possessions ended immediately, 4x120 s, seed 5): CPU FG% easy 69.1% (38/55, 1.20 pts/poss, 22 layups + 9 dunks), normal 69.4% (50/72, 1.29 pts/poss, 19 dunks), hard 75.0% (33/44, 1.10 pts/poss). Seeded CPU-vs-CPU (q=60, 4 quarters, 3 seeds): team FG% easy 58/28, 48/50, 56/62; normal 53/42, 61/29, 67/50; hard 56/48, 52/41, 73/31 - no monotonic trend. Human side (debugShoot, 120 attempts each): open 4.5 m e=0 makes 99/90/93%, e=0.08 89/84/89%, 7.3 m e=0 71/70/70% at easy/normal/hard; contested at the natural gap 4.5 m 82/48/50%. The DIFFICULTY table only changes reaction, sigma, defGap, steal, help, shootOpen, sprintProb, crossFreeze; the easy CPU's larger defGap and slower reaction give it more open drives (layups/dunks convert at 0.92-1.0), cancelling the sigma penalty.",
+  "failure": "A novice who does not defend well concedes about 1.2 points per possession on easy, the same as on hard; 'easy' is easier only through the human's slightly wider green window (+0.01 vs normal), so beating the CPU requires the human to out-shoot a 69% offence.",
+  "proposedFix": "Add per-difficulty CPU offence knobs: a CPU make-probability multiplier (e.g. 0.75/0.9/1.0), lower drive/sprint rates on easy, and cap the easy CPU's layup/dunk conversion (or scale base(d) for CPU layups by difficulty).",
+  "verification": "not verified (review paused)",
+  "adjustedFixes": []
+ },
+ {
+  "title": "Block window far too generous: 67% of 6 m jumpers blocked on hard, 50% of contested layups, ~20% of all FGA in hard CPU games",
+  "file": "src/game.js",
+  "line": 965,
+  "severity": "major",
+  "category": "shooting-feel",
+  "evidence": "test/scratch/contest-probe.cjs (human debugShoot e=0, AI on-ball defender settled at his natural gap, 60 trials each): hard d=6.0 m, defender at 0.93 m: 40/60 blocked, 12/60 made (meanP 0.41); hard d=4.5 m: 0 blocked. test/scratch/misc-probe2.cjs: normal, layup from 1.5 m with a defender 0.5 m in front: 30/60 blocked, 26 of 54 make-rolls did not score. Hard CPU-vs-CPU games: 12, 10, 10 blocks per 58/54/55 FGA (18-22%), 0 blocks in all easy/normal games (defGap 1.3/1.7 exceeds BLOCK_MAX_GAP 1.0). Mechanism: tryBlocks (lines 952-977) deflects any flight ball whose centre comes within BLOCK_R 0.40 m of the hand point during releaseAge < 0.35 s, and ai.js contest() (748-762) jumps exactly reaction s after the windup, so a defender inside 1.0 m with the arc's steep 6 m launch always intersects the sphere.",
+  "failure": "On hard, a guarded mid-range jumper is blocked two times out of three and a contested layup half the time, which reads as a wall rather than a contest; NBA block rates are ~5% of FGA.",
+  "proposedFix": "Shrink the block sphere/window (e.g. BLOCK_R 0.25, releaseAge < 0.15 s), require the hand to be above the ball's centre, and roll a block probability scaled by the defender's defense rating and timing instead of a deterministic geometric hit; alternatively let contest() jump with a random delay so most jumps are contests (C x 0.8), not blocks.",
+  "verification": "not verified (review paused)",
+  "adjustedFixes": []
+ },
+ {
+  "title": "On-ball CPU defender backs away from the shooter during the windup (easy/normal)",
+  "file": "src/ai.js",
+  "line": 728,
+  "severity": "major",
+  "category": "ai-feel",
+  "evidence": "test/scratch/contest-probe.cjs: defender teleported to 0.91 m in front of the shooter, then debugShoot e=0 (60 trials): distance at release easy 1.62 m, normal 1.30 m - 'defBackedOff' 60/60 on both; hard stays at 0.95 m only because defGap = 1.0. Resulting C at release: easy meanP 0.684 vs 0.775 for a defender already at 1.64 m (contest barely stronger up close). defence() lines 721-728 always steer the on-ball defender to D + G*gap (defGap along the delayed man->rim line) regardless of the man's state, and contest() then jumps with that backward velocity preserved (no air control), so the defender visibly hops backward while 'contesting'.",
+  "failure": "Tight CPU defence is impossible: a defender who closes to 0.9 m retreats to 1.3-1.7 m while the shot goes up, so contests are always at defGap distance and the retreat-and-jump looks wrong.",
+  "proposedFix": "When man.state is windup/layup/release (or the man is jumping), stop steering (mag 0) or close out toward the shooter's hand instead of returning to defGap; only resume the gap goal after the ball is released.",
+  "verification": "not verified (review paused)",
+  "adjustedFixes": []
+ },
+ {
+  "title": "Air balls (e < -0.32) fly under the backboard and out the baseline instead of landing short",
+  "file": "src/shot.js",
+  "line": 162,
+  "severity": "minor",
+  "category": "miss-model",
+  "evidence": "test/scratch/phys-audit.mjs, free flight with collisions, 300 shots per case: e=-0.35 from 2.5 m: rim 0%, board 0%, 87% rest out of bounds, mean rest z -16.0; from 5 m: 100% OOB, rest z -20.1; from 7.3 m: 100% OOB, rest z -24.8 (baseline is z -14.325). The target RIM - fwd*0.45 is at rim height (3.048 m) 0.45 m in front of the rim, so the ball is still ~2.9 m up when it passes under the rim and clears the board bottom (2.90 m). In-game all 12 OOB whistles across the 9 auto games were this case (ball at z -14.65, y 1.4, 2.1 s after release, kind 'three'). Airballs were 16/474 CPU shots (e < -0.32).",
+  "failure": "Every air ball ends as a baseline out-of-bounds whistle ~0.3 s after passing the rim, never a short miss that bounces in front of the basket; a very early (e=-0.52) 8.2 m 'air ball' that rolls a make still swishes (p 0.052 case seen), which reads oddly with the 'early' meter flash.",
+  "proposedFix": "Aim the air-ball target below the rim plane (e.g. y = RIM.y - 0.8 at 0.45-0.8 m short) or choose a lower apex so the ball drops in front of the rim, and consider forcing the roll to miss when e < AIRBALL_E.",
+  "verification": "not verified (review paused)",
+  "adjustedFixes": []
+ },
+ {
+  "title": "Rim restitution produces very long rebounds; half of untouched misses roll out of bounds",
+  "file": "src/physics.js",
+  "line": 105,
+  "severity": "minor",
+  "category": "physics-feel",
+  "evidence": "test/scratch/phys-audit.mjs (300 misses per case, no players): late misses from 7.3 m (e=0/0.15): 100% hit the rim, 95% also the board, ball comes to rest a mean 6.6 m from the rim (rest z -6.09) with 47-50% resting beyond the sidelines/baseline; from 5 m: 52-54% OOB; from 2.5 m: 42-43% OOB. In-game hard auto game (seed 7): mean rebound catch distance 3.94 m, 36% of rebounds caught > 5 m from the rim. The 0.55 normal restitution + 0.92 tangential factor on a ~9.4 m/s arrival returns 6-8 m/s.",
+  "failure": "Misses carom to the 3-point line or the sideline instead of dropping near the paint, so rebounds are chase-downs and offensive rebounds by the shooter are common.",
+  "proposedFix": "Lower REST_RIM to ~0.35-0.40 and TANGENT_RIM to ~0.8 (and/or add a small random downward kick on back-rim hits) so a missed jumper stays within ~3 m of the rim.",
+  "verification": "not verified (review paused)",
+  "adjustedFixes": []
+ },
+ {
+  "title": "Green-window misses always go long (spec 4.4 says random short/long)",
+  "file": "src/shot.js",
+  "line": 165,
+  "severity": "minor",
+  "category": "spec-deviation",
+  "evidence": "chooseTarget: `else if (e < -Math.abs(g)) along = short ...; else along = RIM.r + BALL.R*(0.3+0.6*rng)` - any miss with |e| <= g falls into the long branch; there is no rng sign as the spec requires ('MISS when make rolled false but |e| <= g: treat as late with rng sign'). In the CPU game data 310/474 shots had |e| < 0.1 and their 133 misses all went to the back rim/board (rim 100%, board 95-97% in the free sim).",
+  "failure": "Perfectly-timed misses are visually identical (back rim + board every time), never a front-rim roll-out.",
+  "proposedFix": "For |e| <= g, pick short or long with rng.next() < 0.5 before choosing `along`.",
+  "verification": "not verified (review paused)",
+  "adjustedFixes": []
+ },
+ {
+  "title": "Dunk: ball and hands stay below rim height, then the ball teleports into the hoop",
+  "file": "src/ball.js",
+  "line": 183,
+  "severity": "minor",
+  "category": "dunk-visual",
+  "evidence": "placeOnOwner during 'dunk' sets pos.y = SHOT.RELEASE_Y + jumpY = 2.05 + 0.9*sin(...) -> max 2.95 m, rim is 3.048 m. Human dunk trace (test/scratch/misc-probe.cjs, Zhou Chao dunk 0.7): ball y 2.14 -> 2.61 -> 2.90 -> 2.92 -> 2.67 then 2.84 at RIM.x/z with state 'scored'. The humanoid hand reach (section 6: 2.05 + jump) is also < 3.05.",
+  "failure": "The dunker's hands and ball never reach the rim; the ball jumps from ~2.7 m in front of the rim to rim height at t = 0.42 s, so the dunk reads as a teleport rather than a slam.",
+  "proposedFix": "During the dunk raise the ball to RIM.y + 0.15 near the apex (scale the hand offset so y = lerp(2.05, RIM.y+0.15, k) with the tween), and drop it from above the rim at DUNK_BALL_T.",
+  "verification": "not verified (review paused)",
+  "adjustedFixes": []
+ },
+ {
+  "title": "CPU never throws an interceptable pass (0 interceptions in ~900 CPU passes)",
+  "file": "src/ai.js",
+  "line": 260,
+  "severity": "minor",
+  "category": "ai-feel",
+  "evidence": "Across the 9 auto games: passes 41-49 per team per game, catches by the defence of a pass = 0, steals credited from passes = 0; steals only from dribble pokes (0-7/game). bestPassTarget skips any teammate whose lane has a defender within LANE_HARD_R + 0.1*d = 0.5-1.45 m, larger than the 0.55-0.62 m catch radius, and the human game shows the same (idle-human runs: cpu.stl 0, passOOB 0). A defender parked 0.5 m off the line does intercept (20/20 at 0.1-0.5 m, test/scratch/misc-probe2.cjs), so the mechanism works but the CPU filter makes it unreachable except by anticipation during the 0.3-0.8 s flight.",
+  "failure": "Playing the passing lanes on defence never pays off against the CPU; the only turnovers a human can force are dribble steals.",
+  "proposedFix": "Use the catch radius (~0.6 m) as the hard-reject radius and let the 0.8 m LANE_R only penalise the score, so a well-positioned defender occasionally picks off a pass.",
+  "verification": "not verified (review paused)",
+  "adjustedFixes": []
+ },
+ {
+  "title": "Rematch/quit-restart keeps AI absolute-time timers, so CPU defenders stop attempting steals (and probe flips) for up to the previous game's length",
+  "file": "src/game.js",
+  "line": 222,
+  "severity": "major",
+  "category": "stale-state-after-rematch",
+  "evidence": "Game.start() sets `w.time = 0` (game.js:222) and calls resetStats() only; it never clears `p.lastStealAt` (set to `w.time` in trySteal, game.js:922, checked as `w.time - p.lastStealAt < 1.5` at game.js:913) nor `ai.stealAt` (ai.js:733, gated by `t >= ai.stealAt` at ai.js:731; newPossession at ai.js:198 resets helpUntil/contestAt/actionT but not stealAt or probeFlipT). Headless repro test/scratch/rematch-timers2.mjs (auto=1, q=120, seed 3): game 1 first 120 s: 5 CPU steal attempts over 17 opportunity steps; after game.rematch(): max stale stealAt=744.5 s / lastStealAt=743.0 s while the whole game lasts ~820 s; game 2 first 120 s: 0 attempts over 36 opportunity steps, all 36 blocked by the stale timers. Seed 11: 4 attempts -> 1 attempt (18/19 opportunities blocked). Same for `ai.probeFlipT` (ai.js:561,563,571-573): once set, the CPU handler cannot flip its probe direction or unpin from the sideline until the new game's clock passes the old value.",
+  "failure": "Tap 再来一局 (or 返回主菜单 then 开始比赛) after a normal 2:00-quarter game: for most or all of the second game the CPU on-ball defender never reaches for a steal, and CPU handlers that hit a sideline keep pushing into it instead of turning; difficulty silently drops after every rematch.",
+  "proposedFix": "In Game.start() reset per-player absolute timers (`p.lastStealAt = -1e9`) and reset/reinitialise `p.ai` (or add stealAt/probeFlipT/cutAt/passReleaseAt/releaseAt to newPossession / the `ai.active` re-init path). Alternatively store these as countdowns decremented each step instead of absolute world.time stamps.",
+  "verification": "not verified (review paused)",
+  "adjustedFixes": []
+ },
+ {
+  "title": "Halftime 'any key skips' handler also fires for the P/Esc pause, M mute and T language keys",
+  "file": "src/hud.js",
+  "line": 136,
+  "severity": "minor",
+  "category": "input-double-fire",
+  "evidence": "hud.js:136 `this._on(this.doc, 'keydown', (ev) => { if (this.menu === 'halftime' && !ev.repeat && this.cb.onSkip) this.cb.onSkip(); })` runs for every key. input.js:363-365 handles KeyP/Escape (pause), KeyM (mute), KeyT (language) on the same document keydown. HUD is constructed before Input in main.js (lines 51 vs 67), so on 'P' during halftime the skip runs first (skipHalftime -> nextQuarter -> CHECK) and then togglePause pauses the freshly started quarter; 'M' mutes and skips, 'T' toggles language and skips.",
+  "failure": "Desktop player presses P (or Esc) at halftime intending to pause: the halftime overlay disappears, Q3 starts and immediately shows the pause menu; pressing M or T to change a setting during halftime unexpectedly ends halftime.",
+  "proposedFix": "Ignore modifier/shortcut keys in the halftime handler (skip only when Input did not consume the key, e.g. exclude KeyP/Escape/KeyM/KeyT), or route halftime skipping through Input.onPause-style callbacks so one path decides.",
+  "verification": "not verified (review paused)",
+  "adjustedFixes": []
+ },
+ {
+  "title": "Player.reset() snaps the humanoid pose to idle twice per possession, popping defenders out of their stance at every CHECK and LIVE transition",
+  "file": "src/player.js",
+  "line": 134,
+  "severity": "minor",
+  "category": "visual-pop",
+  "evidence": "player.js:134-136 sets `POSE.dt = 0` and calls `this.humanoid.setPose('idle', POSE)`; humanoid.js:387-392 with dt=0 assigns every joint directly (`j[k] = TGT[k]`), including hipY 0.85->0.95 and uaLZ/uaRZ ±1.2->±0.1 for the 'defend' stance. game.js enterCheck (line 387) calls reset for all six players and goLive (line 420) calls it again 1.2 s later, while Player.render (player.js:574) re-selects 'defend' for stationary defenders on the very next frame and damps back at BLEND_RATE 18.",
+  "failure": "Every dead ball, the three defenders visibly jerk upright with arms dropping, then sink back into the stance over ~0.2 s, once at the whistle reset and again when play goes live.",
+  "proposedFix": "Do not force a pose in reset() (let render() pick the pose and blend), or pass the real frame dt / the player's role-appropriate pose ('defend' for defenders) instead of snapping to 'idle' with dt=0.",
+  "verification": "not verified (review paused)",
+  "adjustedFixes": []
+ },
+ {
+  "title": "README rule text does not match the implemented possession order and dead-ball timing",
+  "file": "README.md",
+  "line": 52,
+  "severity": "minor",
+  "category": "docs-accuracy",
+  "evidence": "README.md:52-54 says possession is 'coin flip for Q1, alternating by period' and that after every dead ball 'the game resets to a check-ball formation after 1.2 s'. game.js openingPossession (lines 331-337) gives Q1=A, Q2=B, Q3=B, Q4=A (Q3 repeats Q2, per SPEC section 1), and deadBall durations are CLOCK.DEAD MADE 1.5 s / OOB 1.2 s / SHOT_CLOCK 1.2 s / TURNOVER 1.0 s (constants.js:179, game.js:433) followed by a separate 1.2 s CHECK tween (CLOCK.CHECK).",
+  "failure": "A reader expecting strict alternation is surprised when the same team opens Q2 and Q3, and the '1.2 s' claim understates the ~2.2–2.7 s pause between a made basket and live play.",
+  "proposedFix": "Reword to 'Q2 and Q3 go to the team that did not open Q1, Q4 to the Q1 team, OT alternates' and 'after a 1.0–1.5 s whistle the teams tween into a check-ball formation for 1.2 s before play resumes'.",
+  "verification": "not verified (review paused)",
+  "adjustedFixes": []
+ },
+ {
+  "title": "Normal difficulty: every layup / pull-up taken near the CPU on-ball defender is blocked (74/74); a first-time player cannot score off a drive",
+  "file": "src/game.js",
+  "line": 952,
+  "severity": "major",
+  "category": "gameplay-balance",
+  "evidence": "Sim-driven 'first-timer' plays through the real Input intent (test/scratch/human-sim2.cjs, seed 5, normal): A sprint straight from the check spot, layup pressed at d<=2.0 m: 30 possessions -> 14 stripped (9 of them 0.4 s after LIVE, i.e. sprinting into the defender parked 1.47 m away), 17 layups, 17 'block' events, 0 scores. A2 same drive at run speed: 27 layups, 27 blocked, 0 scores. A4 sprint then pull-up jumper at d<=3.5 m: 30 shots, 30 blocked, 0 scores. Only A3 (release directly under the rim, d~0.45 m) scores 21/30, and spot-ups from 4.2 m score 16/30. The identical drive on EASY scores 26/30 with 0 blocks and 0 steals: the CPU contest jump fires at reaction 0.26 s (src/ai.js:748-761, src/constants.js:193) which always beats the 0.32 s layup release, and tryBlocks (src/game.js:952-975, BLOCK_R 0.40 at src/constants.js:163) is a deterministic geometric test, so the outcome is 100 % rather than a probability. Blocks are otherwise fine: a human kept 0.7 m in front blocks a CPU jumper 5-9 of 15 trials (test/scratch/block-probe2.cjs).",
+  "failure": "On the default difficulty a new player who drives to the basket and presses Shoot (the most obvious 2K play) is blocked every single time and stripped half the time; the game feels rigged and the difficulty jump easy->normal is a cliff (87 % -> 0 %).",
+  "proposedFix": "Make blocks probabilistic instead of geometric-deterministic in tryBlocks (e.g. roll rng < 0.35 * defender.defense once per shot when the hand test passes, and never block when the defender is already behind the shooter: dot(shooter->defender, shooter->rim) < 0), and jitter the CPU contest trigger in contest() (reaction + rng.gauss(0.08, 0.06)) so a quick layup can beat the jump; optionally lower BLOCK_R to 0.30 for layups and lengthen STEAL_CPU_INTERVAL right after CHECK so the first sprint step is not an automatic strip.",
+  "verification": "not verified (review paused)",
+  "adjustedFixes": []
+ },
+ {
+  "title": "CPU offence is pass -> instant catch-and-shoot (0.07 s after the catch); the human defender never gets to react",
+  "file": "src/ai.js",
+  "line": 454,
+  "severity": "major",
+  "category": "ai-feel",
+  "evidence": "test/scratch/catch-shoot.cjs (seed 5, auto game, normal): 33 of 35 CPU shots were released < 0.2 s after the receiver caught the pass (typical 0.07-0.08 s), 1.2-2.2 s after LIVE. Live sessions show the same: phoneLandscape run log, 22-p5-def-outcome.png events 'catch Hu Lie t=48.05' -> 'shot jumper t=48.12'; 15-p3-def-switch.png 'catch 17.45' -> shot; and in all three device runs the very first CPU possession is a pass at t=2.1 s and a dunk at t=3.9 s (phoneLandscape/05-p1-def-switch.png, 06-p1-def-outcome.png). Cause: a new ball handler starts with ai.actionT = -1e9 (line 454) so the SHOOT utility (line 498) is evaluated on the very next 0.1 s tick, and it always wins because off-ball defenders sag to lerp 0.35 toward the rim (OFF_LERP_ARC, line 43/738) leaving every wing receiver 'open' (>= shootOpen 1.5 m). Result: the human can only watch; switching (换人) and moving take longer than the possession.",
+  "failure": "Defence possessions are decided in ~2 s before the player can switch or close out; the CPU never dribbles or probes in practice (42-43 jumpers per game, almost no drives), so defence is not interactive and every possession looks the same.",
+  "proposedFix": "After a catch, hold the decision for a gather window (set ai.actionT = t and require t - ai.holdSince >= 0.4 s before 'shoot' may win, like SHOOT_SET_T), have the receiver's defender close out when a pass starts (steer to the receiver at sprint while ball.state === 'pass'), and use a smaller sag for beyond-arc shooters (OFF_LERP_ARC 0.35 -> ~0.15) so openness is not automatic; keep the instant shot only when shotClock < 3.",
+  "verification": "not verified (review paused)",
+  "adjustedFixes": []
+ },
+ {
+  "title": "Camera hides the last ~1.5 m before the half-court line; backing up for 1 s is a silent backcourt turnover",
+  "file": "src/camera.js",
+  "line": 11,
+  "severity": "major",
+  "category": "camera",
+  "evidence": "test/scratch/misc-probe3.cjs: holding the stick 'down' from the check spot for 0.6 s -> z=-1.76 (fine), 1.0 s -> z=+0.04 -> DEAD(OOB). Screenshots test/scratch/playtest/framing-z-2.png (feet at screen y 368/390, body clipped at the knees) and framing-z-0.6.png (feet projected to y=421, off-screen; player cut at the waist, caption '失误'). LANDSCAPE lookZ=-9, z0=4.5, kz=0.20 keeps the floor beyond z~-1.5 out of frame in landscape (portrait similar). A player who backs up to set a three cannot see their own feet or the line they are about to cross.",
+  "failure": "New players get 'Out of bounds' turnovers while retreating to shoot a three without any visible cue; their own player disappears off the bottom edge.",
+  "proposedFix": "Pull the camera back / lower the look point when the ball is near the backcourt line, e.g. lookZ = -9 + 0.5*max(0, ballZ+4) and z0 += 0.6*max(0, ballZ+4) (damped), or clamp the human handler like the AI at z <= -0.3 with a red half-court line flash; at minimum keep the controlled player's feet on screen.",
+  "verification": "not verified (review paused)",
+  "adjustedFixes": []
+ },
+ {
+  "title": "Play-by-play captions lag behind the action by up to two events (stale caption under a +2 banner)",
+  "file": "src/hud.js",
+  "line": 299,
+  "severity": "minor",
+  "category": "hud",
+  "evidence": "test/scratch/playtest/phoneLandscape/16-p3-def-outcome.png: banner '+2' (put-back layup by 岩铮 at t=22.75) is on screen while the caption still reads '岩铮 抢下篮板' (the offensive rebound from t=21.0); the earlier '投篮不中' caption occupied the 1.8 s slot before it. caption() queues up to 6 entries and _tickCaption shows each for CAPTION_T + fade sequentially regardless of age, so captions fall 2-4 s behind during miss->rebound->score sequences.",
+  "failure": "The commentary line describes the previous play while the score changes, which reads as wrong information to the player.",
+  "proposedFix": "When a score/possession caption is queued, drop older queued captions (or clear the queue), and cut the currently shown caption early (e.g. after 0.6 s) when a higher-priority caption arrives; alternatively stamp captions with world.time and skip any older than 2 s.",
+  "verification": "not verified (review paused)",
+  "adjustedFixes": []
+ },
+ {
+  "title": "Players clip through each other under the rim during dunks/rebounds",
+  "file": "src/player.js",
+  "line": 527,
+  "severity": "minor",
+  "category": "visual",
+  "evidence": "test/scratch/playtest/desktop/06-p1-def-outcome.png: the dunker and two blue defenders are rendered as one merged body under the rim (torsos and arms intersect); phoneLandscape/22-p5-def-outcome.png shows three players merged at the free-throw line. resolveSeparation keeps 0.80 m in xz but dunkers are fixed and the 0.8 m spacing plus airborne poses (arms up, jumpY) still intersect visually from the elevated camera.",
+  "failure": "Bodies visibly intersect on almost every dunk and rebound scrum, which cheapens the look of the game's highlight moments.",
+  "proposedFix": "Raise MOVE.SEPARATION to ~0.95 m for pairs where either player isJumping or is in 'dunk', and push non-dunkers fully away from a dunker (already 2*push) also along the dunk direction so they are not left inside the tween path; optionally shrink the blob shadow overlap by ordering shadow draw.",
+  "verification": "not verified (review paused)",
+  "adjustedFixes": []
+ },
+ {
+  "title": "VERDICT",
+  "file": "src/main.js",
+  "line": 1,
+  "severity": "minor",
+  "category": "verdict",
+  "evidence": "Played 3 offence + 3 defence possessions on phoneLandscape (seed 5, normal) with real CDP touch, 2+2 on phonePortrait, 1+1 on desktop keyboard; 50+ screenshots under test/scratch/playtest/{phoneLandscape,phonePortrait,desktop}/ with per-action state dumps in log.txt. Zero console errors, page errors or failed requests in every run; invariantsBroken stayed 0. Menu, score bug, CHECK/+2 banners, possession arrow, button relabelling (投篮/传球/变向 <-> 盖帽/换人/抢断) and the joystick ring all render correctly (01-menu.png, 03-live0.png, 06-p1-def-outcome.png). Joystick, sprint multi-touch, crossover, pass (control follows the receiver) and switch all worked on first try; the shot meter appears ~28 px right of the shooter's head with a clear green band and 完美/稍早/稍晚 flash (phoneLandscape/18-p4-three-release.png, phonePortrait/22-p4-three-release.png) and a 0.44 s hold reads as green (a jumper from 7.1 m went in: phonePortrait/23-p4-outcome.png). Court, rim, net, backboard, blob shadows and crowd look right at all three aspects; portrait layout keeps all controls reachable. The headless 15-25 fps and ~120 ms touch latency are SwiftShader artefacts, not game issues.",
+  "failure": "Playable and visually solid, but not yet fun on the default difficulty: the naive drive is blocked/stripped 100 % of the time (only spot-ups and under-the-rim finishes score), and CPU possessions are 2-second pass-and-shoot sequences the defender cannot influence. Fix findings 1-3 and normal becomes a game; as shipped, recommend first-timers play on 简单/Easy.",
+  "proposedFix": "Prioritise the block/contest probability and the catch-and-shoot gather window, then the backcourt camera framing; the remaining items are polish.",
+  "verification": "not verified (review paused)",
+  "adjustedFixes": []
+ }
+]
