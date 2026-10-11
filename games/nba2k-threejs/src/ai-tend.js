@@ -321,7 +321,7 @@ const THETA_LO = 0.85, THETA_SPAN = 0.35, THETA_CLOCK0 = 3, THETA_CLOCK_SPAN = 1
 /** Pass risk (R#34): lead-pass speed threshold, launch-point model (hand 0.30 m out, ±0.15 m wander over 1.5 m),
  * contact buffer for a defender already at the line, U_pass constants (EP × 0.92, lane penalty 0.6 inside 0.8 m). */
 export const LEAD_V = 1.0;
-const CONTACT_BUF = 0.05, HAND_FWD = 0.30, LAUNCH_MARGIN = 0.05, LAUNCH_SPAN = 1.5, LAUNCH_DELAY = 0.15;
+const CONTACT_BUF = 0.05, HAND_FWD = 0.72, LAUNCH_MARGIN = 0.05, LAUNCH_SPAN = 1.5, LAUNCH_DELAY = 0.15;
 /** Guard shadow: a defender within SHADOW_R of the passer whose distance to the root → catch ray is under intR + SHADOW_PAD
  * gets at least the contact odds (the launch happens 0.15–0.35 s after the press, from a hand that swings with the turn). */
 const SHADOW_R = 2.2, SHADOW_PAD = 0.35;
@@ -668,14 +668,17 @@ export function passRisk(passer, recv, x, z, world) {
   // the ball leaves from the hand: where it is now (dribble / hold socket) or in front of the chest (pass clip
   // release, ≈ 0.7 m along the facing); the riskier of the two is used
   const ball = world.ball, own = ball.owner === passer;
-  const fx = passer.pos.x + Math.sin(passer.yaw) * HAND_FWD, fz = passer.pos.z + Math.cos(passer.yaw) * HAND_FWD;
+  // the launch offset is learned from the passes of this world (ai.js trackPass): ≈ 0.30 m with the headless proxy,
+  // ≈ 0.70 m with the real rig (arms extended at the release); HAND_FWD until the first pass
+  const L = world.aiShared && world.aiShared.launchFwd > 0 ? world.aiShared.launchFwd : HAND_FWD;
+  const fx = passer.pos.x + Math.sin(passer.yaw) * L, fz = passer.pos.z + Math.cos(passer.yaw) * L;
   const r1 = riskFrom(passer, recv, own ? ball.pos.x : fx, own ? ball.pos.z : fz, x, z, world);
   let blocked = PASS_TMP.blocked;
   const r2 = own ? riskFrom(passer, recv, fx, fz, x, z, world) : r1;
   blocked = blocked || PASS_TMP.blocked;
   // ... and from the release point after the passer turns to the receiver
   dirTo(B, passer.pos.x, passer.pos.z, x, z);
-  const r3 = riskFrom(passer, recv, passer.pos.x + B.x * HAND_FWD, passer.pos.z + B.z * HAND_FWD, x, z, world);
+  const r3 = riskFrom(passer, recv, passer.pos.x + B.x * L, passer.pos.z + B.z * L, x, z, world);
   PASS_TMP.blocked = blocked || PASS_TMP.blocked;
   PASS_TMP.risk = Math.max(r1, r2, r3);
   return PASS_TMP.risk;

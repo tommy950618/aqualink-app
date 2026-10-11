@@ -116,6 +116,7 @@ const STEAL_RANGE_HAWK = 0.15, POKE_CATCH = 0.5, POKE_LIVE = 0.8, POKE_MAX_V = 3
 const ARRIVE_R = 1.0, STOP_R = 0.06, SPRINT_MIN_D = 1.0, SPRINT_MIN_STAMINA = 0.15;
 const UPUNDER_P = 0.6, PUMP_FAKE_UPUNDER = 0.6, PUMP_TAP = 0.05, PUMP_REDECIDE = 0.15, PUMP_UPUNDER_D = 3.0, UPUNDER_AFTER = 0.15;
 const LOB_HOLD = 0.34, REL_MIN = 0.125;
+const LAUNCH_INIT = 0.72, LAUNCH_EMA = 0.3, LAUNCH_MIN = 0.2, LAUNCH_MAX = 1.0;   // learned pass launch offset (m)
 const RIP_P = 0.5;
 const TRIPLE_JAB = 0.4, TRIPLE_FADE = 0.5, TRIPLE_T = 2.2, TRIPLE_D = 7.6;   // the triple-threat jab series (Kobe, Jordan)
 const MAX_YAO_BOUNCES = 2;
@@ -135,7 +136,7 @@ const TAKEN = new Uint8Array(8);
 function makeShared() {
   return {
     wasLive: false, offense: -1, landX: 0, landZ: 0, landT: 0, landValid: false, landCd: 0, landState: '',
-    passSeen: -1, catchX: 0, catchZ: 0, crowdT: 0, shotSeen: -1, shotTeam: -1,
+    passSeen: -1, catchX: 0, catchZ: 0, crowdT: 0, shotSeen: -1, shotTeam: -1, launchFwd: LAUNCH_INIT,
   };
 }
 
@@ -1138,6 +1139,10 @@ function trackPass(S, world) {
   S.passSeen = pi.releaseTime;
   const r = pi.receiver, from = pi.from;
   if (!r || !from) return;
+  // learn where the ball leaves the passer (launch point = ball − vel × age): the pass-risk launch offset
+  const age = Math.max(0, world.time - pi.releaseTime);
+  const off = distXZ(b.pos.x - b.vel.x * age, b.pos.z - b.vel.z * age, from.pos.x, from.pos.z);
+  S.launchFwd += LAUNCH_EMA * (clamp(off, LAUNCH_MIN, LAUNCH_MAX) - S.launchFwd);
   const land = predictLanding(b, PASS_Y, LAND_TMP);
   S.catchX = land ? clamp(land.x, -CLAMP_X, CLAMP_X) : r.pos.x; S.catchZ = land ? clamp(land.z, CLAMP_Z_MIN, CLAMP_Z_MAX) : r.pos.z;
   const tFlight = land ? land.t : pi.flightT;
