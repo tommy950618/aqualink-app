@@ -1,0 +1,19 @@
+{
+  "name": "legends-3v3",
+  "private": true,
+  "version": "2.0.0",
+  "description": "传奇对决 3v3 / LEGENDS 3v3: a three.js 3v3 half-court basketball game with six realistic legends. Static site, no build step. Non-commercial fan project.",
+  "type": "module",
+  "scripts": {
+    "start": "python3 -m http.server 8080",
+    "test": "node test/acceptance.cjs",
+    "test:accept": "node test/acceptance.cjs",
+    "test:static": "node test/acceptance.cjs --static",
+    "test:unit": "sh -c 'fail=0; for f in test/unit-*.mjs; do echo \"== $f\"; node \"$f\" || fail=1; done; exit $fail'",
+    "test:balance": "node test/balance.mjs",
+    "test:balance:quick": "node test/balance.mjs --quick",
+    "bake": "cd tools/legends && node bake.mjs legends.config.json",
+    "likeness": "node test/likeness/shoot.cjs"
+  },
+  "license": "MIT"
+}

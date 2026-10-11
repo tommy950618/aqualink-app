@@ -1,0 +1,19 @@
+{
+  "name": "legends-bake-tools",
+  "private": true,
+  "type": "module",
+  "description": "Offline bake of the CC0 MakeHuman legends into assets/legends (format v2). The game runtime needs nothing from here.",
+  "scripts": {
+    "fetch:legends": "node fetch.mjs legends.config.json",
+    "verify:cache": "node fetch.mjs --verify",
+    "bake:legends": "node bake.mjs legends.config.json",
+    "calibrate:legends": "node calibrate.mjs legends.config.json --write",
+    "measure:legends": "node measure.mjs ../../assets/legends/legends.json --likeness",
+    "likeness": "node bake.mjs legends.config.json && node measure.mjs ../../assets/legends/legends.json --likeness; node ../../test/likeness/shoot.cjs",
+    "fetch": "node fetch.mjs configs/poc.json",
+    "bake": "node bake.mjs configs/poc.json"
+  },
+  "optionalDependencies": {
+    "meshoptimizer": "0.22.0"
+  }
+}
