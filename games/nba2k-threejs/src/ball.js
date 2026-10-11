@@ -1,40 +1,65 @@
-// Ball entity (spec sections 5.1-5.8, 5.13, 14 row 14): the one ball, its mesh and blob shadow, the
-// held/dribble/flight/pass/loose/scored state machine and the per-step physics driven by physics.js.
-// step() fills a caller-supplied events array with reused event objects; nothing allocates per step.
+/**
+ * @module ball
+ * The one ball: state machine, socket attachment and per-step physics (v1 spec §5.1–§5.8, §5.13; v2 spec §1.2,
+ * §4.5 / [ANIM §2.5, §10.6], §5.3.5, §5.13 R2/R4/R5).
+ *
+ * Exports: `Ball`, `BALL_STATES`.
+ *
+ * v2 changes against v1
+ * - No mesh, texture or shadow here: the look and the visual spin are `src/render/ballvis.js` (WP6), which reads
+ *   `{ state, pos, vel, owner, passInfo.kind, spinMode, visible }`. This module is pure simulation and runs in Node.
+ * - Attachment by socket (spec §4.5): while held or dribbled, the sim position is the owner's
+ *   `animator.querySocket(SOCK.ball)` (both hands = midpoint of the ball1 sockets, R/L = that hand, drib = the
+ *   dribble path). A headless AnimProxy has no dribble path, so for a player with `procDribble` the height comes from
+ *   the gameplay dribble phase (`player.dribbleY`, v1 §5.7 bounce model).
+ * - `launch(v, state, from)` starts a flight / pass / loose ball from a socket position (the animator's RELEASE /
+ *   SLAM point), so the rendered socket and the launch point coincide (no pop).
+ * - `shot.touched` (R2: rim, board, block or deflection), `looseT` (R4: total seconds loose since the last launch),
+ *   `shot.points` kept for deflected / blocked makes (R5), `spinMode` ('finger' | 'underspin' | null) for ballvis.
+ * - Catch test with per-player `attrs` (catchR, passReceiveR, catchTopY + jumpY; §5.5 / §5.6).
+ *
+ * Ball events (step() fills a caller array with pooled records `{type, value, player}`; nothing allocates per step):
+ * `bounce` (dribble floor contact), `floor` (free-ball floor contact), `rim`, `board`, `score` (value = 1 swish /
+ * 2 after a rim or board contact), `oob`, `rest` (free ball resting 1.5 s on the floor), `nan` (non-finite guard).
+ */
 import * as THREE from '../vendor/three.module.js';
-import { RIM, BALL, COURT, SHOT } from './constants.js';
-import { clamp, lerp } from './math.js';
-import { makeBallTexture, makeBlobTexture } from './scene.js';
+import { BALL, COURT, RIM } from './constants.js';
 import { stepFreeBall } from './physics.js';
+import { SOCK } from './anim/rig.js';
+
+/** Every ball state. */
+export const BALL_STATES = Object.freeze(['held', 'dribble', 'flight', 'pass', 'loose', 'scored']);
 
 const R = BALL.R;
-const SHADOW_SCALE = 0.35;
-const SHADOW_Y = 0.012;
-const SHADOW_OPACITY_LOW = 0.5, SHADOW_OPACITY_HIGH = 0.15, SHADOW_FADE_H = 4;
 const BOUNCE_SFX_S = BALL.BOUNCE_SFX_MS / 1000;
-const DRIBBLE_BOUNCE_STRENGTH = 0.5;
 const OOB_X = COURT.HALF_W + COURT.OOB_MARGIN;
 const OOB_Z_MIN = COURT.BASELINE_Z - COURT.OOB_MARGIN;
-const EVENT_POOL = 12;
-const SAFE_RESET = { x: 0, y: BALL.CHEST_Y, z: -4.6 };   // handler spot after a NaN reset (CHECK follows)
-
+const EVENT_POOL = 16;
+const REST_T = 1.5;                                     // v1 §5.13 resting free ball
+const DRIBBLE_BOUNCE_STRENGTH = 0.5;                    // v1 dribble bounce sound strength
+const SAFE_RESET = { x: 0, y: BALL.CHEST_Y, z: -4.6 };  // handler spot after a NaN reset (a CHECK follows)
 const STEP_OUT = { floor: 0, rim: 0, board: 0, scored: false };
-const AXIS = new THREE.Vector3();
 
-function copyInfo(target, info) {
-  for (const k in info) target[k] = info[k];
-  return target;
+function v3get(v, k, alt) {
+  return v[k] !== undefined ? v[k] : v[alt];
 }
 
 export class Ball {
-  constructor(scene, rng) {
-    this.scene = scene || null;
+  /** @param {import('./math.js').Rng|null} rng gameplay Rng (rim jitter) */
+  constructor(rng) {
     this.rng = rng || null;
     this.state = 'loose';
     this.owner = null;
     this.lastToucher = null;
-    this.shotInfo = { shooter: null, releaseTime: 0, points: 2, kind: 'jumper' };
-    this.passInfo = { receiver: null, from: null };
+    /** Pending shot (rules record): `touched` R2, `points` R1/R5. `shotInfo` is a v1-compatible alias. */
+    this.shot = {
+      shooter: null, team: -1, kind: 'jumper', variant: null, zone: 'mid', points: 2, releaseTime: 0,
+      touched: false, make: false, blocked: false, airball: false, eT: NaN, x: 0, z: 0, active: false,
+    };
+    this.shotInfo = this.shot;
+    this.passInfo = { receiver: null, from: null, kind: 'chest', lob: false, releaseTime: 0, flightT: 0, team: -1 };
+    /** What the free ball is: 'none' | 'shot' | 'pass' | 'steal' | 'block' | 'deflect' | 'dunk'. */
+    this.ctx = 'none';
     this.pos = new THREE.Vector3(0, R, 0);
     this.prevPos = new THREE.Vector3(0, R, 0);
     this.vel = new THREE.Vector3();
@@ -46,37 +71,30 @@ export class Ball {
     this.restEmitted = false;
     this.oobEmitted = false;
     this.releaseAge = 0;
+    this.looseT = 0;
     this.holdT = 0;
     this.time = 0;
     this.lastBounceT = -1;
+    this.contacted = false;                 // rim / board / floor / player contact since the last launch
+    this.exclude1 = null;                   // players who may not catch this free ball before releaseAge 0.3 s
+    this.exclude2 = null;                   //   (the blocker and the shooter of a swatted shot, a poked handler)
+    this.spinMode = null;
+    this.visible = true;
     this.events = [];
     this.pool = new Array(EVENT_POOL);
     for (let i = 0; i < EVENT_POOL; i++) this.pool[i] = { type: '', value: 0, player: null };
     this.poolUsed = 0;
-
-    const geo = new THREE.SphereGeometry(R, 12, 8);
-    const mat = new THREE.MeshLambertMaterial({ color: 0xffffff });
-    try { mat.map = makeBallTexture(); } catch (err) { mat.color.set(0xe8641b); }
-    this.mesh = new THREE.Mesh(geo, mat);
-    this.mesh.name = 'ball';
-    const shadowGeo = new THREE.PlaneGeometry(0.9, 0.9).rotateX(-Math.PI / 2);
-    let blob = null;
-    try { blob = makeBlobTexture(); } catch (err) { blob = null; }
-    this.shadowMat = new THREE.MeshBasicMaterial({
-      map: blob, color: blob ? 0xffffff : 0x000000, transparent: true, depthWrite: false, opacity: SHADOW_OPACITY_LOW,
-    });
-    this.shadow = new THREE.Mesh(shadowGeo, this.shadowMat);
-    this.shadow.name = 'ballShadow';
-    this.shadow.scale.set(SHADOW_SCALE, 1, SHADOW_SCALE);
-    this.shadow.position.y = SHADOW_Y;
-    this.shadow.renderOrder = -1;
-    if (this.scene) { this.scene.add(this.mesh); this.scene.add(this.shadow); }
   }
 
   get isFree() { return this.state === 'flight' || this.state === 'pass' || this.state === 'loose'; }
   get isHeld() { return this.state === 'held' || this.state === 'dribble'; }
+  /** v1 alias used by presentation code. */
+  get position() { return this.pos; }
 
-  // Give the ball to a player: mode 'held' (chest / hands) or 'dribble'.
+  /**
+   * Give the ball to a player: mode 'held' (both hands) or 'dribble'. The game also calls the animator (onCatch /
+   * setBallMode); this only moves the sim state and places the ball on the socket.
+   */
   attachTo(player, mode) {
     const m = mode === 'dribble' ? 'dribble' : 'held';
     if (this.owner && this.owner !== player) { this.owner.hasBall = false; this.owner.ballMode = null; }
@@ -93,68 +111,76 @@ export class Ball {
     this.restT = 0;
     this.scoredT = 0;
     this.releaseAge = 0;
+    this.looseT = 0;
     this.restEmitted = false;
     this.oobEmitted = false;
+    this.contacted = false;
+    this.ctx = 'none';
+    this.spinMode = null;
     this.placeOnOwner();
     this.prevPos.copy(this.pos);
   }
 
-  // Release the ball with velocity v ({x,y,z} or a solver result {vx,vy,vz}) into 'flight' | 'pass' |
-  // 'loose'. info fills shotInfo (flight) or passInfo (pass). `from` optionally sets the launch point
-  // (the hand); otherwise the ball leaves from its current position.
-  launch(v, state, info, from) {
+  /** Switch a held ball between 'held' and 'dribble' without a new catch. */
+  setHoldMode(mode) {
+    if (!this.isHeld || !this.owner) return;
+    this.state = mode === 'dribble' ? 'dribble' : 'held';
+    this.owner.ballMode = this.state;
+  }
+
+  /**
+   * Release the ball with velocity v ({x, y, z} or a solver result {vx, vy, vz}) into 'flight' | 'pass' | 'loose' |
+   * 'scored', optionally from position `from` (the socket at RELEASE / SLAM). Flight / pass bookkeeping (shot / pass
+   * records) is filled by the game before or after the call; this resets the per-flight physics state.
+   */
+  launch(v, state, from) {
     if (from) this.pos.set(from.x, from.y, from.z);
     this.prevPos.copy(this.pos);
-    this.vel.set(v.vx !== undefined ? v.vx : v.x, v.vy !== undefined ? v.vy : v.y, v.vz !== undefined ? v.vz : v.z);
+    this.vel.set(v3get(v, 'vx', 'x'), v3get(v, 'vy', 'y'), v3get(v, 'vz', 'z'));
     if (this.owner) {
       this.owner.hasBall = false;
       this.owner.ballMode = null;
       this.lastToucher = this.owner;
       this.owner = null;
     }
-    this.state = state === 'pass' || state === 'loose' ? state : 'flight';
+    this.state = state === 'pass' || state === 'loose' || state === 'scored' ? state : 'flight';
     this.releaseAge = 0;
+    this.looseT = 0;
     this.rimContacts = 0;
-    this.rimEnabled = true;
-    this.boardEnabled = true;
+    this.rimEnabled = this.state !== 'scored';
+    this.boardEnabled = this.state !== 'scored';
     this.restT = 0;
     this.scoredT = 0;
     this.restEmitted = false;
     this.oobEmitted = false;
     this.lastBounceT = -1;
-    if (this.state === 'flight') {
-      const si = this.shotInfo;
-      si.shooter = this.lastToucher; si.releaseTime = this.time; si.points = 2; si.kind = 'jumper';
-      if (info) copyInfo(si, info);
-      if (si.shooter) this.lastToucher = si.shooter;
-    } else if (this.state === 'pass') {
-      const pi = this.passInfo;
-      pi.receiver = null; pi.from = this.lastToucher;
-      if (info) copyInfo(pi, info);
-      if (pi.from) this.lastToucher = pi.from;
-    } else if (info && info.toucher) {
-      this.lastToucher = info.toucher;
-    }
+    this.contacted = false;
+    this.exclude1 = null; this.exclude2 = null;
   }
 
-  // Section 5.8 catch test (the decision and stats live in game.js).
-  canBeCaughtBy(player, world) {
-    if (!player || player.hasBall || player.state === 'dunk') return false;
+  /**
+   * Catch test (v1 §5.8 with v2 attributes): not while the player already has the ball or is dunking; a shot only
+   * after 0.3 s of flight (its shooter too); horizontal distance within `passReceiveR` for the intended receiver of a
+   * pass, else `catchR`; ball centre in [0.15, catchTopY + jumpY]; speed below 14 m/s.
+   */
+  canBeCaughtBy(player) {
+    if (!player || player.hasBall || player.state === 'dunk' || player.state === 'fallen') return false;
     const st = this.state;
     if (st === 'flight') { if (this.releaseAge <= BALL.CATCH_FLIGHT_AGE) return false; }
     else if (st !== 'pass' && st !== 'loose') return false;
-    if (this.shotInfo.shooter === player && this.releaseAge < BALL.CATCH_FLIGHT_AGE) return false;
+    if (this.shot.shooter === player && this.shot.active && this.releaseAge < BALL.CATCH_FLIGHT_AGE) return false;
+    if ((player === this.exclude1 || player === this.exclude2) && this.releaseAge < BALL.CATCH_FLIGHT_AGE) return false;
+    const a = player.attrs;
     const dx = this.pos.x - player.pos.x, dz = this.pos.z - player.pos.z;
-    const height = player.data && player.data.height > 0 ? player.data.height : 1;
-    const r = st === 'pass' && this.passInfo.receiver === player ? BALL.CATCH_R_RECEIVER : BALL.CATCH_R * height;
+    const r = st === 'pass' && this.passInfo.receiver === player ? a.passReceiveR : a.catchR;
     if (dx * dx + dz * dz >= r * r) return false;
     const jumpY = player.jumpY > 0 ? player.jumpY : 0;
-    if (this.pos.y < BALL.CATCH_MIN_Y || this.pos.y > BALL.CATCH_MAX_Y + jumpY) return false;
+    if (this.pos.y < BALL.CATCH_MIN_Y || this.pos.y > a.catchTopY + jumpY) return false;
     const v = this.vel;
     return v.x * v.x + v.y * v.y + v.z * v.z < BALL.CATCH_MAX_SPEED * BALL.CATCH_MAX_SPEED;
   }
 
-  // True when a free ball's centre is out of bounds (section 1), or a held ball's holder stands out.
+  /** True when a free ball's centre is out of bounds (v1 §1), or a held ball's holder stands out. */
   isOutOfBounds() {
     if (this.isHeld) {
       if (!this.owner) return false;
@@ -173,30 +199,26 @@ export class Ball {
     return e;
   }
 
-  // Kinematic placement on the owner: hands during a windup/layup/dunk, chest while held, the
-  // section 5.7 bounce path while dribbling.
+  /**
+   * Kinematic placement on the owner: the animator's ball socket (spec §4.5). For a headless proxy dribble the height
+   * follows the gameplay bounce phase (`owner.dribbleY`).
+   */
   placeOnOwner() {
     const o = this.owner;
-    const st = o.state;
-    if (st === 'dunk') {
-      o.handPoint(this.pos);
-      this.pos.y = SHOT.RELEASE_Y + o.jumpY;
-    } else if (st === 'windup' || st === 'layup' || st === 'release') {
-      o.handPoint(this.pos);
-    } else if (this.state === 'dribble') {
-      o.dribbleBallPos(this.pos);
-    } else {
-      o.chestPoint(this.pos);
-    }
+    if (!o) return;
+    const a = o.animator;
+    if (a) a.querySocket(SOCK.ball, this.pos);
+    else { this.pos.set(o.pos.x, BALL.CHEST_Y + (o.jumpY || 0), o.pos.z); }
+    if (this.state === 'dribble' && o.procDribble && !o.isJumping) this.pos.y = o.dribbleY;
+    if (!(this.pos.y >= R)) this.pos.y = R;
   }
 
-  // One fixed step. events: the array to fill (cleared first); returns it.
-  step(dt, world, events = this.events) {
+  /** One fixed step; `events` is cleared first and returned. */
+  step(dt, events = this.events) {
     events.length = 0;
     this.poolUsed = 0;
     this.time += dt;
     this.prevPos.copy(this.pos);
-    const rng = this.rng || (world && world.rng) || null;
 
     if (this.isHeld) {
       const o = this.owner;
@@ -213,25 +235,27 @@ export class Ball {
       this.scoredT += dt;
       this.rimEnabled = false;
       this.boardEnabled = false;
-      stepFreeBall(this, dt, rng, STEP_OUT);
-      if (STEP_OUT.floor > 0) this.bounce(events, STEP_OUT.floor);
+      stepFreeBall(this, dt, this.rng, STEP_OUT);
+      if (STEP_OUT.floor > 0) this.bounce(events, 'floor', STEP_OUT.floor);
       if (this.scoredT >= BALL.SCORED_T) {
         this.state = 'loose';
         this.rimEnabled = true;
         this.boardEnabled = true;
         this.releaseAge = 0;
+        this.ctx = 'none';
       }
     } else {
       this.releaseAge += dt;
-      stepFreeBall(this, dt, rng, STEP_OUT);
-      if (STEP_OUT.rim > 0) this.emit(events, 'rim', STEP_OUT.rim, this.lastToucher);
-      if (STEP_OUT.board > 0) this.emit(events, 'board', STEP_OUT.board, this.lastToucher);
-      if (STEP_OUT.floor > 0) this.bounce(events, STEP_OUT.floor);
+      if (this.state === 'loose') this.looseT += dt;
+      stepFreeBall(this, dt, this.rng, STEP_OUT);
+      if (STEP_OUT.rim > 0) { this.emit(events, 'rim', STEP_OUT.rim, this.lastToucher); this.contacted = true; this.shot.touched = this.shot.touched || this.ctx === 'shot'; }
+      if (STEP_OUT.board > 0) { this.emit(events, 'board', STEP_OUT.board, this.lastToucher); this.contacted = true; this.shot.touched = this.shot.touched || this.ctx === 'shot'; }
+      if (STEP_OUT.floor > 0) { this.bounce(events, 'floor', STEP_OUT.floor); this.contacted = true; }
       if (STEP_OUT.scored && this.state !== 'pass') {
         this.score(events);
       } else if ((STEP_OUT.rim > 0 || STEP_OUT.board > 0 || STEP_OUT.floor > 0 || this.pos.y <= R + 1e-6)
         && (this.state === 'flight' || this.state === 'pass')) {
-        this.state = 'loose';    // a shot or pass that touched something is a live loose ball
+        this.state = 'loose';    // a shot or pass that touched something is a live loose ball (ctx keeps its origin)
       }
       this.stepRest(dt, events);
       if (!this.oobEmitted && this.isOutOfBounds()) {
@@ -239,8 +263,6 @@ export class Ball {
         this.emit(events, 'oob', 0, this.lastToucher);
       }
     }
-
-    this.spin(dt);
 
     const p = this.pos, v = this.vel;
     if (!Number.isFinite(p.x + p.y + p.z + v.x + v.y + v.z)) {
@@ -258,53 +280,41 @@ export class Ball {
 
   stepHeld(dt, o, events) {
     this.holdT += dt;
-    const st = o.state;
-    const inHands = st === 'windup' || st === 'layup' || st === 'dunk' || st === 'release';
-    if (this.state === 'dribble') {
-      if (inHands || st === 'stunned' || st === 'celebrate') { this.state = 'held'; o.ballMode = 'held'; }
-    } else if (!inHands && this.holdT >= BALL.HOLD_AFTER_CATCH && (st === 'idle' || st === 'move' || st === 'cross' || st === 'steal')) {
-      this.state = 'dribble';
-      o.ballMode = 'dribble';
-    }
     this.placeOnOwner();
     this.vel.set(0, 0, 0);
     this.releaseAge = 0;
-    if (this.state === 'dribble' && o.dribbleWrapped) this.bounce(events, DRIBBLE_BOUNCE_STRENGTH);
+    if (this.state === 'dribble' && o.dribbleBounced) this.bounce(events, 'bounce', DRIBBLE_BOUNCE_STRENGTH);
     if (!this.oobEmitted && this.isOutOfBounds()) {
       this.oobEmitted = true;
       this.emit(events, 'oob', 0, o);
     }
   }
 
-  // Floor bounce event, rate-limited to one per 80 ms.
-  bounce(events, strength) {
+  /** Floor contact event ('bounce' dribble / 'floor' free ball), rate-limited to one per 80 ms (v1). */
+  bounce(events, type, strength) {
     if (this.lastBounceT >= 0 && this.time - this.lastBounceT < BOUNCE_SFX_S) return;
     this.lastBounceT = this.time;
-    this.emit(events, 'bounce', strength, this.owner || this.lastToucher);
+    this.emit(events, type, strength, this.owner || this.lastToucher);
   }
 
-  // Section 5.5: a make. Points come from shotInfo while the shot is unresolved (flight, or loose
-  // with nobody else having touched it); a tipped-in loose ball scores 2 for lastToucher.
+  /** The ball went through the hoop: state 'scored' for 0.5 s (net drag, collisions off). value 1 swish / 2 rim-in. */
   score(events) {
-    const shooter = this.shotInfo.shooter;
-    const ownShot = shooter && (this.state === 'flight' || this.lastToucher === shooter);
-    const points = ownShot ? this.shotInfo.points : 2;
-    const player = ownShot ? shooter : this.lastToucher;
+    const swish = this.rimContacts === 0 && !this.shot.touched;
     this.state = 'scored';
     this.scoredT = 0;
     this.rimEnabled = false;
     this.boardEnabled = false;
     this.vel.multiplyScalar(BALL.NET_DRAG);
-    this.emit(events, 'score', points, player);
+    this.emit(events, 'score', swish ? 1 : 2, this.lastToucher);
   }
 
-  // Section 5.13: a free ball resting for 1.5 s emits 'rest' once.
+  /** A free ball resting on the floor for 1.5 s emits 'rest' once (v1 §5.13). */
   stepRest(dt, events) {
     const v = this.vel;
     const slow = v.x * v.x + v.y * v.y + v.z * v.z < BALL.RESCUE_SPEED * BALL.RESCUE_SPEED;
     if (slow && this.pos.y <= R + 1e-3) {
       this.restT += dt;
-      if (!this.restEmitted && this.restT >= 1.5) {
+      if (!this.restEmitted && this.restT >= REST_T) {
         this.restEmitted = true;
         this.emit(events, 'rest', this.restT, this.lastToucher);
       }
@@ -313,38 +323,9 @@ export class Ball {
     }
   }
 
-  // Roll the mesh about the axis perpendicular to the velocity (angle = distance / R).
-  spin(dt) {
-    const v = this.vel;
-    const s2 = v.x * v.x + v.z * v.z;
-    if (s2 < 1e-6) return;
-    const speed = Math.sqrt(s2 + v.y * v.y);
-    AXIS.set(-v.z, 0, v.x).normalize();
-    this.mesh.rotateOnWorldAxis(AXIS, speed * dt / R);
-  }
-
-  // Interpolated mesh placement; the ball in a shooter's hands follows the posed humanoid hand so it
-  // never floats. The shadow sits on the floor and fades with height.
-  render(alpha) {
-    const a = clamp(alpha, 0, 1);
-    const m = this.mesh.position;
-    const o = this.owner;
-    let visualHand = false;
-    if (this.isHeld && o && o.humanoid) {
-      const st = o.state;
-      if (st === 'dunk') { o.humanoid.handsMidWorld(m); visualHand = true; }
-      else if (st === 'windup' || st === 'layup' || st === 'release') { o.humanoid.handWorld(m, o.handSign); visualHand = true; }
-    }
-    if (!visualHand) {
-      m.x = lerp(this.prevPos.x, this.pos.x, a);
-      m.y = lerp(this.prevPos.y, this.pos.y, a);
-      m.z = lerp(this.prevPos.z, this.pos.z, a);
-    }
-    this.shadow.position.x = m.x;
-    this.shadow.position.z = m.z;
-    const h = clamp((m.y - R) / SHADOW_FADE_H, 0, 1);
-    this.shadowMat.opacity = lerp(SHADOW_OPACITY_LOW, SHADOW_OPACITY_HIGH, h);
-    const sc = SHADOW_SCALE * (1 - 0.3 * h);
-    this.shadow.scale.set(sc, 1, sc);
+  /** Horizontal distance of the ball centre to the rim centre. */
+  rimDistance() {
+    const dx = this.pos.x - RIM.x, dz = this.pos.z - RIM.z;
+    return Math.sqrt(dx * dx + dz * dz);
   }
 }

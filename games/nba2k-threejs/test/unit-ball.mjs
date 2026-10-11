@@ -1,15 +1,22 @@
-// Unit checks for ball.js, player.js and camera.js (no DOM, no renderer).
+// Unit checks for ball.js, player.js and the game-level rules of game.js (headless, AnimProxy animators):
+// ball states / events / looseT / catch rule with per-player attributes / socket attachment; player locomotion from the
+// derived attributes (§5.2), stamina, turn rate, ballistic jumps from TAKEOFF (airtime exact) and the dunk profile,
+// root motion, timers, facing; and the §5.13 rule fixtures R1 (points by the feet at the release input, S8), B11,
+// R2 (an untouched air ball recovered by the offence keeps the shot clock), R3 (a release in the step the shot clock
+// expires is valid), R4 (rattler: 0.4 s after the buzzer counts, 0.6 s does not), R5 (a blocked three that drops = 3),
+// plus the state machine (CHECK → LIVE, periods, halftime, OT, game over / MVP, intro, lineup, pause, holdDead) and
+// the event payloads.
 // Run: node test/unit-ball.mjs
 import assert from 'node:assert/strict';
-import * as THREE from '../vendor/three.module.js';
 import { Ball } from '../src/ball.js';
-import { Player, makeIntent, clearEdges } from '../src/player.js';
-import { BroadcastCamera } from '../src/camera.js';
+import { Player } from '../src/player.js';
+import { Game, STATES, EVENTS } from '../src/game.js';
 import { solveArc, apexForDistance } from '../src/physics.js';
-import { RIM, BALL, FIXED_DT, MOVE, JUMP, SHOT } from '../src/constants.js';
+import { RIM, BALL, FIXED_DT, CLOCK, MOVE, LINES, isThree } from '../src/constants.js';
 import { Rng } from '../src/math.js';
-import { TEAMS } from '../src/teams.js';
-import { createHumanoid } from '../src/humanoid.js';
+import { SOCK } from '../src/anim/rig.js';
+import { clipIndex } from '../src/anim/clip.js';
+import { pressButton, releaseButton } from '../src/input.js';
 
 let passed = 0;
 function check(name, fn) {
@@ -17,369 +24,523 @@ function check(name, fn) {
   passed++;
   console.log('ok - ' + name);
 }
+const near = (a, b, tol, msg) => assert.ok(Math.abs(a - b) <= tol, `${msg || ''} ${a} vs ${b} (±${tol})`);
+const FROZEN_AI = { updateAI() {} };
+const dt = FIXED_DT;
 
-const EMPTY_WORLD = { players: [], offense: 0, rng: new Rng(1) };
-
-function flyFrom(from, target, apex, maxSeconds) {
-  const ball = new Ball(null, new Rng(5));
-  ball.pos.set(from.x, from.y, from.z);
-  const arc = solveArc(from, target, apex, BALL.G, {});
-  const shooter = { name: 'S', hasBall: true, ballMode: 'held', state: 'release' };
-  ball.owner = shooter; shooter.hasBall = true;
-  ball.launch(arc, 'flight', { shooter, points: 2, kind: 'jumper' });
-  const seen = { rim: 0, board: 0, bounce: 0, score: 0, rest: 0, nan: 0, oob: 0 };
-  let minY = Infinity, firstScoreT = -1;
-  const scoreEvent = { value: 0, playerName: null };   // copied: event objects are pooled and reused
-  const events = [];
-  const steps = Math.round(maxSeconds / FIXED_DT);
-  for (let i = 0; i < steps; i++) {
-    ball.step(FIXED_DT, EMPTY_WORLD, events);
-    for (const e of events) {
-      seen[e.type] = (seen[e.type] || 0) + 1;
-      if (e.type === 'score' && firstScoreT < 0) {
-        firstScoreT = (i + 1) * FIXED_DT;
-        scoreEvent.value = e.value;
-        scoreEvent.playerName = e.player ? e.player.name : null;
-      }
-    }
-    const p = ball.pos;
-    assert.ok(Number.isFinite(p.x) && Number.isFinite(p.y) && Number.isFinite(p.z), 'finite position');
-    minY = Math.min(minY, p.y);
-  }
-  return { ball, seen, minY, firstScoreT, scoreEvent, arc };
+function liveGame(seed = 1, extra = {}) {
+  const g = new Game(Object.assign({ scene: null, anim: 'proxy', seed, quarterSec: 120, ai: FROZEN_AI, auto: true }, extra));
+  g.start({});
+  for (let i = 0; i < 80 && g.state !== 'LIVE'; i++) g.step(dt);
+  assert.equal(g.state, 'LIVE');
+  return g;
+}
+function stepUntil(g, pred, max = 240) {
+  for (let i = 0; i < max; i++) { if (pred()) return true; g.step(dt); }
+  return pred();
+}
+function shootFrom(g, id, x, z, opts) {
+  const p = g.byId[id];
+  g.stageLive(p.team, p);
+  g.teleport(p, x, z, Math.PI);
+  return g.debugShoot(Object.assign({ shooter: id }, opts));
 }
 
-check('a shot solved to the rim centre scores within 3 s (score event, points from shotInfo)', () => {
-  const from = { x: 0, y: 2.05, z: -8 };
-  const r = flyFrom(from, { x: RIM.x, y: RIM.y, z: RIM.z }, apexForDistance(4.75), 3);
-  assert.equal(r.seen.score, 1, 'exactly one score event: ' + JSON.stringify(r.seen));
-  assert.ok(r.firstScoreT > 0 && r.firstScoreT <= 3, 'score time ' + r.firstScoreT);
-  assert.equal(r.scoreEvent.value, 2);
-  assert.equal(r.scoreEvent.playerName, 'S');
-  assert.ok(r.minY >= 0.10, 'min y ' + r.minY);
-  assert.ok(r.ball.state === 'loose' || r.ball.state === 'scored', 'post-score state ' + r.ball.state);
-  assert.equal(r.seen.nan, 0);
+// ================================================================================================ ball
+
+function flight(from, target) {
+  const ball = new Ball(new Rng(5));
+  const shooter = { id: 'kobe', team: 0, hasBall: true, ballMode: 'held' };
+  ball.owner = shooter;
+  ball.pos.set(from.x, from.y, from.z);
+  const d = Math.hypot(from.x - RIM.x, from.z - RIM.z);
+  const arc = solveArc(from, target, apexForDistance(d), BALL.G, {});
+  ball.launch(arc, 'flight', from);
+  ball.ctx = 'shot'; ball.shot.active = true; ball.shot.shooter = shooter;
+  return ball;
+}
+
+check('ball: a shot at the rim centre scores (swish), scored → loose after 0.5 s; launch clears the owner', () => {
+  const ball = flight({ x: 0, y: 2.8, z: -8.3 }, RIM);
+  assert.equal(ball.owner, null);
+  let score = null, t = 0;
+  for (let i = 0; i < 240 && !score; i++) { for (const e of ball.step(dt)) if (e.type === 'score') score = { value: e.value, t }; t += dt; }
+  assert.ok(score, 'scored');
+  assert.equal(score.value, 1, 'swish');
+  assert.equal(ball.state, 'scored');
+  for (let i = 0; i < 31; i++) ball.step(dt);
+  assert.equal(ball.state, 'loose');
 });
 
-check('a shot 0.3 m short hits the rim, then bounces on the floor; y >= 0.10 and no NaN', () => {
-  const from = { x: 0, y: 2.05, z: -8 };
-  const target = { x: RIM.x, y: RIM.y, z: RIM.z + 0.3 };   // 0.3 m toward the shooter = short
-  const r = flyFrom(from, target, apexForDistance(4.75), 4);
-  assert.ok(r.seen.rim >= 1, 'rim events ' + JSON.stringify(r.seen));
-  assert.ok(r.seen.bounce >= 1, 'bounce events ' + JSON.stringify(r.seen));
-  assert.equal(r.seen.score, 0, 'a short miss must not score');
-  assert.ok(r.minY >= 0.10, 'min y ' + r.minY);
-  assert.equal(r.ball.state, 'loose');
-  assert.ok(r.ball.pos.y < 0.5, 'ball has come down to the floor: y ' + r.ball.pos.y);
-});
-
-check('resting free ball emits rest once after 1.5 s; NaN guard emits nan and resets', () => {
-  const ball = new Ball(null, new Rng(2));
-  ball.pos.set(1, BALL.R, -6); ball.vel.set(0, 0, 0); ball.state = 'loose';
-  const events = [];
-  let rests = 0;
-  for (let i = 0; i < 180; i++) { ball.step(FIXED_DT, EMPTY_WORLD, events); for (const e of events) if (e.type === 'rest') rests++; }
-  assert.equal(rests, 1);
-  ball.vel.x = NaN;
-  ball.step(FIXED_DT, EMPTY_WORLD, events);
-  assert.ok(events.some((e) => e.type === 'nan'));
-  assert.ok(Number.isFinite(ball.pos.x) && Number.isFinite(ball.vel.x));
-});
-
-check('free-ball OOB emits once; a held ball follows the owner and dribbles after 0.35 s', () => {
-  const ball = new Ball(null, new Rng(3));
-  ball.pos.set(8.5, BALL.R, -6); ball.state = 'loose';
-  const events = [];
-  let oob = 0;
-  for (let i = 0; i < 10; i++) { ball.step(FIXED_DT, EMPTY_WORLD, events); for (const e of events) if (e.type === 'oob') oob++; }
-  assert.equal(oob, 1);
-
-  const p = new Player({ team: TEAMS[0], teamIdx: 0, index: 0, data: TEAMS[0].players[0], humanoid: null });
-  p.reset(0, -4.6, Math.PI);
-  ball.attachTo(p, 'held');
-  assert.equal(ball.state, 'held');
-  assert.equal(p.hasBall, true);
-  assert.ok(Math.abs(ball.pos.y - BALL.CHEST_Y) < 1e-9);
-  const world = { players: [p], offense: 0, rng: new Rng(4) };
-  let bounces = 0;
-  p.intent.move.x = 0; p.intent.move.z = -1; p.intent.move.mag = 1;
-  for (let i = 0; i < 120; i++) {
-    p.step(FIXED_DT, world);
-    ball.step(FIXED_DT, world, events);
-    for (const e of events) if (e.type === 'bounce') bounces++;
+check('ball: a short miss hits the rim → loose, shot.touched (R2), looseT accumulates, y ≥ 0.10, rest after 1.5 s', () => {
+  const ball = flight({ x: 0, y: 2.8, z: -8.3 }, { x: 0, y: RIM.y, z: RIM.z + RIM.r + 0.02 });
+  const seen = {};
+  let minY = Infinity;
+  for (let i = 0; i < 60 * 8; i++) {
+    for (const e of ball.step(dt)) seen[e.type] = (seen[e.type] || 0) + 1;
+    minY = Math.min(minY, ball.pos.y);
   }
-  assert.equal(ball.state, 'dribble');
-  assert.ok(bounces >= 3, 'dribble bounces ' + bounces);
-  assert.ok(ball.pos.y >= BALL.R && ball.pos.y <= BALL.R + 0.80 + 1e-9);
-  assert.ok(Math.hypot(ball.pos.x - p.pos.x, ball.pos.z - p.pos.z) < 0.5);
-  // launch detaches the owner
-  ball.launch({ x: 0, y: 3, z: -6 }, 'pass', { receiver: null, from: p });
-  assert.equal(p.hasBall, false);
-  assert.equal(ball.state, 'pass');
-  assert.equal(ball.lastToucher, p);
+  assert.ok(seen.rim >= 1, 'rim contact');
+  assert.equal(ball.shot.touched, true);
+  assert.equal(ball.state, 'loose');
+  assert.ok(ball.looseT > 5, 'looseT ' + ball.looseT);
+  assert.ok(minY >= 0.10);
+  assert.equal(seen.rest, 1, 'rest once');
+  ball.launch({ x: 0, y: 1, z: 0 }, 'loose', { x: 0, y: 1, z: -5 });
+  assert.equal(ball.looseT, 0, 'launch resets looseT');
 });
 
-check('catch rule: radius, height window, receiver bonus, own-shot age', () => {
-  const ball = new Ball(null, new Rng(6));
-  const mk = (x, z) => ({ pos: { x, y: 0, z }, hasBall: false, state: 'idle', jumpY: 0, data: { height: 1 } });
-  const a = mk(0, -6), b = mk(0.7, -6);
-  ball.pos.set(0, 1.2, -6); ball.vel.set(1, 0, 0); ball.state = 'loose';
-  assert.equal(ball.canBeCaughtBy(a), true);
-  assert.equal(ball.canBeCaughtBy(b), false, '0.7 m > 0.55');
-  ball.state = 'pass'; ball.passInfo.receiver = b;
-  assert.equal(ball.canBeCaughtBy(b), true, 'receiver radius 0.80');
-  ball.pos.y = 2.5;
-  assert.equal(ball.canBeCaughtBy(a), false, 'too high');
-  a.jumpY = 0.5;
-  assert.equal(ball.canBeCaughtBy(a), true, 'reachable when jumping');
-  ball.state = 'flight'; ball.releaseAge = 0.1; ball.shotInfo.shooter = a; ball.pos.y = 1.2;
-  assert.equal(ball.canBeCaughtBy(a), false, 'flight younger than 0.3 s');
-  ball.releaseAge = 0.4;
-  assert.equal(ball.canBeCaughtBy(a), true);
-  ball.vel.set(15, 0, 0);
-  assert.equal(ball.canBeCaughtBy(a), false, 'too fast');
+check('ball: free-ball OOB emits once; NaN guard emits nan and resets to a safe point', () => {
+  const ball = new Ball(new Rng(1));
+  ball.launch({ x: 6, y: 0, z: 0 }, 'loose', { x: 7.5, y: 1, z: -6 });
+  let oob = 0;
+  for (let i = 0; i < 60; i++) for (const e of ball.step(dt)) if (e.type === 'oob') oob++;
+  assert.equal(oob, 1);
+  ball.launch({ x: NaN, y: 0, z: 0 }, 'loose', { x: 0, y: 1, z: -6 });
+  const ev = ball.step(dt);
+  assert.ok(ev.some((e) => e.type === 'nan'));
+  assert.ok(Number.isFinite(ball.pos.x + ball.pos.y + ball.pos.z));
 });
 
-check('player movement: accel to run speed, sprint x1.35 drains stamina, stop decel, handler x0.92', () => {
-  const p = new Player({ team: TEAMS[0], teamIdx: 0, index: 1, data: { speed: 1, height: 1 }, humanoid: null });
-  p.reset(0, -6, Math.PI);
-  const world = { players: [p], offense: 1, rng: new Rng(1) };
-  p.intent.move.x = 1; p.intent.move.z = 0; p.intent.move.mag = 1;
-  for (let i = 0; i < 60; i++) p.step(FIXED_DT, world);
-  assert.ok(Math.abs(p.speed - MOVE.RUN) < 1e-6, 'run speed ' + p.speed);
-  assert.equal(p.state, 'move');
-  assert.ok(Math.abs(p.yaw - Math.PI / 2) < 1e-6, 'faces +x, yaw ' + p.yaw);
-  p.intent.sprint = true;
-  for (let i = 0; i < 60; i++) p.step(FIXED_DT, world);
-  assert.ok(Math.abs(p.speed - MOVE.RUN * MOVE.SPRINT_MUL) < 1e-6, 'sprint speed ' + p.speed);
-  assert.ok(p.stamina < 1 - 0.9 / 4 && p.stamina > 1 - 1.1 / 4, 'stamina ' + p.stamina);
-  assert.equal(p.sprintedRecently, true);
-  // Hold sprint until the bar empties: sprint locks, speed drops to run speed...
-  let steps = 0;
-  while (p.stamina > 0 && steps++ < 600) p.step(FIXED_DT, world);
-  assert.equal(p.stamina, 0);
-  assert.equal(p.sprintLocked, true);
-  for (let i = 0; i < 60; i++) p.step(FIXED_DT, world);
-  assert.ok(Math.abs(p.speed - MOVE.RUN) < 1e-6, 'sprint disabled at 0 stamina: ' + p.speed);
-  assert.ok(p.stamina > 0.15 && p.stamina < 0.18, 'refills at 1/6 per s: ' + p.stamina);
-  // ... and re-enables once the bar refills to 0.25.
-  steps = 0;
-  while (p.sprintLocked && steps++ < 600) p.step(FIXED_DT, world);
-  assert.ok(p.stamina >= MOVE.STAMINA_RELOCK && p.stamina < 0.26, 'unlocked at 0.25: ' + p.stamina);
-  for (let i = 0; i < 30; i++) p.step(FIXED_DT, world);
-  assert.ok(Math.abs(p.speed - MOVE.RUN * MOVE.SPRINT_MUL) < 1e-6, 'sprinting again ' + p.speed);
-  p.intent.sprint = false;
-  p.intent.move.mag = 0; p.intent.move.x = 0;
-  const sBefore = p.speed;
-  p.step(FIXED_DT, world);
-  assert.ok(Math.abs(p.speed - (sBefore - MOVE.DECEL * FIXED_DT)) < 1e-6, 'decel 16: ' + sBefore + ' -> ' + p.speed);
-  for (let i = 0; i < 60; i++) p.step(FIXED_DT, world);
-  assert.equal(p.speed, 0);
-  assert.equal(p.state, 'idle');
-  assert.equal(p.sprintedRecently, false);
-  // handler multiplier
-  p.hasBall = true; p.ballMode = 'dribble';
-  p.intent.move.x = 0; p.intent.move.z = -1; p.intent.move.mag = 1;
-  for (let i = 0; i < 60; i++) p.step(FIXED_DT, world);
-  assert.ok(Math.abs(p.speed - MOVE.RUN * MOVE.HANDLER_MUL) < 1e-6, 'handler speed ' + p.speed);
-  // walking at mag 0.4
-  p.intent.move.mag = 0.4;
-  for (let i = 0; i < 60; i++) p.step(FIXED_DT, world);
-  assert.ok(Math.abs(p.speed - MOVE.RUN * 0.4 * MOVE.HANDLER_MUL) < 1e-6, 'walk speed ' + p.speed);
+check('ball: catch rule with attrs (catchR, passReceiveR, catchTopY + jumpY, shot age 0.3 s, exclusions)', () => {
+  const ball = new Ball(new Rng(1));
+  const p = new Player({ id: 'yao', team: 0, index: 0, anim: 'proxy' });
+  p.pos.set(0, 0, -6);
+  const a = p.attrs;
+  ball.launch({ x: 0, y: 0, z: 0 }, 'loose', { x: a.catchR - 0.01, y: 1.5, z: -6 });
+  assert.equal(ball.canBeCaughtBy(p), true);
+  ball.launch({ x: 0, y: 0, z: 0 }, 'loose', { x: a.catchR + 0.01, y: 1.5, z: -6 });
+  assert.equal(ball.canBeCaughtBy(p), false, 'beyond catchR');
+  ball.launch({ x: 0, y: 0, z: 0 }, 'pass', { x: a.catchR + 0.1, y: 1.5, z: -6 });
+  ball.passInfo.receiver = p;
+  assert.equal(ball.canBeCaughtBy(p), true, 'the receiver has passReceiveR');
+  ball.launch({ x: 0, y: 0, z: 0 }, 'loose', { x: 0, y: a.catchTopY + 0.05, z: -6 });
+  assert.equal(ball.canBeCaughtBy(p), false, 'above catchTopY');
+  p.jumpY = 0.3;
+  assert.equal(ball.canBeCaughtBy(p), true, '+ jumpY');
+  p.jumpY = 0;
+  ball.launch({ x: 0, y: 0, z: 0 }, 'flight', { x: 0, y: 1.5, z: -6 });
+  assert.equal(ball.canBeCaughtBy(p), false, 'fresh shot');
+  ball.releaseAge = 0.31;
+  assert.equal(ball.canBeCaughtBy(p), true);
+  ball.launch({ x: 0, y: 0, z: 0 }, 'loose', { x: 0, y: 1.5, z: -6 });
+  ball.exclude1 = p;
+  assert.equal(ball.canBeCaughtBy(p), false, 'excluded (blocker / poked handler) for 0.3 s');
+  ball.releaseAge = 0.31;
+  assert.equal(ball.canBeCaughtBy(p), true);
 });
 
-check('jump arc, windup/release states, block jump on primary tap, no air control', () => {
-  const p = new Player({ team: TEAMS[1], teamIdx: 1, index: 0, data: TEAMS[1].players[0], humanoid: null });
-  p.reset(0, -8.3, Math.PI);
-  const world = { players: [p], offense: 1, rng: new Rng(1) };
-  assert.equal(p.startWindup('jumper'), true);
-  assert.equal(p.state, 'windup');
-  assert.equal(p.isJumping, true);
-  let peak = 0;
-  for (let i = 0; i < 16; i++) { p.step(FIXED_DT, world); peak = Math.max(peak, p.jumpY); }
-  assert.ok(Math.abs(peak - JUMP.H_SHOT) < 0.01, 'peak ' + peak);
-  assert.ok(p.meterF > 0.4 && p.meterF < 0.55, 'meterF ' + p.meterF);
-  p.release();
-  assert.equal(p.state, 'release');
-  for (let i = 0; i < 20; i++) p.step(FIXED_DT, world);
-  assert.equal(p.isJumping, false);
-  assert.equal(p.jumpY, 0);
-  assert.equal(p.state, 'idle');
-  assert.ok(p.releaseAge > 0.3);
-  // Block jump: primary tap on a player without the ball, momentum preserved in the air.
-  p.intent.move.x = 1; p.intent.move.mag = 1;
-  for (let i = 0; i < 30; i++) p.step(FIXED_DT, world);
-  const v0 = p.speed;
-  p.intent.primary.justPressed = true;
-  p.step(FIXED_DT, world);
-  clearEdges(p.intent);
-  assert.equal(p.isJumping, true);
-  assert.equal(p.state, 'jump');
-  p.intent.move.x = -1;
-  for (let i = 0; i < 10; i++) p.step(FIXED_DT, world);
-  assert.ok(Math.abs(p.speed - v0) < 1e-9, 'no air control');
-  assert.ok(Math.abs(p.jumpY - JUMP.H_BLOCK * Math.sin(Math.PI * 11 / 33)) < 1e-9, 'block arc h 0.75');
-});
-
-check('crossover burst, stun, steal cooldown, celebrate, dunk tween', () => {
-  const h = new Player({ team: TEAMS[0], teamIdx: 0, index: 0, data: TEAMS[0].players[0], humanoid: null });
-  const d = new Player({ team: TEAMS[1], teamIdx: 1, index: 0, data: TEAMS[1].players[0], humanoid: null });
-  h.reset(0, -6, Math.PI); d.reset(0.6, -7, 0);   // defender on the handler's LEFT (facing -z, right = -x)
-  h.hasBall = true; h.ballMode = 'dribble';
-  const world = { players: [h, d], offense: 0, rng: new Rng(1) };
-  h.intent.tertiary.justPressed = true;
-  h.step(FIXED_DT, world);
-  clearEdges(h.intent);
-  assert.equal(h.state, 'cross');
-  assert.equal(h.crossJustStarted, true);
-  assert.equal(h.handSign, -1);
-  assert.ok(h.vel.x < -7.4, 'burst away from the defender at 7.5 m/s: vx ' + h.vel.x);
-  h.intent.tertiary.justPressed = true;
-  h.step(FIXED_DT, world);
-  clearEdges(h.intent);
-  assert.equal(h.crossJustStarted, false, 'cooldown blocks a second crossover');
-  for (let i = 0; i < 25; i++) h.step(FIXED_DT, world);
-  assert.notEqual(h.state, 'cross');
-  assert.ok(h.pos.x < -2.7 && h.pos.x > -3.2, 'burst distance (2.6 m burst + short coast) ' + h.pos.x);
-  assert.ok(h.speed <= MOVE.RUN * MOVE.HANDLER_MUL * TEAMS[0].players[0].speed + 1e-9, 'capped after the burst: ' + h.speed);
-
-  assert.equal(d.stun(0.40), true);
-  d.intent.move.x = 1; d.intent.move.mag = 1;
-  for (let i = 0; i < 12; i++) d.step(FIXED_DT, world);
-  assert.equal(d.state, 'stunned');
-  assert.equal(d.speed, 0);
-  for (let i = 0; i < 14; i++) d.step(FIXED_DT, world);
-  assert.notEqual(d.state, 'stunned');
-  d.intent.move.mag = 0; d.intent.move.x = 0;
-  for (let i = 0; i < 60; i++) d.step(FIXED_DT, world);
-  assert.equal(d.startSteal(), true);
-  assert.equal(d.state, 'steal');
-  assert.equal(d.startSteal(), false, 'cooldown');
-  for (let i = 0; i < 30; i++) d.step(FIXED_DT, world);
-  assert.equal(d.state, 'idle');
-  for (let i = 0; i < 30; i++) d.step(FIXED_DT, world);
-  assert.equal(d.startSteal(), true, 'after 0.7 s');
-
-  h.celebrate();
-  assert.equal(h.state, 'celebrate');
-  for (let i = 0; i < 50; i++) h.step(FIXED_DT, world);
-  assert.equal(h.state, 'idle');
-
-  h.reset(0, -11.5, Math.PI);
-  h.startDunk();
-  assert.equal(h.state, 'dunk');
-  let peak = 0;
-  for (let i = 0; i < 20; i++) { h.step(FIXED_DT, world); peak = Math.max(peak, h.jumpY); }
-  assert.ok(h.dunkT > 0.3 && h.dunkT < 0.35);
-  for (let i = 0; i < 14; i++) { h.step(FIXED_DT, world); peak = Math.max(peak, h.jumpY); }
-  assert.ok(Math.abs(peak - SHOT.DUNK_H) < 0.01, 'dunk peak ' + peak);
-  assert.equal(h.state, 'idle');
-  assert.ok(Math.abs(h.pos.z - (RIM.z + SHOT.DUNK_STOP)) < 1e-6, 'lands at RIM - fwd*0.55: z ' + h.pos.z);
-});
-
-check('position history ring buffer, separation, AI clamp, intent helpers', () => {
-  const a = new Player({ team: TEAMS[0], teamIdx: 0, index: 0, data: TEAMS[0].players[0], humanoid: null });
-  const b = new Player({ team: TEAMS[1], teamIdx: 1, index: 0, data: TEAMS[1].players[0], humanoid: null });
-  a.reset(0, -6, Math.PI);
-  const world = { players: [a, b], offense: 0, rng: new Rng(1) };
-  a.intent.move.x = 1; a.intent.move.mag = 1;
-  for (let i = 0; i < 60; i++) a.step(FIXED_DT, world);
-  const out = { x: 0, z: 0 };
-  a.getDelayed(out, 0);
-  assert.ok(Math.abs(out.x - a.prevPos.x) < 1e-9, 'delay 0 = position at the start of this step');
-  a.getDelayed(out, 0.25);
-  assert.ok(out.x < a.pos.x - 1.0 && out.x > a.pos.x - 1.5, 'delayed 0.25 s: ' + out.x + ' vs ' + a.pos.x);
-  a.getDelayed(out, 9);
-  assert.ok(out.x < a.pos.x - 1.5, 'clamped to the 0.5 s window');
-
-  a.reset(0, -6, 0); b.reset(0.4, -6, 0);
-  Player.resolveSeparation([a, b]);
-  assert.ok(Math.abs((b.pos.x - a.pos.x) - MOVE.SEPARATION) < 1e-9, 'pushed to 0.80 m apart');
-  assert.ok(Math.abs(a.pos.x + 0.2) < 1e-9 && Math.abs(b.pos.x - 0.6) < 1e-9, 'half the overlap each');
-
-  b.reset(7.9, -0.1, 0);
-  b.step(FIXED_DT, world);
-  assert.equal(b.pos.x, MOVE.AI_CLAMP_X);
-  assert.equal(b.pos.z, MOVE.AI_CLAMP_Z_MAX);
-  b.isUser = true;
-  b.reset(7.9, -0.1, 0);
-  b.step(FIXED_DT, world);
-  assert.equal(b.pos.x, 7.9, 'human never clamped');
-
-  const it = makeIntent();
-  assert.deepEqual(Object.keys(it), ['move', 'sprint', 'primary', 'secondary', 'tertiary', 'pause']);
-  assert.equal(a.stats.fga, 0);
-  a.stats.fga = 3; a.resetStats();
-  assert.equal(a.stats.fga, 0);
-});
-
-check('render interpolates and poses a humanoid; dribble ball position sits beside the hand', () => {
-  const hum = createHumanoid(TEAMS[0], 0);
-  const p = new Player({ team: TEAMS[0], teamIdx: 0, index: 0, data: TEAMS[0].players[0], humanoid: hum });
+check('ball attachment by socket: held ball at the animator ball socket; proxy dribble height from the bounce phase', () => {
+  const ball = new Ball(new Rng(1));
+  const p = new Player({ id: 'kobe', team: 0, index: 0, anim: 'proxy' });
   p.reset(1, -6, Math.PI);
-  p.offense = true;
-  p.prevPos.set(0, 0, -6);
-  p.render(0.5, 1.0, FIXED_DT);
-  assert.ok(Math.abs(hum.group.position.x - 0.5) < 1e-9);
-  assert.equal(hum.pose, 'idle');
-  p.hasBall = true; p.ballMode = 'dribble'; p.offense = true;
-  p.render(1, 1.1, FIXED_DT);
-  assert.equal(hum.pose, 'dribble');
-  const v = new THREE.Vector3();
-  p.dribbleBallPos(v);
-  // facing -z: right = -x, so the right hand (handSign +1) is at x - 0.32, 0.20 ahead (z - 0.20)
-  assert.ok(Math.abs(v.x - (1 - 0.32)) < 1e-9 && Math.abs(v.z - (-6.2)) < 1e-9, 'dribble xz ' + v.x + ',' + v.z);
-  p.offense = false; p.hasBall = false; p.ballMode = null;
-  p.render(1, 1.2, FIXED_DT);
-  assert.equal(hum.pose, 'defend');
-  p.startWindup('jumper');
-  p.render(1, 1.3, FIXED_DT);
-  assert.equal(hum.pose, 'windup');
-  p.handPoint(v);
-  assert.ok(Math.abs(v.z - (-6.25)) < 1e-9 && v.y >= 1.5 && v.y <= 2.05 + 0.55, 'hand point ' + v.y);
+  ball.attachTo(p, 'held');
+  p.animator.setBallMode('held');
+  const s = { x: 0, y: 0, z: 0 };
+  p.animator.querySocket(SOCK.ball, s);
+  near(Math.hypot(ball.pos.x - s.x, ball.pos.y - s.y, ball.pos.z - s.z), 0, 1e-9, 'held = socket');
+  assert.ok(p.hasBall && p.ballMode === 'held');
+  ball.setHoldMode('dribble');
+  p.animator.setBallMode('dribble');
+  let lo = Infinity, hi = -Infinity, bounces = 0;
+  const w = { players: [p], ball, offense: 0 };
+  for (let i = 0; i < 120; i++) {
+    p.step(dt, w);
+    for (const e of ball.step(dt)) if (e.type === 'bounce') bounces++;
+    lo = Math.min(lo, ball.pos.y); hi = Math.max(hi, ball.pos.y);
+  }
+  assert.ok(lo < BALL.R + 0.05 && hi > 0.6, `dribble range ${lo.toFixed(2)}..${hi.toFixed(2)}`);
+  assert.ok(bounces >= 3, 'bounce events');
 });
 
-check('camera: landscape/portrait framing, paint zoom, damping, rim and ball inside NDC', () => {
-  const ballPos = new THREE.Vector3(2, 1, -6);
-  const world = { ball: { pos: ballPos } };
-  const cam = new BroadcastCamera(844 / 390);
-  cam.update(FIXED_DT, world);   // first update snaps
-  assert.equal(cam.camera.fov, 44);
-  assert.ok(Math.abs(cam.camera.position.x - 0.7) < 1e-9 && Math.abs(cam.camera.position.y - 8) < 1e-9);
-  assert.ok(Math.abs(cam.camera.position.z - (4.5 + 0.2 * 3)) < 1e-9, 'z ' + cam.camera.position.z);
-  const project = (x, y, z) => { cam.camera.updateMatrixWorld(true); const v = new THREE.Vector3(x, y, z).project(cam.camera); return v; };
-  let v = project(RIM.x, RIM.y, RIM.z);
-  assert.ok(Math.abs(v.x) <= 1 && Math.abs(v.y) <= 1, 'rim in view (landscape) ' + v.x + ',' + v.y);
-  v = project(ballPos.x, ballPos.y, ballPos.z);
-  assert.ok(Math.abs(v.x) <= 1 && Math.abs(v.y) <= 1, 'ball in view (landscape)');
-  // Paint zoom: fov damps toward 40 at rate 3.
-  ballPos.set(0, 1, -11);
-  cam.update(0.5, world);
-  const expected = 44 + (40 - 44) * (1 - Math.exp(-3 * 0.5));
-  assert.ok(Math.abs(cam.camera.fov - expected) < 1e-6, 'fov ' + cam.camera.fov);
-  for (let i = 0; i < 300; i++) cam.update(FIXED_DT, world);
-  assert.ok(Math.abs(cam.camera.fov - 40) < 0.05, 'zoomed fov ' + cam.camera.fov);
-  // Portrait.
-  cam.setAspect(390 / 844);
-  ballPos.set(-7.62, 0.12, -2);
-  cam.snapTo(world);
-  assert.equal(cam.camera.fov, 70);
-  assert.ok(Math.abs(cam.camera.position.x - (-0.8 * 7.62)) < 1e-9 && cam.camera.position.y === 11 && cam.camera.position.z === 8);
-  v = project(RIM.x, RIM.y, RIM.z);
-  assert.ok(Math.abs(v.x) <= 1 && Math.abs(v.y) <= 1, 'rim in view (portrait) ' + v.x + ',' + v.y);
-  v = project(ballPos.x, ballPos.y, ballPos.z);
-  assert.ok(Math.abs(v.x) <= 1 && Math.abs(v.y) <= 1, 'ball in view (portrait) ' + v.x + ',' + v.y);
-  // Clamping of the ball position.
-  ballPos.set(30, 0, 5);
-  cam.snapTo(world);
-  assert.ok(Math.abs(cam.camera.position.x - 0.8 * 7.62) < 1e-9);
-  // Position damping at rate 5.
-  cam.setAspect(16 / 9);
-  ballPos.set(0, 0, -9);
-  cam.snapTo(world);
-  ballPos.set(4, 0, -9);
-  cam.update(0.2, world);
-  assert.ok(Math.abs(cam.camera.position.x - 0.35 * 4 * (1 - Math.exp(-1))) < 1e-9, 'damped x ' + cam.camera.position.x);
+// ================================================================================================ player
+
+function lonePlayer(id) {
+  const p = new Player({ id, team: 0, index: 0, anim: 'proxy' });
+  p.reset(0, -6, Math.PI);
+  p.clampToCourt = false;
+  return { p, w: { players: [p], ball: { pos: { x: 0, y: 0, z: 0 }, owner: null }, offense: 0 } };
+}
+
+check('locomotion (§5.2): accel to run, sprint × sprintMul, handler × handlerMul, decel, stamina drain / refill', () => {
+  for (const id of ['kobe', 'yao', 'kyrie']) {
+    const { p, w } = lonePlayer(id);
+    const a = p.attrs;
+    p.intent.move.x = 1; p.intent.move.z = 0; p.intent.move.mag = 1;
+    const tAcc = a.run / a.accel;
+    for (let i = 0; i < Math.ceil(tAcc / dt) + 2; i++) p.step(dt, w);
+    near(p.speed, a.run, 1e-6, id + ' run');
+    p.intent.sprint = true;
+    for (let i = 0; i < 60; i++) p.step(dt, w);
+    near(p.speed, a.run * a.sprintMul, 1e-6, id + ' sprint');
+    near(p.stamina, 1 - a.staminaDrain * 1.0, 0.02, 'drain');
+    p.hasBall = true;
+    for (let i = 0; i < 30; i++) p.step(dt, w);
+    near(p.speed, a.run * a.sprintMul * a.handlerMul, 1e-6, 'handler');
+    p.hasBall = false; p.intent.sprint = false; p.intent.move.mag = 0; p.intent.move.x = 0;
+    const s0 = p.speed;
+    for (let i = 0; i < Math.ceil(s0 / a.decel / dt) + 2; i++) p.step(dt, w);
+    near(p.speed, 0, 1e-9, 'stopped by decel');
+    const st = p.stamina;
+    for (let i = 0; i < 60; i++) p.step(dt, w);
+    near(p.stamina, Math.min(1, st + MOVE.STAMINA_REFILL), 1e-6, 'refill 1/6 per s');
+  }
 });
 
-console.log(passed + ' checks passed');
+check('turn rate attrs.turn (C21) and the handler facing rule (slow handler faces the rim)', () => {
+  const { p, w } = lonePlayer('yao');
+  p.yaw = 0;                                         // facing +z (away from the rim)
+  p.hasBall = true; p.offense = true;
+  const y0 = p.yaw;
+  for (let i = 0; i < 6; i++) p.step(dt, w);
+  near(Math.abs(p.yaw - y0), p.attrs.turn * 6 * dt, 1e-6, 'turning at attrs.turn');
+  for (let i = 0; i < 60; i++) p.step(dt, w);
+  near(Math.abs(Math.abs(p.yaw) - Math.PI), 0, 1e-3, 'faces the rim');
+});
+
+check('ballistic jump from TAKEOFF: apex h, airtime T exact, landing flag; dunk rise–hang–drop profile', () => {
+  const { p, w } = lonePlayer('jordan');
+  const h = 0.82, T = 2 * Math.sqrt(2 * h / 9.81);
+  p.startJump(h, T, null, 'block', 0);
+  let top = 0, steps = 0, landed = false;
+  while (!landed && steps < 200) { p.step(dt, w); top = Math.max(top, p.jumpY); landed = p.landedNow; steps++; }
+  assert.ok(landed);
+  near(top, h, 0.01, 'apex');
+  near(steps * dt, T, dt + 1e-9, 'airtime');
+  // dunk: profile {slam, hang}: apex at slam + 0.03, hang eases h → h − 0.05, free fall
+  const prof = { slam: 0.40, hang: 0.15 };
+  const air = p.startJump(0.74, 1.0, prof, 'dunk', 0);
+  const tUp = prof.slam + 0.03, g = 2 * 0.74 / (tUp * tUp);
+  near(air, tUp + prof.hang + Math.sqrt(2 * 0.69 / g), 1e-9, 'profile airtime');
+  let hung = false; steps = 0; landed = false;
+  while (!landed && steps < 200) { p.step(dt, w); hung = hung || p.hanging; landed = p.landedNow; steps++; }
+  assert.ok(hung, 'hang phase flagged (separation 0.95 m)');
+  near(steps * dt, air, dt + 1e-9);
+});
+
+check('root motion: a crossover clip drives the velocity and position (no teleport); stun and fall timers', () => {
+  const { p, w } = lonePlayer('kyrie');
+  p.hasBall = true; p.ballMode = 'dribble';
+  const x0 = p.pos.x;
+  p.playClip(clipIndex('move.cross'), null);
+  let moved = 0, maxStep = 0;
+  for (let i = 0; i < 24; i++) { const px = p.pos.x, pz = p.pos.z; p.step(dt, w); maxStep = Math.max(maxStep, Math.hypot(p.pos.x - px, p.pos.z - pz)); }
+  moved = Math.abs(p.pos.x - x0);
+  assert.ok(moved > 0.3, 'lateral displacement ' + moved.toFixed(2));
+  assert.ok(maxStep < 0.2, 'no teleport');
+  p.stun(0.30);
+  assert.equal(p.state, 'stunned');
+  for (let i = 0; i < 19; i++) p.step(dt, w);
+  assert.equal(p.state, 'idle');
+  p.fall(1.60);
+  for (let i = 0; i < 95; i++) p.step(dt, w);
+  assert.equal(p.state, 'fallen');
+  for (let i = 0; i < 2; i++) p.step(dt, w);
+  assert.equal(p.state, 'idle');
+});
+
+// ================================================================================================ rules
+
+check('B11 / R1: debugShoot p 1 from (0, −8.3) → +2; from (0, −4.8) → +3 (feet at release)', () => {
+  let g = liveGame(2);
+  let p = g.byId.lebron;
+  shootFrom(g, 'lebron', 0, -8.3, { p: 1, eT: 0 });
+  assert.ok(stepUntil(g, () => g.score[p.team] > 0, 240), 'scored within 4 s');
+  assert.equal(g.score[p.team], 2);
+  assert.ok(stepUntil(g, () => g.state === 'LIVE' && g.world.offense !== p.team, 300), 'DEAD → CHECK → LIVE, possession switched');
+  g = liveGame(3);
+  p = g.byId.lebron;
+  shootFrom(g, 'lebron', 0, -4.8, { p: 1, eT: 0 });
+  assert.ok(stepUntil(g, () => g.score[p.team] > 0, 240));
+  assert.equal(g.score[p.team], 3);
+  assert.equal(p.stats.tpm, 1);
+});
+
+check('S8 / R1: a sprinting shooter pressing 0.1 m outside the arc and releasing 0.4 m inside scores 2; stationary 3', () => {
+  for (let k = 0; k < 10; k++) {
+    const g = liveGame(20 + k);
+    const p = g.byId.kobe;
+    g.stageLive(p.team, p);
+    const z0 = RIM.z + LINES.THREE_R + 0.1;
+    g.teleport(p, 0, z0, Math.PI);
+    p.vel.set(0, 0, -6.0);
+    pressButton(p.intent.primary, g.world.time * 1000);
+    g.step(dt);
+    assert.ok(p.shot.active, 'shot started');
+    let released = false;
+    for (let i = 0; i < 60 && !released; i++) {
+      const inside = (RIM.z + LINES.THREE_R) - p.pos.z;
+      if (inside >= 0.4 && g.world.time - p.shot.pressT >= 0.13) releaseButton(p.intent.primary, g.world.time * 1000);
+      g.step(dt);
+      released = p.shot.released;
+    }
+    assert.ok(released, 'released');
+    assert.ok(!isThree(p.shot.x, p.shot.z), 'feet inside the arc at release');
+    assert.equal(p.shot.points, 2, 'pressed outside, released inside → 2');
+  }
+  const g = liveGame(40);
+  const p = g.byId.kobe;
+  shootFrom(g, 'kobe', 0, RIM.z + LINES.THREE_R + 0.1, { p: 1, eT: 0 });
+  assert.ok(stepUntil(g, () => p.shot.released, 120));
+  assert.equal(p.shot.points, 3, 'stationary 0.1 m outside → 3');
+});
+
+check('R2: an untouched air ball recovered by the offence keeps the shot clock running; a rim miss resets it', () => {
+  const g = liveGame(5);
+  const p = g.byId.lebron;
+  shootFrom(g, 'lebron', 0, -8.3, { p: 0, eT: -0.20 });
+  assert.ok(stepUntil(g, () => g.ball.state === 'flight', 120));
+  assert.equal(p.shot.airball, true);
+  const mate = g.roster[p.team][1];
+  g.teleport(mate, 0, -12.1, Math.PI);
+  assert.ok(stepUntil(g, () => g.ball.owner === mate || g.state !== 'LIVE', 240), 'offence recovers');
+  assert.equal(g.ball.shot.touched, false);
+  assert.ok(g.world.shotClock < CLOCK.SHOT - 1.0, 'shot clock kept running: ' + g.world.shotClock.toFixed(2));
+  // a miss that touched the rim, recovered by the offence → 14
+  const g2 = liveGame(6);
+  const q = g2.byId.lebron;
+  shootFrom(g2, 'lebron', 0, -8.3, { p: 0, eT: -0.10 });
+  assert.ok(stepUntil(g2, () => g2.ball.shot.touched || g2.state !== 'LIVE', 240), 'touched the rim');
+  const mate2 = g2.roster[q.team][1];
+  assert.ok(stepUntil(g2, () => { if (g2.ball.isFree && g2.ball.state === 'loose') g2.teleport(mate2, g2.ball.pos.x, g2.ball.pos.z, 0); return g2.ball.owner === mate2 || g2.state !== 'LIVE'; }, 240));
+  if (g2.ball.owner === mate2) near(g2.world.shotClock, CLOCK.SHOT, 2 * dt, 'reset to 14');
+});
+
+check('R3: a release in the step the shot clock expires is valid; with the clock already 0 it is whistled', () => {
+  const g = liveGame(7);
+  const p = g.byId.lebron;
+  const ev = [];
+  g.on('*', (e, t) => ev.push({ t, reason: e.reason }));
+  shootFrom(g, 'lebron', 0, -8.3, { p: 1, eT: 0 });
+  const s = p.shot;
+  // just before the release step: let the clock expire during that very step
+  assert.ok(stepUntil(g, () => g.world.time + dt - s.pressT + 1e-9 >= s.tIdeal + s.forcedET, 120));
+  g.world.shotClock = dt * 0.5;
+  g.step(dt);
+  assert.ok(s.released, 'released in the expiry step');
+  assert.ok(stepUntil(g, () => g.score[p.team] > 0 || g.state !== 'LIVE', 240));
+  assert.equal(g.score[p.team], 2, 'the basket counts');
+  assert.ok(!ev.some((e) => e.t === 'turnover' && e.reason === 'shotClock'), 'no violation');
+  // clock already at 0 at the start of the step: violation before the release is processed
+  const g2 = liveGame(8);
+  const q = g2.byId.lebron;
+  const ev2 = [];
+  g2.on('*', (e, t) => ev2.push({ t, reason: e.reason }));
+  shootFrom(g2, 'lebron', 0, -8.3, { p: 1, eT: 0 });
+  assert.ok(stepUntil(g2, () => g2.world.time + dt - q.shot.pressT + 1e-9 >= q.shot.tIdeal, 120));
+  g2.world.shotClock = 0;
+  g2.step(dt);
+  assert.ok(ev2.some((e) => e.t === 'turnover' && e.reason === 'shotClock'), 'whistled');
+  assert.equal(g2.state, 'DEAD');
+});
+
+/** A real shot whose ball is then hovered over the hoop so it drops through `delay` s after becoming loose. */
+function rattler(seed, delay) {
+  const g = liveGame(seed);
+  const p = g.byId.lebron;
+  shootFrom(g, 'lebron', 0, -8.3, { p: 1, eT: 0 });
+  assert.ok(stepUntil(g, () => g.ball.state === 'flight', 120));
+  const b = g.ball;
+  // the rim kicked it straight up: loose, touched; it falls through the cylinder after `delay` s
+  b.state = 'loose'; b.shot.touched = true; b.looseT = 0; b.rimContacts = 1; b.contacted = true;
+  const fall = 0.5 * 9.81 * delay * delay;
+  b.pos.set(RIM.x, RIM.y + fall + 0.01, RIM.z); b.vel.set(0, 0, 0); b.prevPos.copy(b.pos);
+  g.world.gameClock = dt * 0.5;                       // the buzzer sounds in this step
+  const team = p.team, before = g.score[team];
+  for (let i = 0; i < 120; i++) g.step(dt);
+  return g.score[team] - before;
+}
+
+check('R4: a rim-rattler dropping 0.4 s after the buzzer counts, 0.6 s does not (period ends at 0.5 s loose)', () => {
+  assert.equal(rattler(30, 0.40), 2, '0.4 s counts');
+  assert.equal(rattler(31, 0.60), 0, '0.6 s does not');
+});
+
+check('R5: a blocked three that still drops keeps 3 points for the shooter', () => {
+  const g = liveGame(9);
+  const p = g.byId.lebron;
+  shootFrom(g, 'lebron', 0, -4.8, { p: 0, eT: 0 });
+  assert.ok(stepUntil(g, () => g.ball.state === 'flight', 120));
+  assert.equal(p.shot.points, 3);
+  const d = g.roster[1 - p.team][0];
+  // the block: lastToucher = the defender, touched; the ball then drops through the hoop
+  g.applyBlock(d, p, false, false);
+  const b = g.ball;
+  b.state = 'loose';
+  b.pos.set(RIM.x, RIM.y + 0.6, RIM.z); b.vel.set(0, 0, 0); b.prevPos.copy(b.pos);
+  assert.ok(stepUntil(g, () => g.score[p.team] > 0, 120));
+  assert.equal(g.score[p.team], 3, 'deflected make keeps shotInfo.points');
+  assert.equal(p.stats.pts, 3);
+  assert.equal(d.stats.blk, 1);
+});
+
+check('state machine: CHECK → LIVE at 1.2 s, periods, halftime 3 s, OT on a tie, GAME_OVER with MVP; Q1/Q2/Q3/Q4 order', () => {
+  const g = new Game({ scene: null, anim: 'proxy', seed: 11, quarterSec: 6, ai: FROZEN_AI, auto: true });
+  const states = [];
+  const ev = { quarter: 0, gameover: null };
+  g.on('state', (e) => states.push(e.to));
+  g.on('quarter', () => ev.quarter++);
+  g.on('gameover', (e) => { ev.gameover = { winner: e.winner, mvpId: e.mvpId, rows: e.box.length }; });
+  g.start({});
+  assert.equal(g.state, 'CHECK');
+  for (let i = 0; i < Math.round(CLOCK.CHECK / dt) - 1; i++) g.step(dt);
+  assert.equal(g.state, 'CHECK');
+  g.step(dt); g.step(dt);
+  assert.equal(g.state, 'LIVE');
+  const opening = [];
+  g.on('state', (e) => { if (e.to === 'CHECK' && (e.reason === 'quarter')) opening.push(g.world.offense); });
+  g.score[0] = 2;                                     // avoid overtime
+  for (let i = 0; i < 60 * 60 && g.state !== 'GAME_OVER'; i++) g.step(dt);
+  assert.equal(g.state, 'GAME_OVER');
+  assert.ok(states.includes('HALFTIME') && states.includes('QUARTER_END'));
+  assert.equal(ev.quarter, 4);
+  assert.ok(ev.gameover && ev.gameover.rows === 6 && ev.gameover.winner === 0 && !!ev.gameover.mvpId);
+  assert.equal(g.byId[ev.gameover.mvpId].team, 0, 'MVP from the winning team');
+  assert.deepEqual(opening, [1 - g.q1Offense, 1 - g.q1Offense, g.q1Offense], 'Q2 other, Q3 = Q2, Q4 = Q1');
+  // tie → overtime 1:00
+  const t = new Game({ scene: null, anim: 'proxy', seed: 12, quarterSec: 3, ai: FROZEN_AI, auto: true });
+  t.start({});
+  for (let i = 0; i < 60 * 60 && t.world.quarter < 5; i++) t.step(dt);
+  assert.equal(t.world.quarter, 5, 'overtime');
+  near(t.world.gameClock, CLOCK.OT, 0.01);
+});
+
+check('lifecycle: intro / endIntro, lineup, pause + resume countdown, holdDead, quit, rematch, setLineup', () => {
+  const g = new Game({ scene: null, anim: 'proxy', seed: 13, quarterSec: 60, ai: FROZEN_AI, auto: true });
+  assert.equal(g.state, 'MENU');
+  g.enterLineup();
+  assert.equal(g.state, 'LINEUP');
+  g.step(dt);
+  assert.equal(g.state, 'LINEUP', 'no sim in LINEUP');
+  g.start({ intro: true });
+  assert.equal(g.state, 'INTRO');
+  g.step(dt);
+  assert.equal(g.state, 'INTRO');
+  g.endIntro();
+  assert.equal(g.state, 'CHECK');
+  stepUntil(g, () => g.state === 'LIVE', 100);
+  const clock = g.world.gameClock;
+  assert.equal(g.pause(), true);
+  for (let i = 0; i < 30; i++) g.step(dt);
+  assert.equal(g.world.gameClock, clock, 'clock frozen while paused');
+  g.resume();
+  for (let i = 0; i < 59; i++) g.step(dt);
+  assert.equal(g.paused, true, 'countdown 1.0 s');
+  g.step(dt); g.step(dt);
+  assert.equal(g.paused, false);
+  g.turnover();
+  assert.equal(g.state, 'DEAD');
+  near(g.holdDead(3.0), 3.0, 1e-9);
+  for (let i = 0; i < 150; i++) g.step(dt);
+  assert.equal(g.state, 'DEAD', 'held for the replay');
+  stepUntil(g, () => g.state === 'CHECK', 100);
+  g.quit();
+  assert.equal(g.state, 'MENU');
+  g.rematch();
+  assert.equal(g.state, 'CHECK');
+  assert.deepEqual(g.score, [0, 0]);
+  assert.equal(g.setLineup({ a: ['kobe', 'kyrie', 'yao'], b: ['jordan', 'lebron', 'giannis'], user: 'b', kits: 'auto' }), true);
+  assert.equal(g.byId.kobe.team, 0); assert.equal(g.byId.lebron.team, 1);
+  assert.equal(g.world.user, 1);
+  assert.equal(g.state, 'CHECK', 'in a game: restarted');
+  assert.equal(g.setLineup({ a: ['kobe', 'kobe', 'yao'], b: ['jordan', 'lebron', 'giannis'] }), false);
+});
+
+check('events: §1.4.1 names only, pooled payloads with base fields; meter source during a human windup', () => {
+  const g = new Game({ scene: null, anim: 'proxy', seed: 14, quarterSec: 120, auto: false, ai: FROZEN_AI });
+  const names = new Set();
+  g.on('*', (e, t) => { names.add(t); assert.equal(e.type, t); assert.ok(Number.isFinite(e.t + e.x + e.z)); });
+  g.start({});
+  stepUntil(g, () => g.state === 'LIVE', 100);
+  const user = g.world.controlled;
+  if (user.team !== g.world.offense) g.turnover();
+  stepUntil(g, () => g.state === 'LIVE' && g.world.controlled.team === g.world.offense, 300);
+  const c = g.world.controlled;
+  g.stageLive(c.team, c);
+  g.teleport(c, 0, -8.3, Math.PI);
+  pressButton(c.intent.primary, g.world.time * 1000);
+  g.step(dt); g.step(dt);
+  for (let i = 0; i < 10; i++) g.step(dt);
+  assert.equal(g.meter.active, true, 'meter active for the human windup');
+  assert.ok(g.meter.fill > 0 && g.meter.fill < 1.25);
+  assert.ok(g.meter.greenLo < 0.80 && g.meter.greenHi > 0.80);
+  assert.equal(g.meter.points, 2);
+  releaseButton(c.intent.primary, g.world.time * 1000);
+  g.step(dt);
+  assert.ok(['perfect', 'early', 'late'].includes(g.meter.flash), 'flash ' + g.meter.flash);
+  for (let i = 0; i < 400; i++) g.step(dt);
+  for (const n of names) assert.ok(EVENTS.includes(n), 'known event ' + n);
+  assert.ok(names.has('shot') && names.has('release') && names.has('state') && names.has('possession'));
+  assert.ok(g.recentEvents().length <= 64);
+  assert.ok(STATES.includes(g.state));
+});
+
+check('auto-switch (R10): an opponent catch moves control to his defender after ≥ 0.40 s of idle stick; off → never', () => {
+  for (const on of [true, false]) {
+    const g = new Game({ scene: null, anim: 'proxy', seed: 15, quarterSec: 120, auto: false, ai: FROZEN_AI, rules: { clear: false, autoSwitch: on } });
+    g.start({});
+    stepUntil(g, () => g.state === 'LIVE', 100);
+    if (g.world.offense === g.world.user) { g.turnover(); stepUntil(g, () => g.state === 'LIVE', 300); }
+    assert.notEqual(g.world.offense, g.world.user);
+    const handler = g.ball.owner;
+    const receiver = g.roster[g.world.offense].find((q) => q !== handler);
+    const mine = g.roster[g.world.user].find((q) => q.defAssign === receiver);
+    const u = g.world.controlled;
+    assert.notEqual(u, mine, 'controlling someone else');
+    u.intent.move.idle = 0.5;
+    g.startPass(handler, receiver, false);
+    assert.ok(stepUntil(g, () => g.ball.owner === receiver || g.state !== 'LIVE', 120));
+    if (g.ball.owner === receiver) assert.equal(g.world.controlled === mine, on, on ? 'switched' : 'not switched');
+  }
+});
+
+check('tip / putback (§5.6): an airborne offensive player at a descending miss tips it (kind tip, FGA); Giannis slams it', () => {
+  for (const tipper of ['kyrie', 'giannis']) {
+    const g = liveGame(3);
+    shootFrom(g, 'lebron', 0, -8.3, { eT: 0, p: 0 });
+    const kinds = [];
+    g.on('release', (e) => kinds.push('release:' + e.kind + '@' + e.playerId));
+    g.on('slam', (e) => kinds.push('slam@' + e.playerId));
+    const t = g.byId[tipper];
+    let placed = false;
+    for (let k = 0; k < 400 && !placed; k++) {
+      g.step(dt);
+      const b = g.ball;
+      if (b.state === 'loose' && b.ctx === 'shot' && b.vel.y < 0 && b.rimDistance() < 1.0 && b.pos.y < 3.4) {
+        g.teleport(t, b.pos.x, b.pos.z + 0.3, Math.PI);
+        const h = Math.max(0.3, b.pos.y - t.legend.stats.reachM + 0.35);
+        t.state = 'jump'; t.startJump(h, 2 * Math.sqrt(2 * h / 9.81), null, 'rebound', 0);
+        t.jumpT = t.jumpAir / 2 - dt; t.jumpY = t.jumpAt(t.jumpT);
+        placed = true;
+      }
+    }
+    assert.ok(placed, 'miss reached the rim area');
+    for (let k = 0; k < 120; k++) g.step(dt);
+    if (tipper === 'kyrie') {
+      assert.ok(kinds.includes('release:tip@kyrie'), kinds.join(' '));
+      assert.equal(t.stats.fga, 1, 'the tip is a field-goal attempt');
+    } else {
+      assert.ok(kinds.includes('slam@giannis'), kinds.join(' '));
+      assert.equal(t.stats.pts, 2, 'putback dunk scores 2');
+    }
+  }
+});
+
+check('kobe.jab rip-through: after 2 jabs, SPRINT + stick toward the rim within 0.8 s starts sig.kobe.jabGo; 1 jab does not', () => {
+  for (const jabs of [2, 1]) {
+    const g = liveGame(4);
+    const k = g.byId.kobe;
+    g.stageLive(k.team, k); g.teleport(k, 1, -7.5, Math.PI);
+    assert.ok(k.holding);
+    const moves = [];
+    g.on('move', (e) => moves.push(e.moveId));
+    k.cx.jabsThisHold = jabs; k.cx.lastJabT = g.world.time;
+    const dx = RIM.x - k.pos.x, dz = RIM.z - k.pos.z, L = Math.hypot(dx, dz);
+    k.intent.move.x = dx / L; k.intent.move.z = dz / L; k.intent.move.mag = 1; k.intent.move.idle = 0; k.intent.sprint = true;
+    for (let i = 0; i < 30; i++) g.step(dt);
+    assert.equal(moves.includes('sig.kobe.jabGo'), jabs === 2, moves.join(','));
+    if (jabs === 2) assert.ok(k.dribbling && k.speed > 4.0, 'driving ' + k.speed);
+  }
+});
+
+console.log(`unit-ball: ${passed} checks passed`);

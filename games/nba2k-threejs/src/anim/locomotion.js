@@ -1025,6 +1025,8 @@ export class Gait {
       if (f.mode === 0) return prm.strike < 0 ? prm.strike * DEG * (1 - smooth(q / 0.15)) : 0;
       if (prm.toeAt <= 0) return (prm.strike > 0 ? prm.strike : 0) * DEG * (1 - smooth(q / 0.4)) + prm.toeOff * DEG * smooth((q - 0.5) / 0.5);
       if (!f.toe) return f.pitch;
+      // a toe lock carried into a band without one (toeAt = 1, e.g. run → walk) holds its heel until the next plant
+      if (prm.toeAt >= 1 - 1e-6) return f.pitch;
       return prm.toeOff * DEG * smooth((q - prm.toeAt) / (1 - prm.toeAt));
     }
     if (this.mode === GAIT.SLIDE) return f.mode === 1 ? 8 * DEG : 0;

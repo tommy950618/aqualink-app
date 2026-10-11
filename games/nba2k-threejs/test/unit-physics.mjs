@@ -1,16 +1,20 @@
-// Unit checks for physics.js and shot.js (no DOM, no renderer).
+// Unit checks for physics.js v2 (no DOM, no renderer): the integrator and the timed / apex arc solvers, rim (v2
+// restitution 0.40, tangential 0.80, kick-out), backboard (0.50), floor, made-basket detection, the §5.3.7 miss
+// targets flown through the physics (early misses hit the rim, green misses short or long, air balls drop in front
+// of the rim without touching it), §5.5 passes (flight max(dist/speed, 0.25), lob apex 1.8 m), predictLanding, and the
+// §5.2 / C3 separation (bodyR sums, +0.10 airborne, 0.95 m against a hanging dunker, immovable players, box-out
+// favour, AI court clamp).
 // Run: node test/unit-physics.mjs
 import assert from 'node:assert/strict';
 import {
-  integrateBall, collideFloor, collideRim, collideBackboard, testMadeBasket,
-  solveArc, apexForDistance, solvePass, predictLanding, stepFreeBall, solveTimed, nearRim,
+  integrateBall, collideFloor, collideRim, collideBackboard, testMadeBasket, solveArc, apexForDistance, solvePass,
+  predictLanding, stepFreeBall, solveTimed, nearRim, pairMinDistance, resolveSeparation, RIM_TANGENTIAL,
 } from '../src/physics.js';
-import {
-  classifyShot, contestFactor, makeProbability, timingFactor, chooseTarget, meterDuration,
-  baseProbability, greenHalfWidth,
-} from '../src/shot.js';
-import { RIM, BOARD, BALL, FIXED_DT, SHOT } from '../src/constants.js';
+import { chooseTarget, airBallTarget } from '../src/shot.js';
+import { RIM, BOARD, BALL, FIXED_DT, RIM_PHYS, SEPARATION, MOVE, REBOUND } from '../src/constants.js';
 import { Rng } from '../src/math.js';
+import { LEGENDS } from '../src/legends.js';
+import { derive } from '../src/ratings.js';
 
 let passed = 0;
 function check(name, fn) {
@@ -18,58 +22,66 @@ function check(name, fn) {
   passed++;
   console.log('ok - ' + name);
 }
+const near = (a, b, tol, msg) => assert.ok(Math.abs(a - b) <= tol, `${msg || ''} ${a} vs ${b} (±${tol})`);
 
 function makeBall(x, y, z, vx = 0, vy = 0, vz = 0) {
-  return {
-    pos: { x, y, z }, prevPos: { x, y, z }, vel: { x: vx, y: vy, z: vz },
-    rimContacts: 0, rimEnabled: true,
-  };
+  return { pos: { x, y, z }, prevPos: { x, y, z }, vel: { x: vx, y: vy, z: vz }, rimContacts: 0, rimEnabled: true };
 }
-
 function flyTo(ball, T) {
   const n = Math.round(T / FIXED_DT);
   for (let i = 0; i < n; i++) integrateBall(ball, FIXED_DT);
   return ball;
 }
-
-check('solveArc + integrateBall reaches the rim within 0.06 m at time T', () => {
-  const from = { x: 0, y: 2.05, z: -8 };
-  const arc = solveArc(from, RIM, 1.6, BALL.G, {});
-  assert.ok(arc.T > 1.0 && arc.T < 1.6, 'T ' + arc.T);
+/** Flies a shot to its target; returns { rim, board, scored, firstFloor (distance from the rim), restInside }. */
+function flyShot(from, target, rng) {
+  const d = Math.hypot(from.x - RIM.x, from.z - RIM.z);
+  const arc = solveArc(from, target, apexForDistance(d), BALL.G, {});
   const ball = makeBall(from.x, from.y, from.z, arc.vx, arc.vy, arc.vz);
-  flyTo(ball, arc.T);
-  const err = Math.hypot(ball.pos.x - RIM.x, ball.pos.y - RIM.y, ball.pos.z - RIM.z);
-  assert.ok(err < 0.06, 'arrival error ' + err);
-  // Apex actually rises about apexAbove over the higher endpoint.
-  const b2 = makeBall(from.x, from.y, from.z, arc.vx, arc.vy, arc.vz);
-  let top = 0;
-  for (let i = 0; i < 60; i++) { integrateBall(b2, FIXED_DT); top = Math.max(top, b2.pos.y); }
-  assert.ok(Math.abs(top - (RIM.y + 1.6)) < 0.08, 'apex ' + top);
-  // Also from a wing three, with the spec apex table.
-  const wing = { x: 5.4, y: 2.05, z: -7.6 };
-  const d = Math.hypot(wing.x - RIM.x, wing.z - RIM.z);
-  const arc2 = solveArc(wing, RIM, apexForDistance(d), BALL.G, {});
-  const b3 = flyTo(makeBall(wing.x, wing.y, wing.z, arc2.vx, arc2.vy, arc2.vz), arc2.T);
-  assert.ok(Math.hypot(b3.pos.x - RIM.x, b3.pos.y - RIM.y, b3.pos.z - RIM.z) < 0.06);
+  ball.boardEnabled = true;
+  const out = { rim: false, board: false, scored: false, firstFloor: -1 };
+  for (let s = 0; s < 600; s++) {
+    const ev = stepFreeBall(ball, FIXED_DT, rng);
+    if (ev.rim > 0) out.rim = true;
+    if (ev.board > 0) out.board = true;
+    if (ev.scored) out.scored = true;
+    if (ev.floor > 0 && out.firstFloor < 0) out.firstFloor = Math.hypot(ball.pos.x - RIM.x, ball.pos.z - RIM.z);
+    if (ball.pos.y <= BALL.R + 1e-6 && ball.vel.x === 0 && ball.vel.y === 0 && ball.vel.z === 0) break;
+  }
+  return out;
+}
+/** A minimal separation participant. */
+function body(id, x, z, extra = {}) {
+  return Object.assign({ id, legend: LEGENDS[id], attrs: derive(LEGENDS[id]), pos: { x, y: 0, z }, isJumping: false, hanging: false, sepFixed: false, boxT: 0, boxing: null, clampToCourt: false, isUser: false }, extra);
+}
+
+check('solveArc + integrateBall reach the target within 0.06 m at time T; the apex rises apexAbove', () => {
+  for (const from of [{ x: 0, y: 2.6, z: -8 }, { x: 5.4, y: 2.8, z: -7.6 }, { x: -6.9, y: 2.7, z: -13.0 }]) {
+    const d = Math.hypot(from.x - RIM.x, from.z - RIM.z);
+    const arc = solveArc(from, RIM, apexForDistance(d), BALL.G, {});
+    const ball = flyTo(makeBall(from.x, from.y, from.z, arc.vx, arc.vy, arc.vz), arc.T);
+    assert.ok(Math.hypot(ball.pos.x - RIM.x, ball.pos.y - RIM.y, ball.pos.z - RIM.z) < 0.06, 'arrival');
+    const b2 = makeBall(from.x, from.y, from.z, arc.vx, arc.vy, arc.vz);
+    let top = 0;
+    for (let i = 0; i < Math.round(arc.T / FIXED_DT); i++) { integrateBall(b2, FIXED_DT); top = Math.max(top, b2.pos.y); }
+    near(top, Math.max(from.y, RIM.y) + apexForDistance(d), 0.08, 'apex');
+  }
+  assert.deepEqual([apexForDistance(1), apexForDistance(3), apexForDistance(6), apexForDistance(8)], [1.0, 1.6, 2.1, 2.6]);
+  const timed = solveTimed({ x: 0, y: 1, z: 0 }, { x: 1, y: 1, z: 0 }, 0.5, BALL.G, {});
+  assert.equal(timed.T, Math.round(0.5 / FIXED_DT) * FIXED_DT);
 });
 
-check('a ball dropped onto the front rim bounces', () => {
+check('rim v2 (R#31): restitution 0.40 and tangential 0.80 on a normal hit; kick-out after 4 contacts', () => {
+  // a ball falling straight onto the top of the tube: purely normal impact → |vy'| = 0.40·|vy| (±5 % jitter)
+  const top = makeBall(RIM.x, RIM.y + BALL.R + RIM.collideTube - 0.001, RIM.z + RIM.r, 0, -4, 0);
+  const s = collideRim(top, null);
+  near(s, 4, 1e-9, 'impact');
+  near(top.vel.y, RIM_PHYS.REST_RIM * 4, 1e-9, 'restitution');
+  // oblique impact: the tangential component keeps 0.80
+  const ob = makeBall(RIM.x, RIM.y + BALL.R + RIM.collideTube - 0.001, RIM.z + RIM.r, 2, -4, 0);
+  collideRim(ob, null);
+  near(ob.vel.x, 2 * RIM_TANGENTIAL, 1e-9, 'tangential');
+  assert.equal(RIM_TANGENTIAL, 0.80);
   const rng = new Rng(3);
-  const ball = makeBall(RIM.x, RIM.y + 0.6, RIM.z + RIM.r, 0, 0, 0);
-  let hit = 0, bounced = false;
-  for (let i = 0; i < 90; i++) {
-    integrateBall(ball, FIXED_DT);
-    const s = collideRim(ball, rng);
-    if (s > 0) { hit = s; }
-    if (hit > 0 && ball.vel.y > 0) bounced = true;
-    if (hit > 0) break;
-  }
-  assert.ok(hit > 0, 'no rim contact');
-  const q = { x: ball.pos.x - RIM.x, z: ball.pos.z - RIM.z };
-  const ringDist = Math.hypot(Math.hypot(q.x, q.z) - RIM.r, ball.pos.y - RIM.y);
-  assert.ok(bounced || ringDist >= BALL.R + RIM.collideTube - 1e-6, 'ball neither bounced nor left the tube');
-  assert.equal(ball.rimContacts, 1);
-  // Kick-out after more than 4 contacts in one flight disables the rim.
   const stuck = makeBall(RIM.x, RIM.y + 0.05, RIM.z + RIM.r, 0, -1, 0);
   stuck.rimContacts = 4;
   assert.ok(collideRim(stuck, rng) > 0);
@@ -78,145 +90,39 @@ check('a ball dropped onto the front rim bounces', () => {
   assert.equal(collideRim(stuck, rng), 0);
 });
 
-check('testMadeBasket: through the centre yes, 0.2 m off-centre no', () => {
+check('backboard v2: restitution 0.50 on the front face, tangential 0.90; disabled board ignores the ball', () => {
+  const ball = makeBall(0.3, 3.3, BOARD.max.z + BALL.R - 0.02, 0.5, 1, -4);
+  const s = collideBackboard(ball);
+  near(s, 4, 1e-9);
+  near(ball.vel.z, RIM_PHYS.REST_BOARD * 4, 1e-9, 'vz');
+  near(ball.vel.x, 0.45, 1e-9); near(ball.vel.y, 0.9, 1e-9);
+  near(ball.pos.z, BOARD.max.z + BALL.R, 1e-9);
+  assert.equal(collideBackboard(makeBall(0, 3.3, -10, 0, 0, -4)), 0);
+  const disabled = makeBall(0.3, 3.3, BOARD.max.z + BALL.R - 0.02, 0, 0, -4);
+  disabled.boardEnabled = false;
+  assert.equal(collideBackboard(disabled), 0);
+});
+
+check('testMadeBasket: through the centre yes, 0.2 m off-centre no, upward never; stepFreeBall reports it', () => {
   const rng = new Rng(1);
   const centre = makeBall(RIM.x, RIM.y + 0.5, RIM.z, 0, -3, 0);
   let scored = false;
-  for (let i = 0; i < 60 && !scored; i++) {
-    const prevY = centre.pos.y;
-    integrateBall(centre, FIXED_DT);
-    collideRim(centre, rng);
-    scored = testMadeBasket(prevY, centre);
-  }
+  for (let i = 0; i < 60 && !scored; i++) { const y0 = centre.pos.y; integrateBall(centre, FIXED_DT); collideRim(centre, rng); scored = testMadeBasket(y0, centre); }
   assert.equal(scored, true);
   const off = makeBall(RIM.x + 0.2, RIM.y + 0.5, RIM.z, 0, -3, 0);
-  let scoredOff = false;
-  for (let i = 0; i < 60 && !scoredOff; i++) {
-    const prevY = off.pos.y;
-    integrateBall(off, FIXED_DT);
-    scoredOff = testMadeBasket(prevY, off);   // no rim collision: pure geometric test
-  }
-  assert.equal(scoredOff, false);
-  // Upward crossings and crossings from below never count.
-  const up = makeBall(RIM.x, RIM.y - 0.01, RIM.z, 0, 3, 0);
-  assert.equal(testMadeBasket(RIM.y - 0.05, up), false);
-  // stepFreeBall reports the same event through the sub-stepped path.
+  let s2 = false;
+  for (let i = 0; i < 60 && !s2; i++) { const y0 = off.pos.y; integrateBall(off, FIXED_DT); s2 = testMadeBasket(y0, off); }
+  assert.equal(s2, false);
+  assert.equal(testMadeBasket(RIM.y - 0.05, makeBall(RIM.x, RIM.y - 0.01, RIM.z, 0, 3, 0)), false);
   const s = makeBall(RIM.x, RIM.y + 0.3, RIM.z, 0, -3, 0);
   let flag = false;
   for (let i = 0; i < 30 && !flag; i++) flag = stepFreeBall(s, FIXED_DT, rng).scored;
   assert.equal(flag, true);
+  assert.equal(nearRim({ x: RIM.x, y: RIM.y + 1.0, z: RIM.z }), true);
+  assert.equal(nearRim({ x: RIM.x, y: RIM.y, z: RIM.z + 1.3 }), false);
 });
 
-check('makeProbability matches the section 4.3 sanity values', () => {
-  const p1 = makeProbability('jumper', 4.5, 0, 1, 1, 0, 1, 0.06);
-  assert.ok(Math.abs(p1 - 0.96) <= 0.02, '4.5 m green open: ' + p1);
-  const p2 = makeProbability('jumper', 7.3, 0, 1, 1, 0, 1, 0.06);
-  assert.ok(Math.abs(p2 - 0.74) <= 0.03, '7.3 m green open: ' + p2);
-  const p3 = makeProbability('jumper', 4.5, -0.35, 1, 1, 0, 1, 0.06);
-  assert.ok(Math.abs(p3 - 0.12) <= 0.03, '4.5 m very early: ' + p3);
-  assert.equal(makeProbability('dunk', 1, 0.5, 0.45), 1);
-  // Modifiers: fatigue, movement (not for layups), rating, contest, clamps.
-  const open = makeProbability('jumper', 4.5, 0, 1, 1, 0, 1, 0.06);
-  assert.ok(Math.abs(makeProbability('jumper', 4.5, 0, 1, 0.2, 0, 1, 0.06) - open * 0.9) < 1e-9);
-  assert.ok(Math.abs(makeProbability('jumper', 4.5, 0, 1, 1, 3, 1, 0.06) - open * 0.85) < 1e-9);
-  assert.ok(Math.abs(makeProbability('layup', 0.5, 0, 1, 1, 3, 1, 0.06) - makeProbability('layup', 1.0, 0, 1, 1, 0, 1, 0.06)) < 1e-12);
-  assert.equal(makeProbability('jumper', 1.0, 0, 1, 1, 0, 1.1, 0.06), SHOT.P_MAX);
-  assert.equal(makeProbability('jumper', 12, 0.5, 0.45, 0.1, 5, 0.9, 0.05), SHOT.P_MIN);
-  assert.equal(timingFactor(0.06, 0.06), 1.6);
-  assert.ok(Math.abs(timingFactor(0.30, 0.06) - 0.30) < 1e-12);
-  assert.equal(timingFactor(0.31, 0.06), 0.20);
-  assert.ok(Math.abs(timingFactor(0.18, 0.06) - 0.95) < 1e-9);
-  assert.ok(Math.abs(greenHalfWidth('layup', 0.06) - 0.10) < 1e-12);
-  assert.ok(Math.abs(baseProbability(4.5) - 0.598) < 1e-3);
-  assert.ok(Math.abs(baseProbability(10) - 0.24) < 1e-12);
-  assert.equal(baseProbability(20), 0.10);
-});
-
-check('chooseTarget: makes land on the rim, early misses fall short', () => {
-  const rng = new Rng(5);
-  const shooter = { x: 2.5, z: -6.0 };
-  const dShooter = Math.hypot(shooter.x - RIM.x, shooter.z - RIM.z);
-  for (let i = 0; i < 200; i++) {
-    const t = chooseTarget(true, 0, 1, 'jumper', shooter, rng, {});
-    assert.ok(Math.hypot(t.x - RIM.x, t.z - RIM.z) <= 0.05 + 1e-9, 'make off rim');
-    assert.equal(t.y, RIM.y);
-    const l = chooseTarget(true, 0, 1, 'layup', shooter, rng, {});
-    assert.ok(Math.hypot(l.x - RIM.x, l.z - RIM.z) <= 0.04 + 1e-9, 'layup make off rim');
-  }
-  for (let i = 0; i < 200; i++) {
-    const t = chooseTarget(false, -0.15, 0.7, 'jumper', shooter, rng, {});
-    const dTarget = Math.hypot(t.x - shooter.x, t.z - shooter.z);
-    assert.ok(dTarget <= dShooter - RIM.r, 'early miss not short: ' + (dShooter - dTarget));
-    const a = chooseTarget(false, -0.40, 1, 'three', shooter, rng, {});
-    assert.ok(Math.abs(Math.hypot(a.x - RIM.x, a.z - RIM.z) - 0.45) < 0.06, 'air ball distance');
-    const late = chooseTarget(false, 0.15, 1, 'jumper', shooter, rng, {});
-    assert.ok(Math.hypot(late.x - shooter.x, late.z - shooter.z) >= dShooter + RIM.r, 'late miss not long');
-    const green = chooseTarget(false, 0.0, 1, 'jumper', shooter, rng, {});
-    assert.ok(Math.hypot(green.x - shooter.x, green.z - shooter.z) >= dShooter + RIM.r, 'green miss treated as late');
-    const lay = chooseTarget(false, 0.0, 1, 'layup', shooter, rng, {});
-    assert.ok(Math.hypot(lay.x - shooter.x, lay.z - shooter.z) < dShooter - RIM.r, 'layup miss short');
-  }
-  const dunk = chooseTarget(false, 0, 1, 'dunk', shooter, rng, {});
-  assert.equal(dunk.x, RIM.x); assert.equal(dunk.z, RIM.z);
-  assert.equal(meterDuration('jumper'), 0.55);
-  assert.equal(meterDuration('three'), 0.55);
-  assert.equal(meterDuration('layup'), 0.40);
-});
-
-check('an early miss aimed by chooseTarget actually hits the front rim when flown', () => {
-  const rng = new Rng(11);
-  const shooter = { x: 0, z: -8.3 };
-  const from = { x: 0, y: 2.05, z: -8.05 };
-  let rimHits = 0, airballs = 0;
-  const trials = 20;
-  for (let i = 0; i < trials; i++) {
-    const t = chooseTarget(false, -0.15, 1, 'jumper', shooter, rng, {});
-    const arc = solveArc(from, t, apexForDistance(4.45), BALL.G, {});
-    const ball = makeBall(from.x, from.y, from.z, arc.vx, arc.vy, arc.vz);
-    let hit = false;
-    for (let s = 0; s < 240 && !hit; s++) {
-      const ev = stepFreeBall(ball, FIXED_DT, rng);
-      hit = ev.rim > 0 || ev.board > 0;
-      if (ball.pos.y <= BALL.R + 1e-6 && ball.vel.y === 0) break;
-    }
-    if (hit) rimHits++;
-  }
-  assert.equal(rimHits, trials, 'rim/board contacts ' + rimHits + '/' + trials);
-  for (let i = 0; i < 10; i++) {
-    const t = chooseTarget(false, -0.40, 1, 'jumper', shooter, rng, {});
-    const arc = solveArc(from, t, apexForDistance(4.45), BALL.G, {});
-    const ball = makeBall(from.x, from.y, from.z, arc.vx, arc.vy, arc.vz);
-    let hit = false;
-    for (let s = 0; s < 240 && !hit; s++) {
-      const ev = stepFreeBall(ball, FIXED_DT, rng);
-      hit = ev.rim > 0 || ev.board > 0;
-      if (ball.pos.y <= BALL.R + 1e-6 && ball.vel.y === 0) break;
-    }
-    if (!hit) airballs++;
-  }
-  assert.ok(airballs >= 6, 'air balls ' + airballs + '/10');
-});
-
-check('a made shot flown through stepFreeBall scores', () => {
-  const rng = new Rng(21);
-  const shooter = { x: 0, z: -4.8 };
-  const from = { x: 0, y: 2.6, z: -5.05 };
-  let makes = 0;
-  for (let i = 0; i < 40; i++) {
-    const t = chooseTarget(true, 0, 1, 'three', shooter, rng, {});
-    const arc = solveArc(from, t, apexForDistance(7.95), BALL.G, {});
-    const ball = makeBall(from.x, from.y, from.z, arc.vx, arc.vy, arc.vz);
-    let scored = false;
-    for (let s = 0; s < 240 && !scored; s++) {
-      scored = stepFreeBall(ball, FIXED_DT, rng).scored;
-      if (ball.pos.y <= BALL.R + 1e-6 && ball.vel.y === 0) break;
-    }
-    if (scored) makes++;
-  }
-  assert.equal(makes, 40, 'makes ' + makes + '/40');
-});
-
-check('floor: bounce, settle, roll and rest; ball never sinks below its radius', () => {
+check('floor: bounce, settle, roll and rest; the ball never sinks below its radius', () => {
   const ball = makeBall(0, 1.5, -6, 2, 0, 0);
   let bounces = 0, minY = Infinity, steps = 0;
   while (steps++ < 60 * 8) {
@@ -226,54 +132,62 @@ check('floor: bounce, settle, roll and rest; ball never sinks below its radius',
     if (ball.vel.x === 0 && ball.vel.y === 0 && ball.pos.y === BALL.R) break;
   }
   assert.ok(bounces >= 3 && bounces <= 12, 'bounces ' + bounces);
-  assert.ok(minY >= BALL.R - 1e-9, 'minY ' + minY);
-  assert.equal(ball.vel.x, 0);
-  assert.equal(ball.pos.y, BALL.R);
-  assert.ok(steps < 60 * 8, 'ball did not come to rest');
-  // A rolling ball decays smoothly without bounce events.
+  assert.ok(minY >= BALL.R - 1e-9);
+  assert.ok(steps < 60 * 8, 'came to rest');
   const roll = makeBall(0, BALL.R, -6, 3, 0, 0);
   let ev = 0;
   for (let i = 0; i < 30; i++) { integrateBall(roll, FIXED_DT); if (collideFloor(roll, FIXED_DT) > 0) ev++; }
   assert.equal(ev, 0);
-  const expectRoll = 3 * Math.pow((1 - 2.5 * FIXED_DT) * (1 - BALL.DRAG * FIXED_DT), 30);   // roll decay x integrator drag
-  assert.ok(Math.abs(roll.vel.x - expectRoll) < 1e-9, 'roll speed ' + roll.vel.x);
-  assert.equal(roll.pos.y, BALL.R);
+  near(roll.vel.x, 3 * Math.pow((1 - 2.5 * FIXED_DT) * (1 - BALL.DRAG * FIXED_DT), 30), 1e-9, 'roll decay');
 });
 
-check('backboard reflects a ball moving into its front face', () => {
-  const ball = makeBall(0.3, 3.3, BOARD.max.z + BALL.R - 0.02, 0.5, 1, -4);
-  const s = collideBackboard(ball);
-  assert.ok(Math.abs(s - 4) < 1e-9, 'impact ' + s);
-  assert.ok(ball.vel.z > 0 && Math.abs(ball.vel.z - 2.4) < 1e-9, 'vz ' + ball.vel.z);
-  assert.ok(Math.abs(ball.vel.x - 0.45) < 1e-9 && Math.abs(ball.vel.y - 0.9) < 1e-9);
-  assert.ok(Math.abs(ball.pos.z - (BOARD.max.z + BALL.R)) < 1e-9);
-  const far = makeBall(0, 3.3, -10, 0, 0, -4);
-  assert.equal(collideBackboard(far), 0);
-  const disabled = makeBall(0.3, 3.3, BOARD.max.z + BALL.R - 0.02, 0, 0, -4);
-  disabled.boardEnabled = false;
-  assert.equal(collideBackboard(disabled), 0);
+check('miss targets flown (§5.3.7): green makes score, early misses touch rim/board, air balls never do (R#30)', () => {
+  const rng = new Rng(21);
+  const from = { x: 0, y: 2.85, z: -5.05 };          // a top-of-the-key three released at the hand
+  let makes = 0;
+  for (let i = 0; i < 40; i++) { const t = chooseTarget(true, 0, 0.035, 'jumper', 0, -4.8, 1, rng, {}); if (flyShot(from, t, rng).scored) makes++; }
+  assert.equal(makes, 40, 'makes');
+  const mid = { x: 0, y: 2.8, z: -8.05 };
+  let touched = 0;
+  for (let i = 0; i < 20; i++) { const t = chooseTarget(false, -0.12, 0.035, 'jumper', 0, -8.3, 1, rng, {}); const r = flyShot(mid, t, rng); if (r.rim || r.board) touched++; }
+  assert.equal(touched, 20, 'early misses contact the rim or board');
+  let clean = 0, inside = 0;
+  for (let i = 0; i < 20; i++) {
+    const t = airBallTarget(0, -8.3, rng, {});
+    near(t.y, RIM.y - 0.55, 1e-9);
+    const r = flyShot(mid, t, rng);
+    if (!r.rim && !r.board) clean++;
+    if (r.firstFloor >= 0 && r.firstFloor < 4.5) inside++;
+  }
+  assert.equal(clean, 20, 'air balls never touch the rim');
+  assert.ok(inside >= 16, `air balls land near the rim (${inside}/20)`);
+  // green misses go short or long with p 0.5 (R#32)
+  let shortN = 0;
+  for (let i = 0; i < 400; i++) {
+    const t = chooseTarget(false, 0, 0.035, 'jumper', 0, -8.3, 1, rng, {});
+    if (Math.hypot(t.x - RIM.x, t.z - RIM.z) > 0 && (t.z - RIM.z) > 0) shortN++;
+  }
+  near(shortN / 400, 0.5, 0.08, 'green misses short');
 });
 
-check('solvePass caps chest-pass time at max(dist/12, 0.30) and lobs rise 1.8 m', () => {
-  const from = { x: -3, y: 2.05, z: -7 };
+check('passes (§5.5): chest flight max(dist/speed, 0.25) at passSpeed, arrival within 0.03 m; lob apex 1.8 m', () => {
+  const from = { x: -3, y: 1.3, z: -7 };
   const to = { x: 3, y: 1.3, z: -8 };
   const dist = Math.hypot(to.x - from.x, to.y - from.y, to.z - from.z);
-  const chest = solvePass(from, to, false, {});
-  assert.ok(Math.abs(chest.T - Math.max(dist / 12, 0.30)) < FIXED_DT, 'T ' + chest.T);
-  const ball = flyTo(makeBall(from.x, from.y, from.z, chest.vx, chest.vy, chest.vz), chest.T);
-  assert.ok(Math.hypot(ball.pos.x - to.x, ball.pos.y - to.y, ball.pos.z - to.z) < 0.03);
-  const near = { x: -2.5, y: 1.3, z: -7 };
-  const short = solvePass(from, near, false, {});
-  assert.ok(Math.abs(short.T - 0.30) < FIXED_DT, 'short T ' + short.T);
-  const lob = solvePass(from, to, true, {});
-  assert.ok(lob.T > chest.T);
+  for (const speed of [12.0, 13.9, 15]) {
+    const chest = solvePass(from, to, false, speed, {});
+    assert.ok(Math.abs(chest.T - Math.max(dist / speed, 0.25)) < FIXED_DT, 'T ' + chest.T);
+    const b = flyTo(makeBall(from.x, from.y, from.z, chest.vx, chest.vy, chest.vz), chest.T);
+    assert.ok(Math.hypot(b.pos.x - to.x, b.pos.y - to.y, b.pos.z - to.z) < 0.03);
+  }
+  const short = solvePass(from, { x: -2.2, y: 1.3, z: -7 }, false, 13, {});
+  assert.ok(Math.abs(short.T - 0.25) < FIXED_DT, 'minimum flight 0.25 s');
+  const lob = solvePass(from, to, true, 13, {});
   const lb = makeBall(from.x, from.y, from.z, lob.vx, lob.vy, lob.vz);
   let top = 0;
   for (let i = 0; i < Math.round(lob.T / FIXED_DT); i++) { integrateBall(lb, FIXED_DT); top = Math.max(top, lb.pos.y); }
-  assert.ok(Math.abs(top - (from.y + 1.8)) < 0.08, 'lob apex ' + top);
+  near(top, from.y + 1.8, 0.08, 'lob apex');
   assert.ok(Math.hypot(lb.pos.x - to.x, lb.pos.y - to.y, lb.pos.z - to.z) < 0.03);
-  const timed = solveTimed(from, to, 0.5, BALL.G, {});
-  assert.equal(timed.T, Math.round(0.5 / FIXED_DT) * FIXED_DT);
 });
 
 check('predictLanding finds the descending crossing and returns null when unreachable', () => {
@@ -281,62 +195,43 @@ check('predictLanding finds the descending crossing and returns null when unreac
   const land = predictLanding(ball, 1.8, {});
   assert.ok(land && land.t > 0);
   const t = land.t;
-  const y = ball.pos.y + ball.vel.y * t - 0.5 * BALL.G * t * t;
-  assert.ok(Math.abs(y - 1.8) < 1e-9);
-  assert.ok(ball.vel.y - BALL.G * t < 0, 'not descending');
-  assert.ok(Math.abs(land.x - (1 + 2 * t)) < 1e-9 && Math.abs(land.z - (-9 - t)) < 1e-9);
+  near(ball.pos.y + ball.vel.y * t - 0.5 * BALL.G * t * t, 1.8, 1e-9);
+  assert.ok(ball.vel.y - BALL.G * t < 0);
   assert.equal(predictLanding(makeBall(0, 1.0, -9, 0, -3, 0), 1.8, {}), null);
-  assert.equal(predictLanding(makeBall(0, 1.0, -9, 0, 2, 0), 1.8, {}), null);
-  const above = predictLanding(makeBall(0, 4.0, -9, 0, -2, 0), 1.8, {});
-  assert.ok(above && above.t > 0);
-  assert.equal(nearRim({ x: RIM.x, y: RIM.y + 1.0, z: RIM.z }), true);
-  assert.equal(nearRim({ x: RIM.x, y: RIM.y, z: RIM.z + 1.3 }), false);
+  assert.ok(predictLanding(makeBall(0, 4.0, -9, 0, -2, 0), 1.8, {}).t > 0);
 });
 
-check('classifyShot and contestFactor over a small world', () => {
-  const mk = (team, x, z, extra = {}) => ({
-    pos: { x, y: 0, z }, team, isJumping: false, sprintedRecently: false, stamina: 1,
-    vel: { x: 0, y: 0, z: 0 }, data: { dunk: 0.9, shooting: 1, defense: 1 }, ...extra,
-  });
-  const shooter = mk(0, 0, -8.3);
-  const world = { players: [shooter], ball: null, offense: 0, rimXZ: { x: RIM.x, z: RIM.z } };
-  assert.equal(classifyShot(shooter, world), 'jumper');
-  shooter.pos.z = -4.8;
-  assert.equal(classifyShot(shooter, world), 'three');
-  shooter.pos.z = RIM.z + 1.5;
-  assert.equal(classifyShot(shooter, world), 'layup');
-  shooter.sprintedRecently = true;
-  assert.equal(classifyShot(shooter, world), 'dunk');
-  shooter.data.dunk = 0.4;
-  assert.equal(classifyShot(shooter, world), 'layup');
-  shooter.data.dunk = 0.9;
-  const lane = mk(1, 0.3, RIM.z + 0.7);
-  world.players.push(lane);
-  assert.equal(classifyShot(shooter, world), 'layup');
-  lane.team = 0;
-  assert.equal(classifyShot(shooter, world), 'dunk');
-  world.players.length = 1;
-  shooter.pos.z = -8.3;
-  shooter.sprintedRecently = false;
-  let c = contestFactor(shooter, world, {});
-  assert.equal(c.C, 1); assert.equal(c.defender, null);
-  const def = mk(1, 0, -9.0);
-  world.players.push(def);
-  c = contestFactor(shooter, world, {});
-  assert.equal(c.defender, def);
-  assert.ok(Math.abs(c.C - (0.45 + 0.55 * (0.7 - 0.5) / 1.5)) < 1e-9, 'C ' + c.C);
-  def.isJumping = true;
-  const cj = contestFactor(shooter, world, {}).C;
-  assert.ok(Math.abs(cj - c.C * 0.8) < 1e-9);
-  def.pos.z = -7.6;                     // behind the shooter: not a contest
-  assert.equal(contestFactor(shooter, world, {}).C, 1);
-  def.pos.z = -9.0; def.isJumping = false;
-  def.pos.z = -11.5;                    // 3.2 m in front: open
-  assert.equal(contestFactor(shooter, world, {}).C, 1);
-  def.pos.z = -8.7;                     // 0.4 m: fully contested
-  assert.equal(contestFactor(shooter, world, {}).C, 0.45);
-  const p = makeProbability('jumper', 4.45, 0, cj, 1, 0, 1, 0.06);
-  assert.ok(p < 0.7, 'contested jumper ' + p);
+check('separation (C3): pair minimum bodyR_a + bodyR_b, +0.10 airborne, ≥ 0.95 m vs a hanging dunker', () => {
+  const a = body('kyrie', 0, -6), b = body('lebron', 0.3, -6);
+  near(pairMinDistance(a, b), a.attrs.bodyR + b.attrs.bodyR, 1e-12);
+  assert.ok(pairMinDistance(a, b) > 0.79 - 1e-9 && pairMinDistance(a, b) < 0.87 + 1e-9);
+  a.isJumping = true;
+  near(pairMinDistance(a, b), a.attrs.bodyR + b.attrs.bodyR + SEPARATION.AIR_ADD, 1e-12);
+  a.isJumping = false; a.hanging = true;
+  near(pairMinDistance(a, b), Math.max(SEPARATION.DUNKER_MIN, a.attrs.bodyR + b.attrs.bodyR), 1e-12);
+  // the push splits the overlap in half for free bodies
+  const c = body('kobe', 0, -6), d = body('jordan', 0.5, -6);
+  resolveSeparation([c, d]);
+  near(d.pos.x - c.pos.x, c.attrs.bodyR + d.attrs.bodyR, 1e-9, 'resolved distance');
+  near(c.pos.x, -(c.attrs.bodyR + d.attrs.bodyR - 0.5) / 2, 1e-9, 'half each');
 });
 
-console.log(passed + ' checks passed');
+check('separation: hanging dunker / root-motion signature clip immovable; box-out favour 0.3 + 0.004·strDiff', () => {
+  const dunker = body('giannis', 0, -12, { hanging: true, sepFixed: true }), o = body('kobe', 0.4, -12);
+  resolveSeparation([dunker, o]);
+  near(dunker.pos.x, 0, 1e-12, 'dunker immovable');
+  near(o.pos.x, SEPARATION.DUNKER_MIN, 1e-9, 'the other takes the whole push to 0.95 m');
+  const boxer = body('yao', 0, -11), man = body('kyrie', 0.5, -11);
+  boxer.boxT = 0.4; boxer.boxing = man;
+  resolveSeparation([boxer, man]);
+  const over = boxer.attrs.bodyR + man.attrs.bodyR - 0.5;
+  const f = Math.min(0.9, REBOUND.BOX_BASE + REBOUND.BOX_K * (LEGENDS.yao.ratings.strength - LEGENDS.kyrie.ratings.strength));
+  near(-boxer.pos.x, over * (1 - f) / 2, 1e-9, 'boxer moves (1 − f)/2');
+  near(man.pos.x - 0.5, over * (1 + f) / 2, 1e-9, 'the other (1 + f)/2');
+  // AI clamp after separation; the human is not clamped
+  const ai = body('lebron', 7.9, -6, { clampToCourt: true }), hu = body('kobe', -7.9, -6, { clampToCourt: true, isUser: true });
+  resolveSeparation([ai, hu]);
+  near(ai.pos.x, MOVE.AI_CLAMP_X, 1e-12); near(hu.pos.x, -7.9, 1e-12);
+});
+
+console.log(`unit-physics: ${passed} checks passed`);

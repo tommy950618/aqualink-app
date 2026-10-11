@@ -347,13 +347,14 @@ const PITCH_MAX = 55 * Math.PI / 180, PITCH_STEP = 2.5 * Math.PI / 180;
  */
 export function toePitchFor(sk, side, tgt, reach) {
   const th = LEG_IK[side][0], hx = sk.P[th * 3], hy = sk.P[th * 3 + 1], hz = sk.P[th * 3 + 2];
-  let best = tgt.pitch, bestD = 1e9;
-  for (let p = tgt.pitch; p <= PITCH_MAX + 1e-9; p += PITCH_STEP) {
+  const p0 = tgt.pitch > -PITCH_MAX ? (tgt.pitch < PITCH_MAX ? tgt.pitch : PITCH_MAX) : (tgt.pitch === tgt.pitch ? -PITCH_MAX : 0);
+  let best = p0, bestD = 1e9;
+  for (let p = p0; p <= PITCH_MAX + 1e-9; p += PITCH_STEP) {
     ankleTargetOf(sk, side, tgt, p, _ft);
     const a = _ft[0] - hx, b = _ft[1] - hy, c = _ft[2] - hz, d = Math.sqrt(a * a + b * b + c * c);
     if (d <= reach) return p;
     if (d < bestD) { bestD = d; best = p; }
-    if (tgt.pitch >= PITCH_MAX) break;
+    if (p0 >= PITCH_MAX) break;
   }
   return best;
 }
@@ -364,7 +365,8 @@ export function toePitchFor(sk, side, tgt, reach) {
  */
 export function footDropFor(sk, side, tgt, hx, hy, hz, R) {
   let best = 1e9;
-  const p0 = tgt.pitch;
+  // bounded scan: a non-finite request pitch reads as 0 (never an endless loop)
+  const p0 = tgt.pitch > -PITCH_MAX ? (tgt.pitch < PITCH_MAX ? tgt.pitch : PITCH_MAX) : (tgt.pitch === tgt.pitch ? -PITCH_MAX : 0);
   for (let p = p0; ; p += PITCH_STEP) {
     ankleTargetOf(sk, side, tgt, p, _ft);
     const dx = _ft[0] - hx, dz = _ft[2] - hz, dh = Math.sqrt(dx * dx + dz * dz);

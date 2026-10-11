@@ -308,6 +308,22 @@ GROUPS.push(['gait', () => {
     }
   }
   ok(worstSlide < 0.005, `locked-foot slide < 5 mm over 0–9 m/s × six × 10 s (max ${(worstSlide * 1000).toFixed(3)} mm at ${worstWhere})`);
+  // a toe lock carried into the walk band (toeAt = 1, e.g. jog → 0.3 m/s) holds its heel pitch at the end of
+  // stance instead of 0/0 (regression: NaN pitch → endless toe-pitch scan)
+  {
+    const o = makeOwner(0, 0, 0), a = makeAnimator('kobe', o);
+    for (let i = 0; i < 90; i++) { o.vel.z = 0.3; tick(a, o); }
+    const g = a.gait, f = g.feet[0], save = [f.mode, f.toe, f.pitch, g.prm.toeAt, g.mode];
+    ok(g.mode === GAIT.MOVE && g.prm.toeAt > 0.95, `0.3 m/s is the slow-walk band (mode ${g.mode}, toeAt ${g.prm.toeAt})`);
+    f.mode = 1; f.toe = 1; f.pitch = 0.1; g.prm.toeAt = 1; g.mode = GAIT.MOVE;
+    const pEnd = g.stancePitch(f, g.beta(), 0), pMid = g.stancePitch(f, 0.5 * g.beta(), 0);
+    ok(pEnd === 0.1 && pMid === 0.1, `carried toe lock holds its pitch through a toeAt = 1 stance end (${pEnd}, ${pMid})`);
+    [f.mode, f.toe, f.pitch, g.prm.toeAt, g.mode] = save;
+    const sk = a.sk, T = new FootTarget(); T.x = 0.1; T.y = 0.012; T.z = 0.3; T.yaw = 0; T.mode = 1; T.w = 1;
+    let fin = true;
+    for (const pv of [NaN, -Infinity, Infinity, -1e9]) { T.pitch = pv; footLock(sk, 0, T); for (let j = 0; j < sk.P.length; j++) if (!Number.isFinite(sk.P[j])) fin = false; sk.fkAll(); }
+    ok(fin, 'toe locks with a non-finite / huge request pitch terminate and stay finite');
+  }
   // defensive slide: feet never cross, ≥ 0.25 m apart, toe-locked; then a stop: ≤ 2 settle steps
   for (const id of ['kobe', 'yao', 'kyrie']) {
     const o = makeOwner(0, 0, 0), a = makeAnimator(id, o);
