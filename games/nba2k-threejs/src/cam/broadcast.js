@@ -80,7 +80,8 @@ export const BROADCAST = Object.freeze({
  * @param {number|{fov:number}} f fov in degrees or a FRAMING row
  */
 export function baseFov(aspect, f) {
-  const fov = typeof f === 'number' ? f : f.fov;
+  // no row / fov given: the standard landscape row (spec §6.4.2 example baseFov(4/3) = 54.2°)
+  const fov = typeof f === 'number' ? f : f && typeof f.fov === 'number' ? f.fov : FRAMING.standard.landscape.fov;
   if (!(aspect >= 1) || aspect >= ASPECT_16_9) return fov;
   // tan(hfov/2) = tan(vfov/2)·aspect; keep the horizontal half-angle of a 16:9 frame at the base fov.
   const w = 2 * Math.atan(Math.tan(fov * DEG * 0.5) * ASPECT_16_9 / aspect) / DEG;

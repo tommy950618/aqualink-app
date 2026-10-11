@@ -28,8 +28,8 @@ export const SHOTS = Object.freeze({
   TITLE: Object.freeze({ pos: [0, 0.9, 6.0], look: [0, 1.25, -4], fov: 38, pivot: [0, 1.2, -4], orbitDeg: 12, orbitDegPerS: 3, lensPortrait: 0.10, halfW: 3.45, fovMax: 60 }),
   LINEUP: Object.freeze({ pos: [0, 1.6, 2.5], look: [0, 1.2, -7], fov: 40, halfW: 4.8, fovMax: 60 }),
   FOCUS: Object.freeze({ up: 1.35, lookUp: 1.15, fov: 30, halfDeg: 15, extra: 0.35, lensPortrait: 0.30, halfW: 0.6, fovMax: 50,
-    // portrait: feet − 0.05 … head + 0.12 inside the lineup stage band NDC [−0.10, 0.88] (top bar above, cards below)
-    bandLo: -0.10, bandHi: 0.88, footPad: 0.05, headPad: 0.12 }),
+    // portrait: feet − 0.05 … head + 0.12 inside the visible lineup stage between the top bar and the detail card (NDC [0.20, 0.76], measured on 390×844)
+    bandLo: 0.20, bandHi: 0.76, footPad: 0.05, headPad: 0.12 }),
   PAUSE: Object.freeze({ pos: [9, 5.5, 3], look: [0, 1.5, -8], fov: 40, ease: 0.6, drift: 0.12, driftS: 8 }),
   HALFTIME: Object.freeze({ pos: [0, 14, 12], look: [0, 0, -8], fov: 46, panFrom: -3, panTo: 3, panS: 6, halfW: 6.0, fovMax: 70 }),
   GAMEOVER: Object.freeze({ hold: 1.0, r: 3.2, y: 1.5, degPerS: 12, fov: 32, chest: 0.72, lensPortrait: 0.30,

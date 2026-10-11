@@ -34,10 +34,10 @@ import { Metrics } from './metrics.js';
 import { resolveSeparation, ContactMixin, matchupCost, PERMS, CEL_ZERO } from './physics.js';
 import { Ball } from './ball.js';
 import { Player, ActionMixin } from './player.js';
-import { resolveOffense, resolveShot, resolveDefense, updatePostDetector, postExit, resolvePassTarget, FALLBACK_AI, DebugMixin } from './context.js';
+import { resolveOffense, resolveShot, resolveDefense, updatePostDetector, postExit, resolvePassTarget, FALLBACK_AI, DebugMixin, comboAllowed } from './context.js';
 import { selectCelebration, selectIdleHabit } from './anim/select.js';
 import { EV, clipIndex } from './anim/clip.js';
-import { MOVES_V2 } from './constants.js';
+import { MOVES_V2, SHAKE } from './constants.js';
 import { clearEdges } from './input.js';
 
 export { blockChance, pokeChance, shakeChance, bumpOutcome, interceptChance, biteChance, matchupCost } from './physics.js';
@@ -65,6 +65,8 @@ const C_PUT_DUNK = clipIndex('put.dunk'), C_PUT_TIP = clipIndex('put.tip');
 // ------------------------------------------------------------------------------------------------ scratch
 const CEL_CTX = { cls: 'normal', rng: null, streak: 0, assisted: false, gameWinner: false, jumper: false, blocker: false, chaseDown: false };
 const HABIT_CTX = { rng: null, hasBall: false, onBallDef: false, toDefence: false, timeLeft: Infinity, check: false };
+/** Scratch result for the second CROSS tap of a double tap folded into one step (queueCombo reads comboIndex only). */
+const COMBO2 = { comboIndex: 2 };
 const CHECK_IDS = ['', '', ''];
 const ACTX = makeAbilityCtx();
 
@@ -220,6 +222,21 @@ export class Game {
     if (a) for (let i = 0; i < a.length; i++) { try { a[i](e, e.type); } catch { /* a listener never breaks the sim */ } }
     if (b) for (let i = 0; i < b.length; i++) { try { b[i](e, e.type); } catch { /* idem */ } }
     return e;
+  }
+
+  /**
+   * Emits an event from outside the step (tests / tools, §1.4.1): a pooled payload of `type` with the given fields
+   * copied in (params merged), routed like every game event. Returns the payload.
+   */
+  emit(type, fields) {
+    const e = this.ev(type, null);
+    if (fields) {
+      for (const k in fields) {
+        if (k === 'type') continue;
+        if (k === 'params') { if (fields.params) for (const pk in fields.params) e.params[pk] = fields.params[pk]; } else e[k] = fields[k];
+      }
+    }
+    return this.fire(e);
   }
 
   /** The last ≤ 64 events, oldest first (allocates; tests / debug only). */
@@ -800,8 +817,10 @@ export class Game {
   handlerInput(p, it, dt) {
     const w = this.world, ball = this.ball;
     const st = p.state;
-    // dribble starts once the holder moves after the catch hold (v1 HOLD_AFTER_CATCH)
-    if (p.holding && ball.holdT >= BALL.HOLD_AFTER_CATCH && (st === 'move' || it.move.mag > 0.2) && (st === 'idle' || st === 'move')) this.startDribble(p);
+    // dribble starts once the holder moves after the catch hold (v1 HOLD_AFTER_CATCH) — not on the step SHOOT is
+    // pressed: holding + stick away + SHOOT is the fadeaway (§5.9 row 14), which a dribble started first turned into a
+    // stepback (I3)
+    if (p.holding && !it.primary.justPressed && ball.holdT >= BALL.HOLD_AFTER_CATCH && (st === 'move' || it.move.mag > 0.2) && (st === 'idle' || st === 'move')) this.startDribble(p);
     if (st === 'post') {
       const ex = postExit(p, it, dt);
       if (ex === 'faceUp') { this.leavePost(p, true); return; }
@@ -818,7 +837,15 @@ export class Game {
     const r = resolveOffense(p, it, w);
     switch (r.action) {
       case 'shot': this.startShot(p, r, pressed ? it.primary.pressTs : 0); break;
-      case 'combo': this.queueCombo(p, r); break;
+      case 'combo': {
+        // Both CROSS taps of a double tap folded into this one step (a slow frame; input reports taps = 2 and
+        // doubleTap at DOM time) with no move running and no earlier tap seen: the first tap starts its move now and
+        // the second queues the combo move, exactly as two separate steps would (§5.7).
+        const merged = cross && it.tertiary.doubleTap && !(st === 'cross' && p.move.active) && !(w.time - p.cx.lastCrossT <= SHAKE.COMBO_WINDOW);
+        this.queueCombo(p, r);
+        if (merged && p.move.active && comboAllowed(p, w)) { COMBO2.comboIndex = p.cx.comboIndex + 1; this.queueCombo(p, COMBO2); }
+        break;
+      }
       case 'move': this.startMove(p, r.moveId, r.mirror, 1); break;
       case 'jab': this.startJab(p, r.moveId, r.mirror); break;
       case 'pumpFake': this.startPumpFake(p, r.moveId); break;

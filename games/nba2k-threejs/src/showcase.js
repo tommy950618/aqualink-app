@@ -11,7 +11,8 @@
  * classic | allstarA | allstarB | allstar (team A of the default lineup in All-Star A, team B in B) | grey, groom = 0|1,
  * tier (default high), expr = <channel> (ew = weight), id, ids (comma list), yaws (comma list, heads), fov, dist,
  * cell (px), lod (default 0), pose = rest | twist | flex, w, h, dpr, zoom, cy (heads: camera height offset, m), focus = eye | feet (heads).
- *   lineup    near-orthographic lineup: fov 18 at 26 m, players 1.0 m apart, all at `yaw`
+ *   lineup    near-orthographic lineup: fov 18 at 26 m, players LINEUP_GAP (1.6 m) apart so the rest-pose arms of
+ *             neighbours never touch (one silhouette per legend), all at `yaw`; default size = the window
  *   heads     6 columns × rows(yaws) scissor grid, cell 360 px, fov 16, distance 1.3 m at eye height, neutral face
  *   expr      6 × 3 grid: the player's signature channel at 1.0, scowl 0.6, blink 1.0
  *   kits      three lineup strips: classic, All-Star A, All-Star B
@@ -31,6 +32,9 @@ const BG = '#2a2f3a';
 const SIGNATURE = Object.freeze({ kobe: 'jawJut', jordan: 'tongueOut', lebron: 'roar', giannis: 'roar', yao: 'grin', kyrie: 'smirk' });
 const DEFAULTS = Object.freeze({ view: 'lineup', yaw: 0, kit: 'classic', groom: 1, tier: 'high', expr: '', ew: 1, id: 'kobe', ids: '',
   yaws: '0,0.6,1.5708', fov: 0, dist: 0, cell: 360, lod: 0, pose: 'rest', w: 0, h: 0, dpr: 1, zoom: 1, cy: 0, focus: 'eye' });
+/** Lineup spacing (m): the bind A-pose spans ≈ 1.3–1.5 m hand to hand, so 1.6 m keeps every silhouette separate. */
+const LINEUP_GAP = 1.6;
+const LBL = new THREE.Vector3();
 const NUM = new Set(['yaw', 'groom', 'ew', 'fov', 'dist', 'cell', 'lod', 'w', 'h', 'dpr', 'zoom', 'cy']);
 
 function parseParams(search) {
@@ -172,12 +176,13 @@ export async function runShowcase(root, opts) {
 
   const views = {
     lineup(p) {
-      const ids = idsOf(p), W = p.w || 1800, H = p.h || 900;
+      const ids = idsOf(p);
+      const W = p.w || Math.max(320, Math.round(window.innerWidth || 1280)), H = p.h || Math.max(240, Math.round(window.innerHeight || 720));
       setSize(W, H, p.dpr);
       prepare(p);
       ids.forEach((id, i) => {
         const c = sc.characters[id];
-        c.object.position.x = (i - (ids.length - 1) / 2) * 1.0;
+        c.object.position.x = (i - (ids.length - 1) / 2) * LINEUP_GAP;
         c.object.rotation.y = p.yaw;
         c.object.visible = true;
         c.object.updateMatrixWorld(true);
@@ -188,7 +193,11 @@ export async function runShowcase(root, opts) {
       camera.position.set(0, 1.15, d); camera.lookAt(0, 1.15, 0); camera.updateProjectionMatrix();
       renderer.setScissorTest(false); renderer.setViewport(0, 0, W, H);
       renderer.render(scene, camera);
-      label(ids.map((id, i) => `<span style="position:absolute;left:${((i + 0.5) / ids.length) * W - 30}px;top:6px">${lib.meta(id).nameEn}</span>`).join(''));
+      // names centred over each player's projected x (top band, clear of the figures)
+      label(ids.map((id) => {
+        const v = LBL.copy(sc.characters[id].object.position).project(camera);
+        return `<span style="position:absolute;left:${Math.round((v.x + 1) / 2 * W)}px;transform:translateX(-50%);white-space:nowrap;top:6px">${lib.meta(id).nameEn}</span>`;
+      }).join(''));
     },
     heads(p, rowsOverride) {
       const ids = idsOf(p), yaws = rowsOverride || p.yaws.split(',').map(Number);
@@ -254,7 +263,7 @@ export async function runShowcase(root, opts) {
         prepare(Object.assign({}, p, { kit: mode }));
         ids.forEach((id, i) => {
           const c = sc.characters[id];
-          c.object.position.x = (i - (ids.length - 1) / 2) * 1.0;
+          c.object.position.x = (i - (ids.length - 1) / 2) * LINEUP_GAP;
           c.object.rotation.y = p.yaw;
           c.object.visible = true;
           c.object.updateMatrixWorld(true);

@@ -224,10 +224,20 @@ GROUPS.push(['rig', () => {
       for (let s = 0; s < SOCKET_COUNT; s++) ok(rig.sock[s * 4 + 0] >= 0, `${p.id} socket ${s} defined`);
     }
   }
-  // metrics vs spec §4.1 (the PoC bake is the measured table; the v2 bake must stay within a few millimetres)
+  // metrics vs PROXY_METRICS (spec §4.1 re-measured on the shipped v2 bake): the shipped header must match within a
+  // few millimetres; the historical PoC bake (test/scratch, local only) is reported, not enforced, since the likeness
+  // re-bake changed shoulder widths / arm lengths on purpose
   const T = PROXY_METRICS;
   for (const [name, hdr] of HEADERS) {
-    const k = name === 'poc' ? 1 : 3;
+    if (name === 'poc') {
+      for (const p of hdr.players) {
+        const m = buildRig(p, hdr.bones).metrics, t = T[p.id];
+        const off = ['hipH', 'sLeg', 'shoulderY', 'armLen', 'handLen', 'reach0', 'eyeY'].filter((f) => Math.abs(m[f] - t[f]) > 0.004);
+        if (off.length) log.push(`  note: poc/${p.id} differs from the v2 bake in ${off.map((f) => `${f} ${(m[f] - t[f]).toFixed(3)}`).join(', ')}`);
+      }
+      continue;
+    }
+    const k = 3;
     for (const p of hdr.players) {
       const m = buildRig(p, hdr.bones).metrics, t = T[p.id];
       near(m.hipH, t.hipH, 0.002 * k, `${name}/${p.id} hipH`);
@@ -777,7 +787,7 @@ GROUPS.push(['proxy', () => {
   const a = new AnimProxy('yao', PROXY_METRICS.yao, { owner });
   const v3 = { x: 0, y: 0, z: 0 };
   a.querySocket(SOCK.palm_r, v3);
-  near(v3.y, 1.05 * 1.171, 1e-9, 'resting palm 1.05·sLeg');
+  near(v3.y, 1.05 * PROXY_METRICS.yao.sLeg, 1e-9, 'resting palm 1.05·sLeg');
   near(v3.z, -6.30, 1e-9, 'palm 0.30 in front (facing −z)');
   const dj = selectDefJump('yao', { intent: 'block' });
   a.play(dj.clipIdx, { mirror: dj.mirror });

@@ -719,9 +719,12 @@ export class Player {
   }
 
   applyClamp() {
-    const p = this.pos;
-    if (p.x > MOVE.AI_CLAMP_X) p.x = MOVE.AI_CLAMP_X; else if (p.x < -MOVE.AI_CLAMP_X) p.x = -MOVE.AI_CLAMP_X;
-    if (p.z > MOVE.AI_CLAMP_Z_MAX) p.z = MOVE.AI_CLAMP_Z_MAX; else if (p.z < MOVE.AI_CLAMP_Z_MIN) p.z = MOVE.AI_CLAMP_Z_MIN;
+    // the velocity component into the boundary is dropped too: the animator (gait, dribble ball prediction) reads the
+    // owner's velocity, and a clip's root motion pushing a clamped player outward otherwise carried the dribbled ball
+    // up to 1.6 m away from his hand (and beyond the sideline)
+    const p = this.pos, v = this.vel;
+    if (p.x > MOVE.AI_CLAMP_X) { p.x = MOVE.AI_CLAMP_X; if (v.x > 0) v.x = 0; } else if (p.x < -MOVE.AI_CLAMP_X) { p.x = -MOVE.AI_CLAMP_X; if (v.x < 0) v.x = 0; }
+    if (p.z > MOVE.AI_CLAMP_Z_MAX) { p.z = MOVE.AI_CLAMP_Z_MAX; if (v.z > 0) v.z = 0; } else if (p.z < MOVE.AI_CLAMP_Z_MIN) { p.z = MOVE.AI_CLAMP_Z_MIN; if (v.z < 0) v.z = 0; }
   }
 
   /** Nearest opponent within `r` in front of the player (dot ≥ 0.3 with the facing), or null. */
@@ -838,10 +841,13 @@ export class ActionMixin {
     const elapsed = w.time - s.pressT;
     let rel = -1;
     if (s.debug) { const tgt = s.tIdeal + s.forcedET; if (elapsed + 1e-9 >= tgt) rel = tgt; }
-    else if (it.primary.justReleased) {
+    else if (it.primary.justReleased || !it.primary.held) {
+      // The DOM hold time of this press decides the timing. A press and its release sampled in the same step (a slow
+      // frame longer than the hold) reach this branch one step later without the release edge: the hold still comes
+      // from the DOM timestamps, not from the one step of game time that has elapsed.
       const b = it.primary;
       rel = b.releaseTs > b.pressTs && b.pressTs > 0 && Math.abs(b.pressTs - s.pressMs) < 1e-6 ? (b.releaseTs - b.pressTs) / 1000 : elapsed;
-    } else if (!it.primary.held) rel = elapsed;
+    }
     const autoT = s.meterFrom + SHOT_V2.METER_MAX * s.METER_T;
     if (rel < 0 && elapsed >= autoT) rel = autoT;
     if (!s.confirmed && (elapsed >= PUMP_FAKE.TAP_MAX || s.takeoff)) this.confirmShot(p);

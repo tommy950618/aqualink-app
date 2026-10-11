@@ -42,8 +42,43 @@ function patchRough(shader) {
 }
 
 /**
+ * Chroma-keeping toe for NeutralToneMapping (likeness round 4). three's Khronos PBR Neutral subtracts
+ * offset = x − 6.25·x² (x = min(r, g, b) < 0.08) from ALL channels, so in shadows the smallest channel goes to ≈ 0:
+ * every brown skin's shadow side rendered rust orange (Kobe's neck #673711 back-solves exactly to albedo #8B5A3C)
+ * and the wine kits went crimson. Legend materials replace `<tonemapping_fragment>` with the same curve but the toe
+ * offset = 0.04·(2t − t²), t = min(x / 0.20, 1): the same 0.04 above x = 0.20 (lit tones and highlights unchanged,
+ * C¹ at the knee), ≈ 0.4·x near black, so a shadow keeps ≈ 60 % of its smallest channel. Only applied when the
+ * renderer uses NeutralToneMapping (other tone mappings keep their chunk).
+ */
+const LEGENDS_TONEMAP = [
+  'vec3 legendsNeutralToneMapping( vec3 color ) {',
+  '\tconst float StartCompression = 0.8 - 0.04;',
+  '\tconst float Desaturation = 0.15;',
+  '\tcolor *= toneMappingExposure;',
+  '\tfloat x = min( color.r, min( color.g, color.b ) );',
+  '\tfloat t = min( x / 0.20, 1.0 );',
+  '\tcolor -= 0.04 * ( 2.0 * t - t * t );',
+  '\tfloat peak = max( color.r, max( color.g, color.b ) );',
+  '\tif ( peak < StartCompression ) return color;',
+  '\tfloat d = 1. - StartCompression;',
+  '\tfloat newPeak = 1. - d * d / ( peak + d - StartCompression );',
+  '\tcolor *= newPeak / peak;',
+  '\tfloat g = 1. - 1. / ( Desaturation * ( peak - newPeak ) + 1. );',
+  '\treturn mix( color, vec3( newPeak ), g );',
+  '}',
+].join('\n');
+
+/** Swaps the tone-mapping chunk of a legend material for the chroma-keeping toe (NeutralToneMapping only). */
+function patchToe(shader, renderer) {
+  if (!renderer || renderer.toneMapping !== THREE.NeutralToneMapping) return;
+  if (!shader.fragmentShader.includes('#include <tonemapping_fragment>')) return;
+  shader.fragmentShader = shader.fragmentShader.replace('void main() {', LEGENDS_TONEMAP + '\nvoid main() {')
+    .replace('#include <tonemapping_fragment>', '#if defined( TONE_MAPPING )\n\tgl_FragColor.rgb = legendsNeutralToneMapping( gl_FragColor.rgb );\n#endif');
+}
+
+/**
  * Skin material (§3.5.5): low Standard(map, constant roughness); medium Standard + roughness-from-alpha + pore
- * normal (0.15); high Physical + sheen 0.25 #b0503c (r 0.8) + clearcoat map (gloss | sweat), clearcoat
+ * normal (0.15); high Physical + sheen look.skinSheen (default 0.15 #8a6050, r 0.8) + clearcoat map (gloss | sweat), clearcoat
  * max(glossBase, 0.30·sweat), clearcoatRoughness per look.
  */
 export function createSkinMaterial(tier, { map, pore, clearcoatMap, look }) {
@@ -54,12 +89,18 @@ export function createSkinMaterial(tier, { map, pore, clearcoatMap, look }) {
     const params = { map, roughness: 1, metalness: 0, normalMap: pore, normalScale: new THREE.Vector2(0.15, 0.15) };
     if (tier === 'high') {
       m = new THREE.MeshPhysicalMaterial(Object.assign(params, {
-        sheen: 0.25, sheenColor: new THREE.Color('#b0503c'), sheenRoughness: 0.8,
+        // likeness round 2: sheen 0.25 #b0503c pushed the shadow side and silhouettes of every dark skin to rust orange;
+        // round 3: per-look neutral sheen (look.skinSheen {color, k}, e.g. #6a5c56 @ 0.10) instead of the warm #8a6050
+        sheen: look.skinSheen ? look.skinSheen.k : 0.15, sheenColor: new THREE.Color(look.skinSheen ? look.skinSheen.color : '#8a6050'), sheenRoughness: 0.8,
         clearcoat: Math.max(look.glossBase, 0), clearcoatRoughness: look.clearcoatRoughness, clearcoatMap: clearcoatMap || null,
       }));
     } else m = new THREE.MeshStandardMaterial(params);
-    m.onBeforeCompile = patchRough;
+    m.onBeforeCompile = (shader, renderer) => { patchRough(shader); patchToe(shader, renderer); };
     m.customProgramCacheKey = () => PATCH.skin;
+  }
+  if (tier === 'low') {
+    m.onBeforeCompile = patchToe;
+    m.customProgramCacheKey = () => PATCH.skin + '.low';
   }
   m.name = 'legends.skin';
   return m;
@@ -82,11 +123,20 @@ export function createWetMaterial(tier, { eyeTex, eyeOffset }) {
   else if (tier === 'high') m = new THREE.MeshPhysicalMaterial({ map: eyeTex, vertexColors: true, roughness: 0.06, metalness: 0, clearcoat: 1.0, clearcoatRoughness: 0.03 });
   else m = new THREE.MeshStandardMaterial({ map: eyeTex, vertexColors: true, roughness: 0.06, metalness: 0 });
   const uni = { value: eyeOffset };
-  m.onBeforeCompile = (shader) => {
+  const lowTier = tier === 'low';
+  m.onBeforeCompile = (shader, renderer) => {
     shader.uniforms.eyeOffset = uni;
     shader.fragmentShader = 'uniform vec2 eyeOffset;\n' + shader.fragmentShader.replace('#include <map_fragment>',
       'vec2 euv = vMapUv.x < 1.0 ? vMapUv + clamp(eyeOffset, vec2(-0.12, -0.09), vec2(0.12, 0.09)) : vec2(0.03);\n' +
       '\tvec4 sampledDiffuseColor = texture2D(map, euv);\n\tdiffuseColor *= sampledDiffuseColor;');
+    if (!lowTier) {
+      // teeth / tongue (u = 2, likeness round 4): matte (roughness 0.45, no clearcoat) instead of the eyes' wet 0.06 +
+      // clearcoat 1, which reflected the studio environment as one glossy grey slab ("mouthguard") in every open mouth
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n\tif (vMapUv.x > 1.5) roughnessFactor = 0.45;')
+        .replace('#include <lights_physical_fragment>', '#include <lights_physical_fragment>\n#ifdef USE_CLEARCOAT\n\tif (vMapUv.x > 1.5) material.clearcoat = 0.0;\n#endif');
+    }
+    patchToe(shader, renderer);
   };
   m.customProgramCacheKey = () => PATCH.wet;
   m.name = 'legends.wet';
@@ -99,7 +149,7 @@ export function createKitMaterial(tier, { map, meshNormal }) {
   if (tier === 'low') m = new THREE.MeshLambertMaterial({ map, side: THREE.DoubleSide });
   else m = new THREE.MeshStandardMaterial({ map, roughness: 1, metalness: 0, side: THREE.DoubleSide, normalMap: meshNormal, normalScale: new THREE.Vector2(0.35, 0.35) });
   const lowTier = tier === 'low';
-  m.onBeforeCompile = (shader) => {
+  m.onBeforeCompile = (shader, renderer) => {
     if (lowTier) {
       shader.fragmentShader = shader.fragmentShader.replace('#include <map_fragment>',
         '#include <map_fragment>\n\tdiffuseColor.a = opacity;\n\tif (!gl_FrontFacing) diffuseColor.rgb *= 0.55;');
@@ -109,6 +159,7 @@ export function createKitMaterial(tier, { map, meshNormal }) {
         .replace('#include <roughnessmap_fragment>', ROUGH_FACTOR)
         .replace('mapN.xy *= normalScale;', 'mapN.xy *= normalScale;\n\tmapN.xy *= step(0.26, vMapUv.y);');
     }
+    patchToe(shader, renderer);
   };
   m.customProgramCacheKey = () => PATCH.kit;
   m.name = 'legends.kit';
@@ -117,17 +168,18 @@ export function createKitMaterial(tier, { map, meshNormal }) {
 
 /**
  * Groom material (§3.7): low Standard alphaTest 0.5; medium Standard alphaHash; high Physical sheen 0.3 + alphaHash.
- * DoubleSide, roughness 0.55, metalness 0, uniform groomColor.
+ * DoubleSide, roughness 0.72, metalness 0, uniform groomColor.
  */
 export function createGroomMaterial(tier, { strand, color, sheenColor }) {
-  const params = { map: strand, roughness: 0.55, metalness: 0, side: THREE.DoubleSide };
+  // roughness 0.72 / sheen 0.2 (likeness round 2: 0.55 / 0.3 gave brows and beards a blue-grey strand sparkle)
+  const params = { map: strand, roughness: 0.72, metalness: 0, side: THREE.DoubleSide };
   if (tier === 'low') params.alphaTest = 0.5; else params.alphaHash = true;
   const m = tier === 'high'
-    ? new THREE.MeshPhysicalMaterial(Object.assign(params, { sheen: 0.3, sheenColor: new THREE.Color(sheenColor), sheenRoughness: 0.5 }))
+    ? new THREE.MeshPhysicalMaterial(Object.assign(params, { sheen: 0.2, sheenColor: new THREE.Color(sheenColor), sheenRoughness: 0.5 }))
     : new THREE.MeshStandardMaterial(params);
   const uni = { value: new THREE.Color(color) };
   m.userData.groomColor = uni;
-  m.onBeforeCompile = (shader) => {
+  m.onBeforeCompile = (shader, renderer) => {
     shader.uniforms.groomColor = uni;
     shader.vertexShader = 'attribute vec3 groom;\nattribute vec2 groomDF;\nvarying vec3 vGroom;\nvarying vec2 vGroomDF;\n' +
       shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n\tvGroom = groom;\n\tvGroomDF = groomDF;');
@@ -138,6 +190,7 @@ export function createGroomMaterial(tier, { strand, color, sheenColor }) {
         'float ga = smoothstep(1.0 - vGroomDF.x - 0.04, 1.0 - vGroomDF.x + 0.04, rk) * vGroomDF.y;',
         'diffuseColor = vec4(groomColor * (0.70 + 0.60 * tx.a), ga);',
       ].join('\n\t'));
+    patchToe(shader, renderer);
   };
   m.customProgramCacheKey = () => PATCH.groom;
   m.name = 'legends.groom';
@@ -175,7 +228,8 @@ export function paintEyeTexture(size, tier, makeCanvas) {
   const c = makeCanvas(size, size), g = c.getContext('2d');
   const S = size, cx = S / 2, cy = S / 2;
   const scl = g.createRadialGradient(cx, cy, 0, cx, cy, 0.5 * S);
-  scl.addColorStop(0, '#e9e2d8'); scl.addColorStop(0.76, '#d9c9bc'); scl.addColorStop(1, '#b99086');
+  // likeness round 4: #e9e2d8 → #ddd5c9 centre (bright white corner crescents gave the dark-skinned faces a startled look)
+  scl.addColorStop(0, '#ddd5c9'); scl.addColorStop(0.76, '#cfc0b2'); scl.addColorStop(1, '#b08a80');
   g.fillStyle = scl; g.fillRect(0, 0, S, S);
   const rnd = mulberry(0xE7E);
   if (tier === 'high') {

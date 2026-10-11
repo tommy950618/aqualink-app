@@ -574,26 +574,36 @@ export class Input {
    * Fold latches into the intent: called exactly once per fixed step, before game.step().
    * A press and a release inside one step yield both edges in that step (v1 rule); tap fields are
    * computed at DOM time, so two presses inside one step still report taps = 2 and doubleTap.
+   * `now` is the time the step stands for (performance.now clock). When a slow frame runs several catch-up steps,
+   * main.js passes each step its own time, and a press / release whose DOM time is later than the step is kept
+   * latched for the step that reaches it: a 50 ms SHOOT tap stays a 50 ms tap (pump fake) instead of becoming a
+   * 0.25 s hold spread over the catch-up steps, and a press is not applied to game time before it happened.
    */
   sample(now) {
     const it = this.intent;
     const tNow = typeof now === 'number' ? now : nowMs();
     for (let i = 0; i < 3; i++) {
       const name = BUTTONS[i], b = this._btn[name], a = it[name];
-      a.justPressed = b.pressLatch;
-      a.justReleased = b.releaseLatch;
-      a.doubleTap = b.doubleLatch;
-      a.held = b.down;
+      // a pending press not reached yet → the button is still up at tNow (its release, if any, waits with it)
+      const pressLater = b.pressLatch && b.pressTs > tNow;
+      // a pending release not reached yet → still held at tNow
+      const releaseLater = b.releaseLatch && (pressLater || b.releaseTs > tNow);
+      const press = b.pressLatch && !pressLater, release = b.releaseLatch && !releaseLater;
+      a.justPressed = press;
+      a.justReleased = release;
+      a.doubleTap = press && b.doubleLatch;
+      a.held = pressLater ? false : releaseLater ? true : b.down;
       a.pressTs = b.pressTs;
       a.releaseTs = b.releaseTs;
       a.prevPressTs = b.prevPressTs;
       a.taps = b.taps;
       a.tapDur = b.tapDur;
-      a.quickTap = b.releaseLatch && isQuickTap(b);
-      if (b.down) a.heldTime = Math.max(0, (tNow - b.pressTs) / 1000);
-      else if (b.releaseLatch) a.heldTime = b.tapDur;
+      a.quickTap = release && isQuickTap(b);
+      if (a.held) a.heldTime = Math.max(0, (tNow - b.pressTs) / 1000);
+      else if (release) a.heldTime = b.tapDur;
       else a.heldTime = 0;
-      b.pressLatch = false; b.releaseLatch = false; b.doubleLatch = false;
+      if (!pressLater) { b.pressLatch = false; b.doubleLatch = false; }
+      if (!releaseLater) b.releaseLatch = false;
     }
     const sp = this._btn.sprint;
     it.sprint = sp.down;

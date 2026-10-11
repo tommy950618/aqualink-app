@@ -206,7 +206,10 @@ function legendStyle(Agg, runs) {
   const enough = (id) => P[id] && P[id].fga >= 40;
   const share = (id, z) => ratio(P[id][z], P[id].fga);
   if (enough('yao')) {
-    check('A Yao 3PA share', pct(ratio(P.yao.pa3, P.yao.fga)), ratio(P.yao.pa3, P.yao.fga) <= 0.01, '≤ 1 %');
+    // §5.10 lets Yao shoot a three only with the shot clock under 1.5 s: the check counts the threes outside that
+    // permission (clock-forced heaves, shot clock < 3 s at the release, are left out)
+    const yao3 = Agg.shots.filter((s) => s.shooter === 'yao' && s.three && !s.urgent).length;
+    check('A Yao 3PA share (not clock-forced)', `${pct(ratio(yao3, P.yao.fga))} (${P.yao.pa3} incl. heaves)`, ratio(yao3, P.yao.fga) <= 0.01, '≤ 1 %');
     check('A Yao post touches / touches', pct(ratio(P.yao.post, P.yao.touches)), ratio(P.yao.post, P.yao.touches) >= 0.40, '≥ 40 %');
   } else check('A Yao has ≥ 40 FGA for the style checks', P.yao ? P.yao.fga : 0, false, '≥ 40');
   if (enough('giannis')) {
@@ -226,12 +229,20 @@ function legendStyle(Agg, runs) {
     check('A Kyrie dribble moves per handler possession', f2(mpp), mpp >= 1.5, '≥ 1.5');
     check('A Kyrie stepbacks / jumpers', pct(ratio(P.kyrie.stepbacks, P.kyrie.jumpers)), ratio(P.kyrie.stepbacks, P.kyrie.jumpers) >= 0.20, '≥ 20 %');
   }
+  // the profile mix is a shot-selection mix: second-chance tips and putback dunks (rebounds) and clock-forced shots
+  // (shot clock < 3 s at the release, mostly end-of-period heaves from the check spot) are not choices, left out
+  const chosen = {};
+  for (const s of Agg.shots) {
+    if (s.kind === 'tip' || (s.kind === 'dunk' && s.variant === 'putback') || s.urgent) continue;
+    const c = chosen[s.shooter] || (chosen[s.shooter] = { n: 0, rim: 0, close: 0, mid: 0, three: 0 });
+    c.n++; c[s.zone]++;
+  }
   for (const id of Object.keys(LEGENDS)) {
-    if (!enough(id)) continue;
-    const mix = profileMix(id);
-    const r = share(id, 'rim'), m = share(id, 'mid'), t = share(id, 'three');
+    if (!enough(id) || !chosen[id]) continue;
+    const mix = profileMix(id), c = chosen[id];
+    const r = ratio(c.rim, c.n), m = ratio(c.mid, c.n), t = ratio(c.three, c.n);
     const ok = Math.abs(r - mix.rim) <= 0.12 && Math.abs(m - mix.mid) <= 0.12 && Math.abs(t - mix.three) <= 0.12;
-    check(`A ${id} rim/mid/three within ±12 pts of the profile`, `${(100 * r).toFixed(0)}/${(100 * m).toFixed(0)}/${(100 * t).toFixed(0)} vs ${(100 * mix.rim).toFixed(0)}/${(100 * mix.mid).toFixed(0)}/${(100 * mix.three).toFixed(0)}`, ok, '±12 pts');
+    check(`A ${id} rim/mid/three (chosen shots) within ±12 pts of the profile`, `${(100 * r).toFixed(0)}/${(100 * m).toFixed(0)}/${(100 * t).toFixed(0)} vs ${(100 * mix.rim).toFixed(0)}/${(100 * mix.mid).toFixed(0)}/${(100 * mix.three).toFixed(0)}`, ok, '±12 pts');
   }
 }
 

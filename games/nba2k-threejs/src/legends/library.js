@@ -86,7 +86,7 @@ export function makeCanvas(w, h) {
 }
 
 /**
- * fetch with timeout, retries and byte progress.
+ * fetch with timeout, retries and per-file byte progress.
  * @param {URL} url  @param {string} file  @param {'json'|'buffer'|'blob'} kind  @param {function(number)} onBytes
  */
 async function fetchFile(url, file, kind, onBytes) {
@@ -99,26 +99,10 @@ async function fetchFile(url, file, kind, onBytes) {
     try {
       const res = await fetch(url, ac ? { signal: ac.signal } : undefined);
       if (!res.ok) throw new LegendsLoadError(file, `HTTP ${res.status}`);
-      let buf;
-      const len = Number(res.headers.get('Content-Length')) || 0;
-      if (len > 0 && res.body && res.body.getReader) {
-        const reader = res.body.getReader();
-        const out = new Uint8Array(len);
-        let got = 0;
-        for (;;) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          if (got + value.length > len) throw new LegendsLoadError(file, 'size');
-          out.set(value, got);
-          got += value.length;
-          onBytes(got);
-        }
-        if (got !== len) throw new LegendsLoadError(file, 'size');
-        buf = out.buffer;
-      } else {
-        buf = await res.arrayBuffer();
-        onBytes(buf.byteLength);
-      }
+      // Whole-body reads: a ReadableStream reader made headless Chromium report fully read responses as
+      // net::ERR_ABORTED now and then (B1 counts failed requests); progress therefore advances per file.
+      const buf = await res.arrayBuffer();
+      onBytes(buf.byteLength);
       clearTimeout(timer);
       if (kind === 'json') {
         try { return JSON.parse(new TextDecoder().decode(new Uint8Array(buf))); } catch (e) { throw new LegendsLoadError(file, 'parse', e); }
@@ -129,6 +113,7 @@ async function fetchFile(url, file, kind, onBytes) {
       clearTimeout(timer);
       lastErr = timedOut ? new LegendsLoadError(file, 'timeout', e) : (e instanceof LegendsLoadError ? e : new LegendsLoadError(file, 'network', e));
       if (lastErr.reason === 'parse' || lastErr.reason === 'size') break;
+      if (attempt < RETRY_MS.length && typeof console !== 'undefined') console.warn(`[legends] ${file}: ${lastErr.reason}, retrying`);
     }
   }
   throw lastErr;

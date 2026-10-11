@@ -353,7 +353,7 @@ check('lineup focus d = (h + 0.35)/(2 tan 15°): Yao 4.9 m, Kyrie 4.1 m, fov 30,
   lineupShot({ focus: { x: 0, z: -7 }, h: legendHeight('kyrie') }, 16 / 9, p);
   near(p.pz - (-7), 4.1, 0.05);
   // portrait (deviation, see shots.js): same height / fov / lens 0.30, distance + look solved so the whole body sits in
-  // the stage band NDC [−0.10, 0.88]; checked with the Director's real camera (view offset included)
+  // the stage band SHOTS.FOCUS [bandLo, bandHi]; checked with the Director's real camera (view offset included)
   for (const id of ['kyrie', 'yao']) {
     const h = legendHeight(id);
     const dp = new Director({ width: 390, height: 844 });
@@ -361,8 +361,8 @@ check('lineup focus d = (h + 0.35)/(2 tan 15°): Yao 4.9 m, Kyrie 4.1 m, fov 30,
     dp.update(0, null);
     assert.equal(dp.pose.lens, 0.30); assert.equal(dp.camera.fov, 30); near(dp.pose.py, 1.35, 1e-9);
     const o = {};
-    near(dp.ndc(o, 1.4, h + 0.12, -7).y, 0.88, 0.01, id + ' head');
-    near(dp.ndc(o, 1.4, -0.05, -7).y, -0.10, 0.01, id + ' feet');
+    near(dp.ndc(o, 1.4, h + 0.12, -7).y, SHOTS.FOCUS.bandHi, 0.01, id + ' head');
+    near(dp.ndc(o, 1.4, -0.05, -7).y, SHOTS.FOCUS.bandLo, 0.01, id + ' feet');
   }
   lineupShot({ focus: null }, 844 / 390, p);
   assert.deepEqual([p.px, p.py, p.pz, p.lx, p.ly, p.lz, p.fov], [0, 1.6, 2.5, 0, 1.2, -7, 40]);

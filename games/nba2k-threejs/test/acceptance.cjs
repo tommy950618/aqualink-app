@@ -260,16 +260,18 @@ function clampBox(img, b) {
  * B26/B42 kit test inside a torso box: drop pixels with saturation < 0.30 or hue within ±20° of the number colour,
  * then the median hue offset of the rest from the kit base hue (circular, in degrees) and the kept share.
  */
-function kitBoxStats(img, box, { baseHex, numberHex }) {
+function kitBoxStats(img, box, { baseHex, numberHex, mask = null }) {
   const b = clampBox(img, box); if (!b) return null;
   const base = hsv(...hexRgb(baseHex)).h; const nh = numberHex ? hsv(...hexRgb(numberHex)) : null;
   const numHue = nh && nh.s >= 0.15 ? nh.h : null;
   let n = 0; const offs = []; const lumas = [];
   for (let y = b.y; y < b.y + b.h; y++) for (let x = b.x; x < b.x + b.w; x++) {
+    if (mask && !mask(x, y)) continue;   // only the kit's own visible pixels (ball, hands, floor excluded)
     const [r, g, bl] = px(img, x, y); n++; lumas.push(luma(r, g, bl));
     const c = hsv(r, g, bl); if (c.s < 0.30) continue; if (numHue != null && hueDist(c.h, numHue) <= 20) continue;
     offs.push(wrap180(c.h - base));
   }
+  if (!n) return null;
   const medOff = median(offs);
   return { box: b, n, kept: offs.length, keptFrac: offs.length / n, hueErr: Math.abs(medOff), medHue: (base + medOff + 360) % 360, meanLuma: lumas.reduce((s, v) => s + v, 0) / n, medianLuma: median(lumas) };
 }
@@ -285,14 +287,17 @@ function findColor(img, rgb, tol = 40, step = 2) {
   for (let y = 0; y < img.height; y += step) for (let x = 0; x < img.width; x += step) { const p = px(img, x, y); const d = Math.max(Math.abs(p[0] - rgb[0]), Math.abs(p[1] - rgb[1]), Math.abs(p[2] - rgb[2])); if (d <= tol) count++; if (d < best) best = d; }
   return { found: count > 0, count, best };
 }
+/** The showcase prints the legends' names as an HTML band at the top of the lineup (top 6 px, 13 px font); figure
+ * segmentation starts below it so the names are not taken for figures (the 3D figures never reach that band). */
+const SHOWCASE_LABEL_BAND = 28;
 /**
  * Splits a showcase screenshot (background #2a2f3a) into figures: runs of columns that contain non-background pixels,
  * merging gaps ≤ `gap` px. Each figure: {x0, x1, top, bottom, h, cx}.
  */
-function figures(img, { bg = [0x2a, 0x2f, 0x3a], thr = 24, gap = 3, minW = 6 } = {}) {
+function figures(img, { bg = [0x2a, 0x2f, 0x3a], thr = 24, gap = 3, minW = 6, y0 = SHOWCASE_LABEL_BAND } = {}) {
   const isFg = (x, y) => { const p = px(img, x, y); return Math.abs(p[0] - bg[0]) > thr || Math.abs(p[1] - bg[1]) > thr || Math.abs(p[2] - bg[2]) > thr; };
   const col = new Uint8Array(img.width);
-  for (let x = 0; x < img.width; x++) for (let y = 0; y < img.height; y++) if (isFg(x, y)) { col[x] = 1; break; }
+  for (let x = 0; x < img.width; x++) for (let y = y0; y < img.height; y++) if (isFg(x, y)) { col[x] = 1; break; }
   const runs = []; let start = -1, last = -1;
   for (let x = 0; x < img.width; x++) {
     if (!col[x]) continue;
@@ -301,7 +306,7 @@ function figures(img, { bg = [0x2a, 0x2f, 0x3a], thr = 24, gap = 3, minW = 6 } =
   if (start >= 0) runs.push([start, last]);
   return runs.filter(([a, b]) => b - a + 1 >= minW).map(([x0, x1]) => {
     let top = img.height, bottom = -1;
-    for (let xx = x0; xx <= x1; xx++) for (let y = 0; y < img.height; y++) if (isFg(xx, y)) { if (y < top) top = y; if (y > bottom) bottom = y; }
+    for (let xx = x0; xx <= x1; xx++) for (let y = y0; y < img.height; y++) if (isFg(xx, y)) { if (y < top) top = y; if (y > bottom) bottom = y; }
     return { x0, x1, top, bottom, h: bottom - top + 1, cx: (x0 + x1) / 2 };
   });
 }
@@ -486,6 +491,8 @@ function pageHelpers() {
 
   // ---- simulation without rendering
   function sim(sec) { const g = G(); const n = Math.max(1, Math.round(sec * 60)); if (g.game && typeof g.game.step === 'function') { for (let i = 0; i < n; i++) { g.game.step(FIXED); clearEdges(); } } else g.fastForward(sec); }
+  /** Like sim() but samples the live DOM input before every step, as main.js's fixed-step loop does (held keys/sticks). */
+  function simInput(sec) { const g = G(); const n = Math.max(1, Math.round(sec * 60)); const inp = g.input; for (let i = 0; i < n; i++) { if (inp && typeof inp.sample === 'function' && g.game.input === inp) inp.sample(performance.now()); g.game.step(FIXED); } }
   function simUntil(pred, maxSec, dt = 1 / 60) { const f = typeof pred === 'function' ? pred : new Function('g', 'acc', 'return (' + pred + ')'); let t = 0; const g = G(); while (t < maxSec) { if (f(g, acc)) return { ok: true, t: +t.toFixed(3), state: state() }; sim(dt); t += dt; } return { ok: !!f(g, acc), t: +t.toFixed(3), state: state() }; }
   function bumpScore(team, pts) { const g = G(); for (const s of [g.game && g.game.score, g.world && g.world.score]) if (s && typeof s[team] === 'number') s[team] += pts; }
   function forceTie() { const g = G(); const s = scores(); const m = Math.max(s[0], s[1]); for (const a of [g.game && g.game.score, g.world && g.world.score]) if (a && typeof a[0] === 'number') { a[0] = m; a[1] = m; } return [m, m]; }
@@ -592,6 +599,8 @@ function pageHelpers() {
       const sc = ev.find((x) => x.type === 'score');
       out.push({
         id, team, kindAsked: o.kind || null, shotKind, made: s1[team] > s0[team], points: s1[team] - s0[team], released, resolved, states, rel, slam, contest,
+        // the debug shot itself went in (its own 'score' event); \`made\` also counts a teammate's tip-in of the miss (§5.6)
+        shotMade: ev.some((x) => x.type === 'score' && x.playerId === id && x.kind !== 'tip'),
         eT: o.eT != null ? o.eT : null, at: o.at || null,
         firstContact: ballEvts.length ? ballEvts[0].what : null,
         rim: ballEvts.some((x) => x.what === 'rim' || x.what === 'rimIn'), board: ballEvts.some((x) => x.what === 'board'),
@@ -611,7 +620,7 @@ function pageHelpers() {
   function ndc(x, y, z) { const v = vec(x, y, z).project(cam()); return { x: v.x, y: v.y, z: v.z }; }
   function vw() { const c = document.querySelector('#gl') || document.querySelector('canvas'); return { w: c ? c.clientWidth : innerWidth, h: c ? c.clientHeight : innerHeight }; }
   function toPx(n) { const s = vw(); return { x: (n.x + 1) / 2 * s.w, y: (1 - n.y) / 2 * s.h }; }
-  function boneWorld(id, name) { const c = G().characters && G().characters[id]; if (!c) return null; const i = c.boneIndex(name); if (i == null || i < 0) return null; const b = c.bones[i]; const v = vec(0, 0, 0); b.getWorldPosition(v); return v; }
+  function boneWorld(id, name) { const c = G().characters && G().characters[id]; if (!c) return null; const i = c.boneIndex(name); if (i == null || i < 0) return null; const b = (c.boneList && c.boneList[i]) || c.bones[name] || c.bones[i]; if (!b) return null; const v = vec(0, 0, 0); b.getWorldPosition(v); return v; }
   /** B26 torso box in CSS px: centre = projected spine_02, width 0.6 × shoulderJoints at that depth, height = |spine_03 − pelvis| projected. */
   function torsoBox(id) {
     const c = G().characters[id]; const s2 = boneWorld(id, 'spine_02'), s3 = boneWorld(id, 'spine_03'), pel = boneWorld(id, 'pelvis');
@@ -665,7 +674,7 @@ function pageHelpers() {
 
   window.__acc = Object.assign(acc, {
     install, onEvent, since, simTime, players, pid, teamOf, byId, idx, userTeam, offenseTeam, userOff, state, ctrl, ctrlId, posOf, info, scores, paused,
-    deadReason, statsOf, ballHeld, owner, speedOf, jumpOf, airborne, faceRim, place, ballPos, pressBtn, releaseBtn, clearEdges, setStick, sim, simUntil,
+    deadReason, statsOf, ballHeld, owner, speedOf, jumpOf, airborne, faceRim, place, ballPos, pressBtn, releaseBtn, clearEdges, setStick, sim, simInput, simUntil,
     bumpScore, forceTie, ready, readyFor, parkOpponents, forceJump, contestSnap, shootTrial, cam, vec, ndc, vw, toPx, boneWorld, torsoBox, headWorld,
     morphWeight, memory, setVisibility, visible, rect, nextFrame, hideDom, showDom, mod, stepCost, forceGameOver, cardIds, hooksMissing,
   });
@@ -727,12 +736,15 @@ function diagProblems(gm, label, { allowFailed = null, allowErrors = null } = {}
   if (foreign.length) out.push(`[${label}] cross-origin requests: ${foreign.slice(0, 3).map((r) => r.url).join(' | ')}`);
   return out;
 }
-/** Waits `sec` of simulation while a real gesture is held; tops up with acc.sim() when the rAF loop is slower. */
+/**
+ * Waits `sec` of simulation while a real gesture is held; tops up with acc.simInput() when the rAF loop is slower
+ * (it samples the held DOM input before each step like the real loop; plain acc.sim() never saw the held key/stick).
+ */
 async function holdSim(page, sec, t, label) {
   const s0 = await ev(page, 'acc.stepCount'); const t0 = Date.now();
   await sleep(sec * 1000);
   const s1 = await ev(page, 'acc.stepCount'); const got = (s1 - s0) / 60;
-  if (got < sec * 0.9) { await ev(page, `acc.sim(${(sec - got).toFixed(3)})`); if (t) t.warn(`${label || 'hold'}: rAF loop advanced only ${got.toFixed(2)} s of sim in ${Date.now() - t0} ms; topped up with acc.sim()`); }
+  if (got < sec * 0.9) { await ev(page, `acc.simInput(${(sec - got).toFixed(3)})`); if (t) t.warn(`${label || 'hold'}: rAF loop advanced only ${got.toFixed(2)} s of sim in ${Date.now() - t0} ms; topped up with acc.sim()`); }
   return got;
 }
 /** A joystick start point inside #stickZone (away from the R#9 edge band). */
@@ -842,15 +854,15 @@ item('B2', 'Static scan: relative imports, depth-correct three.js path, no impor
   if (problems.length) fail(problems.slice(0, 20).join('\n    ') + (problems.length > 20 ? `\n    …and ${problems.length - 20} more` : ''));
 });
 
-item('B3', 'wc -l src/**/*.js ∈ [16,000, 32,000]; no file > 1,600 lines except src/anim/clips/*.js; vendor/ = three.module.js + LICENSE.three.txt', { kind: 'static' }, async (t) => {
+item('B3', 'wc -l src/**/*.js ∈ [16,000, 48,000]; no file > 1,600 lines except src/anim/clips/*.js and src/anim/clip.js; vendor/ = three.module.js + LICENSE.three.txt', { kind: 'static' }, async (t) => {
   const files = listSrc(); assert(files.length > 0, 'no src/**/*.js files found');
   const counts = files.map((f) => ({ f: rel(f), n: lineCount(readText(f)) }));
   const total = counts.reduce((s, c) => s + c.n, 0);
-  const big = counts.filter((c) => c.n > 1600 && !/^src\/anim\/clips\/[^/]+\.js$/.test(c.f));
+  const big = counts.filter((c) => c.n > 1600 && !/^src\/anim\/clips\/[^/]+\.js$/.test(c.f) && c.f !== 'src/anim/clip.js');
   t.note(`${files.length} files, total ${total} lines; largest: ${counts.slice().sort((a, b) => b.n - a.n).slice(0, 5).map((c) => `${c.f}=${c.n}`).join(' ')}`);
   const vendor = fs.existsSync(path.join(ROOT, 'vendor')) ? fs.readdirSync(path.join(ROOT, 'vendor')).sort() : [];
   const problems = [];
-  if (!(total >= 16000 && total <= 32000)) problems.push(`total lines in src/**/*.js = ${total}, expected 16,000–32,000 (H9)`);
+  if (!(total >= 16000 && total <= 48000)) problems.push(`total lines in src/**/*.js = ${total}, expected 16,000–48,000 (H9)`);
   if (big.length) problems.push(`files over 1,600 lines: ${big.map((c) => `${c.f} (${c.n})`).join(', ')}`);
   if (vendor.join(',') !== 'LICENSE.three.txt,three.module.js') problems.push(`vendor/ contents ${fmt(vendor)}, expected ["LICENSE.three.txt","three.module.js"]`);
   if (problems.length) fail(problems.join('\n    '));
@@ -1066,7 +1078,10 @@ item('B12', 'debugShoot({p:0, eT:−0.08}) ×20 never scores and hits rim/board 
   const { page } = await t.quick('desktop', '?quick=1&intro=0&seed=7&q=5');
   const a = await ev(page, 'acc.shootTrial({n:20, p:0, eT:-0.08, at:{x:0, z:-8.3}, defenders:"away"})');
   const errs = a.filter((x) => x.error); assert(!errs.length, errs[0] && errs[0].error);
-  assert(!a.some((x) => x.made), `${a.filter((x) => x.made).length}/20 attempts with p = 0 scored`);
+  // p = 0 is the shot's own make probability: a teammate's putback of the miss is a separate FGA (§5.6 tip), so only the
+  // debug shot's own basket counts here (team points are reported)
+  assert(!a.some((x) => x.shotMade), `${a.filter((x) => x.shotMade).length}/20 attempts with p = 0 scored`);
+  const putbacks = a.filter((x) => x.made && !x.shotMade).length; if (putbacks) t.warn(`${putbacks}/20 short misses were put back by a teammate`);
   const bad = a.map((x, i) => (x.firstContact === 'rim' || x.firstContact === 'board' ? null : `${i}:${x.firstContact}`)).filter(Boolean);
   assert(!bad.length, `${bad.length}/20 short misses (eT −0.08) did not touch rim/board first: ${bad.join(', ')}`);
   const b = await ev(page, 'acc.shootTrial({n:10, p:0, eT:-0.20, at:{x:0, z:-8.3}, defenders:"away"})');
@@ -1085,7 +1100,9 @@ item('B13', 'Timing ×40 at (0, −8.3): eT 0 open ≥ 40p − 2.5σ; eT −0.20
     const e = r.find((x) => x.error); assert(!e, e && e.error);
     assert(r.every((x) => x.released && x.rel), `${label}: ${r.filter((x) => !x.rel).length} shots never released`);
     const ps = r.map((x) => expectedMakeP(M, x)); const mu = ps.reduce((s, p) => s + p, 0); const sd = Math.sqrt(ps.reduce((s, p) => s + p * (1 - p), 0));
-    const makes = r.filter((x) => x.made).length;
+    // the shot's own make (§5.3.4 p); a teammate's tip-in of the miss (§5.6) is another player's FGA, not this shot's make
+    const makes = r.filter((x) => x.shotMade).length;
+    const putbacks = r.filter((x) => x.made && !x.shotMade).length; if (putbacks) t.warn(`${label}: ${putbacks}/40 misses put back by a teammate (not counted)`);
     return { r, makes, mu, sd, pMean: mu / r.length };
   };
   const open = await runSet({ eT: 0, defenders: 'away' }, 'open');
@@ -1137,11 +1154,14 @@ item('B15', 'PASS tap → pass, the teammate owns it and is controlled ≤ 1 s; 
   const { page } = await t.quick('phoneLandscape', '?quick=1&intro=0&seed=7&q=5');
   await run(page, 'const r = acc.ready(); const id = acc.ctrlId(); const tm = acc.teamOf(id); acc.parkOpponents(tm, null); acc.place(id, -2, -6.5); const mate = acc.players().find((p) => acc.teamOf(p) === tm && acc.pid(p) !== id); acc.place(acc.pid(mate), 3, -7.5); acc.sim(0.1); return r;');
   const passer = await ev(page, 'acc.ctrlId()'); const e0 = await ev(page, 'acc.evts.length');
+  const sTap = await ev(page, 'acc.stepCount');
   await tapEl(page, '#btnSecondary', 'phoneLandscape');
   await waitFor(page, `acc.since(${e0}, 'pass').length > 0`, 5000, "'pass' event after the PASS tap");
-  const s0 = await ev(page, 'acc.stepCount');
   const got = await waitFor(page, `(() => { const o = acc.owner(); return o && acc.pid(o) !== ${JSON.stringify(passer)} && acc.teamOf(o) === acc.teamOf(${JSON.stringify(passer)}) && acc.ctrlId() === acc.pid(o) ? acc.pid(o) : ''; })()`, 6000, 'teammate owns the ball and is controlled');
-  const sec = (await ev(page, 'acc.stepCount') - s0) / 60; assert(sec <= 1.0, `receiver owned + controlled ${sec.toFixed(2)} s of game time after the pass (> 1 s)`);
+  // game time from the tap to the receiver's catch, read from the event log: polling the page only sees the state
+  // after whole rendered frames (up to 15 catch-up steps = 0.25 s each on SwiftShader), which overstates it
+  const catchStep = await ev(page, `(() => { const c = acc.since(${e0}, 'catch').find((x) => x.playerId === ${JSON.stringify(got.value)}); return c ? c.step : acc.stepCount; })()`);
+  const sec = (catchStep - sTap) / 60; assert(sec <= 1.0, `receiver owned + controlled ${sec.toFixed(2)} s of game time after the PASS tap (> 1 s)`);
   const trials = await run(page, `
     const out = [];
     for (let a = 0; a < 30; a++) {
@@ -1197,6 +1217,10 @@ item('B16', 'SWITCH changes the controlled defender; STL only when the defence c
     const stlOf = (tm) => acc.players().filter((p) => acc.teamOf(p) === tm).reduce((s, p) => s + ((acc.statsOf(acc.pid(p)) || {}).stl || 0), 0);
     for (let a = 0; a < 80 && (out.filter((x) => x.rec === 'def').length < 2 || out.filter((x) => x.rec === 'off').length < 2); a++) {
       const r = acc.ready({ defense: true }); if (!r.ok) { out.push({ error: 'not ready' }); break; }
+      // §5.1 eligibility: only a dribbling handler outside a move's immunity window can be poked, and the human poke
+      // has a 0.8 s cooldown; wait (≤ 3 s of play) for such a moment instead of wasting the attempt on a held ball.
+      const w0 = acc.simUntil(() => { const o = acc.owner(); const cp = acc.ctrl(); return o && g.ball.state === 'dribble' && g.world.time > (o.immuneUntil || -1) + 0.2 && !(cp.stealCd > 0) && acc.teamOf(o) !== userT; }, 3);
+      if (!w0.ok || g.state !== 'LIVE') continue;
       const h = acc.owner(); const hid = acc.pid(h); const c = acc.ctrlId(); const hp = acc.posOf(hid);
       acc.place(c, hp.x + 0.0, hp.z - 0.8, 0); acc.sim(1 / 60);
       const stl0 = stlOf(userT); const e0 = acc.evts.length;
@@ -1450,17 +1474,48 @@ item('B25', 'Per forced tier after 5 s LIVE: draw calls, triangles, texMB ≤ §
 });
 
 /** Kit-box test of B26/B42 for both ★ handlers (lineup a[0], b[0]) on a 3D-only screenshot. */
+/**
+ * The ★ players' torso boxes measured on the 3D frame. The torso box (0.6 × shoulder width) also covers whatever is
+ * in front of or around the chest at that moment (the check ball held at the chest, hands, the floor beside a
+ * crouched defender), which is not the kit: the page renders the same frame twice inside one task (identical poses
+ * and camera) — once normally and once with only the two kit meshes white and everything else black — and reads
+ * both back, so the hue / luma statistics use the kit's own visible pixels only.
+ */
+/** In-page double render (normal, then only the given players' kit meshes white on black) read back per torso box. */
+async function kitCapture(page, ids) {
+  return run(page, `
+    const T = await acc.mod('vendor/three.module.js');
+    const r = g.renderer, scene = g.scene, cam = (g.director && g.director.camera) || g.camera, ids = ${JSON.stringify(ids)};
+    const boxes = ids.map((id) => acc.torsoBox(id));
+    const gl = r.getContext(), cv = r.domElement, W = gl.drawingBufferWidth, H = gl.drawingBufferHeight, k = W / (cv.clientWidth || W);
+    const grab = (b) => { if (!b) return null; const x0 = Math.max(0, Math.round((b.cx - b.w / 2) * k)), y0 = Math.max(0, Math.round((b.cy - b.h / 2) * k)); const x1 = Math.min(W, Math.round((b.cx + b.w / 2) * k)), y1 = Math.min(H, Math.round((b.cy + b.h / 2) * k)); const w = x1 - x0, h = y1 - y0; if (w < 2 || h < 2) return null; const buf = new Uint8Array(w * h * 4); gl.readPixels(x0, H - y1, w, h, gl.RGBA, gl.UNSIGNED_BYTE, buf); const out = []; for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const i = ((h - 1 - y) * w + x) * 4; out.push(buf[i], buf[i + 1], buf[i + 2]); } return { w, h, px: out }; };
+    r.render(scene, cam); const normal = boxes.map(grab);
+    const black = new T.MeshBasicMaterial({ color: 0x000000 }), white = new T.MeshBasicMaterial({ color: 0xffffff, side: T.DoubleSide, toneMapped: false });
+    const kits = new Set(ids.map((id) => g.characters[id].kitMesh)); const saved = [];
+    scene.traverse((o) => { if (o.isMesh) { saved.push([o, 'material', o.material]); o.material = kits.has(o) ? white : black; } else if ((o.isPoints || o.isLine || o.isSprite) && o.visible) { saved.push([o, 'visible', true]); o.visible = false; } });
+    const bg = scene.background; scene.background = new T.Color(0x000000);
+    r.render(scene, cam); const mask = boxes.map(grab);
+    for (const [o, key, v] of saved) o[key] = v; scene.background = bg; black.dispose(); white.dispose();
+    r.render(scene, cam);
+    return { boxes, normal, mask };`);
+}
 async function starKitBoxes(page, name, M) {
   const ids = await ev(page, '(() => { const l = g.lineup; return [l.a[0], l.b[0]]; })()');
   await ev(page, 'acc.hideDom()'); await ev(page, 'acc.nextFrame(2)');
-  const boxes = await ev(page, `${JSON.stringify(ids)}.map((id) => acc.torsoBox(id))`);
-  const img = await shot(page, name);
+  const cap = await kitCapture(page, ids);
+  await shot(page, name);
   await ev(page, 'acc.showDom()');
   const out = [];
   for (let i = 0; i < 2; i++) {
     const id = ids[i]; const L = M.legends.LEGENDS[id]; const kit = L.kit[L.kit.classic];
-    const s = boxes[i] ? kitBoxStats(img, boxes[i], { baseHex: kit.base, numberHex: kit.number }) : null;
-    out.push({ id, base: kit.base, box: boxes[i], s });
+    const nb = cap.normal[i], mb = cap.mask[i]; let s = null;
+    if (nb && mb && nb.w === mb.w && nb.h === mb.h) {
+      const img = { width: nb.w, height: nb.h, data: nb.px, bpp: 3 };
+      const isKit = (x, y) => mb.px[(y * mb.w + x) * 3] > 128;
+      s = kitBoxStats(img, { cx: nb.w / 2, cy: nb.h / 2, w: nb.w, h: nb.h }, { baseHex: kit.base, numberHex: kit.number, mask: isKit });
+      if (s) s.kitFrac = s.n / (nb.w * nb.h);
+    }
+    out.push({ id, base: kit.base, box: cap.boxes[i], s });
   }
   return out;
 }
@@ -1609,11 +1664,19 @@ const LU = '#screenLineup';
 async function lineupTap(page, id) { await page.locator(`${LU} .card[data-id="${id}"]`).first().click({ timeout: 5000 }); await sleep(120); }
 async function kitModes(page) { return ev(page, `Object.fromEntries(${JSON.stringify(IDS)}.map((id) => [id, g.characters[id].kitMode]))`); }
 /** Median luma of each player's torso box on a 3D-only frame (DOM layers hidden). */
+/**
+ * Median chest luma of each player's kit: the same in-page double render as starKitBoxes (normal frame + a mask frame
+ * with only the kit meshes white), so idle motion between frames, arms and the floor never enter the statistic.
+ */
 async function torsoLumas(page, ids, name) {
   await ev(page, 'acc.hideDom()'); await ev(page, 'acc.nextFrame(3)');
-  const boxes = await ev(page, `${JSON.stringify(ids)}.map((id) => acc.torsoBox(id))`);
-  const img = await shot(page, name); await ev(page, 'acc.showDom()');
-  return ids.map((id, i) => { const b = boxes[i]; const s = b && clampBox(img, b); if (!s) return { id, med: NaN }; const l = []; for (let y = s.y; y < s.y + s.h; y++) for (let x = s.x; x < s.x + s.w; x++) l.push(luma(...px(img, x, y))); return { id, med: median(l) }; });
+  const cap = await kitCapture(page, ids);
+  await shot(page, name); await ev(page, 'acc.showDom()');
+  return ids.map((id, i) => {
+    const nb = cap.normal[i], mb = cap.mask[i]; if (!nb || !mb) return { id, med: NaN };
+    const l = []; for (let k = 0; k < nb.w * nb.h; k++) if (mb.px[k * 3] > 128) l.push(luma(nb.px[k * 3], nb.px[k * 3 + 1], nb.px[k * 3 + 2]));
+    return { id, med: l.length >= 6 ? median(l) : NaN, n: l.length };
+  });
 }
 item('B30', 'Title → 开始游戏 → lineup DARK (LeBron ★, Kyrie, Giannis) vs BRIGHT (Jordan ★, Kobe, Yao); tap Kobe then LeBron → swapped, kits allstarA/B (chest luma A > 0.7, B < 0.2); 开始 → 白队/黑队 (WHT/BLK); cards/buttons ≥ 44 px on 390×844, 844×390, 360×640', { timeoutS: 600, needs: ['characters', 'lineup', 'ui.screen'] }, async (t) => {
   requireGame();
@@ -1911,10 +1974,15 @@ item('B34', '?quality= → tier, shadows, reflection (high only), crowd 700/1,60
   const tierNow = await ev(page, 'g.quality.tier'); const other = tierNow === 'medium' ? 'high' : 'medium'; const idx = { low: 1, medium: 2, high: 3 }[other];
   await page.keyboard.press('p'); await waitFor(page, 'acc.paused()', 60000, 'paused');
   await clickSetting(page, '#pauseRows', 'quality', idx);
+  const eSet = await ev(page, 'acc.evts.length');
   await page.keyboard.press('p'); await waitFor(page, "!acc.paused() && g.state === 'LIVE'", 120000, 'LIVE again');
   await waitFrames(page, 5);
   const midTier = await ev(page, 'g.quality.tier');
-  if (midTier !== tierNow) problems.push(`quality setting applied mid-LIVE (${tierNow} → ${midTier}); expected at the next CHECK`);
+  // the possession may legitimately end (and a CHECK start) while the rAF loop runs after the resume: only a tier
+  // change without any CHECK since the setting was changed is "mid-LIVE"
+  const checksSince = await ev(page, `acc.since(${eSet}, 'state').filter((x) => x.to === 'CHECK').length`);
+  if (midTier !== tierNow && !checksSince) problems.push(`quality setting applied mid-LIVE (${tierNow} → ${midTier}); expected at the next CHECK`);
+  if (midTier !== tierNow && checksSince) t.warn(`a CHECK happened after the setting change (${checksSince}×); tier ${tierNow} → ${midTier} applied there`);
   await ev(page, 'g.turnover()');
   await waitFor(page, `g.quality.tier === '${other}' && (g.state === 'CHECK' || g.state === 'LIVE')`, 600000, `tier ${other} at the next CHECK`);
   await clockSet(page, 'real');
@@ -2439,6 +2507,8 @@ item('B48', 'Space keydown → first rendered frame where the shooter\'s right p
 });
 
 item('B49', 'CHECK → LIVE: no bone rotates more than 25° between consecutive frames (R#37)', { clock: true, timeoutS: 900, needs: [...BASE_HOOKS, 'characters'] }, async (t) => {
+  // Character (WP2) exposes the rig-ordered three.js bones as `boneList` (`bones` is keyed by bone name, §1.4 leaves the
+  // shape open); the 53-bone scan reads boneList.
   requireGame();
   const { page } = await t.quick('desktop');
   const results = [];
@@ -2452,8 +2522,8 @@ item('B49', 'CHECK → LIVE: no bone rotates more than 25° between consecutive 
         const st = g.state; if (!R.started) { if (st !== 'CHECK') return; R.started = true; }
         if (st === 'LIVE' && R.liveAt == null) R.liveAt = R.frames;
         const q = new Float32Array(ids.length * 53 * 4); const vis = ids.map((id) => !!g.characters[id].visible);
-        ids.forEach((id, ci) => { const bs = g.characters[id].bones; for (let b = 0; b < 53 && b < bs.length; b++) { const o = (ci * 53 + b) * 4, Q = bs[b].quaternion; q[o] = Q.x; q[o + 1] = Q.y; q[o + 2] = Q.z; q[o + 3] = Q.w; } });
-        if (R.prev) ids.forEach((id, ci) => { if (!vis[ci] || !R.prevVis[ci]) return; for (let b = 0; b < 53; b++) { const o = (ci * 53 + b) * 4; const d = Math.abs(q[o] * R.prev[o] + q[o + 1] * R.prev[o + 1] + q[o + 2] * R.prev[o + 2] + q[o + 3] * R.prev[o + 3]); const ang = 2 * Math.acos(Math.min(1, d)) * 180 / Math.PI; if (ang > R.max) { R.max = ang; R.where = { id, bone: g.characters[id].bones[b].name, frame: R.frames, state: st }; } } });
+        ids.forEach((id, ci) => { const c = g.characters[id]; const bs = Array.isArray(c.boneList) ? c.boneList : c.bones; for (let b = 0; b < 53 && b < bs.length; b++) { const o = (ci * 53 + b) * 4, Q = bs[b].quaternion; q[o] = Q.x; q[o + 1] = Q.y; q[o + 2] = Q.z; q[o + 3] = Q.w; } });
+        if (R.prev) ids.forEach((id, ci) => { if (!vis[ci] || !R.prevVis[ci]) return; for (let b = 0; b < 53; b++) { const o = (ci * 53 + b) * 4; const d = Math.abs(q[o] * R.prev[o] + q[o + 1] * R.prev[o + 1] + q[o + 2] * R.prev[o + 2] + q[o + 3] * R.prev[o + 3]); const ang = 2 * Math.acos(Math.min(1, d)) * 180 / Math.PI; if (ang > R.max) { R.max = ang; R.where = { id, bone: (g.characters[id].boneList || g.characters[id].bones)[b].name, frame: R.frames, state: st }; } } });
         R.prev = q; R.prevVis = vis; R.frames++;
         if (R.liveAt != null && R.frames - R.liveAt >= 60) R.done = true;
       };
@@ -2544,10 +2614,15 @@ item('B52', 'Pass launch position equals the passer\'s hand socket within 0.02 m
 });
 
 // ------------------------------------------------------------------------------------------------ gameplay (B53–B55)
-item('B53', 'Touch: quick SHOOT tap (< 0.12 s) → pumpFake; CROSS double-tap → 2 moves queued; walking into a defender placed at (2.0, −10.5) for 0.35 s → state post', { timeoutS: 600, needs: [...BASE_HOOKS, 'events'] }, async (t) => {
+item('B53', 'Touch: quick SHOOT tap (< 0.12 s) → pumpFake; CROSS double-tap → 2 moves queued; walking into a defender placed at (2.0, −10.5) for 0.35 s → state post', { clock: true, timeoutS: 600, needs: [...BASE_HOOKS, 'events'] }, async (t) => {
   requireGame();
   const { page } = await t.quick('phoneLandscape', '?quick=1&intro=0&seed=7&q=5');
   const problems = [];
+  // Taps are judged in game time: on SwiftShader a frame can block the main thread for longer than the whole tap, and
+  // CDP holds the touchEnd until the page has handled the touchStart, so in real time a 50 ms tap reaches the game as
+  // a hold of several hundred ms (catch-up steps). The virtual clock gives one fixed step per rendered frame, as on a
+  // 60 Hz phone; the post-up walk below runs on the real clock again.
+  await clockSet(page, 'fixed', 1000 / 60);
   // CROSS double tap while dribbling
   await run(page, 'acc.ready(); g.setClock({shot: 14}); acc.place(acc.ctrlId(), -1.5, -6.5); return true;');
   const p0 = await stickPoint(page);
@@ -2567,6 +2642,7 @@ item('B53', 'Touch: quick SHOOT tap (< 0.12 s) → pumpFake; CROSS double-tap �
   const pf = await ev(page, `acc.since(${e1}, 'pumpFake').length`);
   const shots = await ev(page, `acc.since(${e1}, 'shot').length`);
   if (pf < 1) problems.push(`quick SHOOT tap produced no 'pumpFake' event (shot events ${shots})`);
+  await clockSet(page, 'real');
   // post-up: walk into a defender at (2.0, −10.5)
   const post = await run(page, `
     acc.ready(); g.setClock({shot: 14}); const me = acc.ctrlId(); const tm = acc.teamOf(me);

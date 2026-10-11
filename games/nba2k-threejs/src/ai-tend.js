@@ -36,7 +36,7 @@
  *   profileMix(id) → the frozen profile mix { rim, close, mid, three, post }
  *   dietFactor(p, world, zone) → shot-diet feedback on the rim / mid / three utilities: (profile share / observed share
  *     of the legend's attempts so far)^1.5, observed share smoothed with a prior of 6 attempts at the profile mix,
- *     clamped [0.4, 2.5] (close: 1). Keeps a legend on his profile mix (§5.14 A style checks) whatever the matchup.
+ *     clamped [0.4, 2.5] (close: only for profiles with close shots). Keeps a legend on his profile mix (§5.14 A style checks) whatever the matchup.
  *
  *
  * Geometry and estimates (the queries ai.js decides with; ai.js re-exports the public ones):
@@ -70,8 +70,16 @@ const HELP_MAX = 0.95, HELP_R = 3.2, HELP_R_GIANNIS = 4.0, HELP_REACTION_GIANNIS
  * interval elapsed). The spec fixes the attempt interval (cpuStealInterval) and the per-legend gamble factor; the base
  * is the balance knob of the steals band (§5.14 A: 4–10 % of possessions).
  */
-const POKE_P = 0.80, POKE_MAX = 0.95;
+const POKE_P = 0.50, POKE_MAX = 0.95;
 const LANE_GAMBLE_K = 0.6;
+/**
+ * Calibration of the §5.10 risk sum against the game's own interception / deflection physics (I3 forced-pass trials,
+ * 3,000 CPU passes over 8 auto games): risk 0–0.2 → 0 % lost, 0.2–0.5 → 2–9 %, 0.5–0.8 → 21 %, > 0.8 → 67–84 %. The
+ * legend riskTol values (§2.5, 0.10–0.18) read as "acceptable risk units" would forbid nearly every pass (84 % of
+ * handler ticks had no receiver), so they are compared on this scale: tol = riskTol × riskTolMul × 3.0 (band A: CPU passes
+ * lost 3–5 %).
+ */
+export const RISK_TOL_SCALE = 3.0;
 const MISMATCH_H = 0.08, MISMATCH_STR = 15;
 const CLUTCH_SHOT_MUL = 1.5;
 const DIET_PRIOR = 6, DIET_K = 1.5, DIET_MIN = 0.4, DIET_MAX = 2.5;
@@ -248,7 +256,7 @@ export function laneGambleP(p, diff) {
 /** Pass risk tolerance (§2.5 riskTol × difficulty riskTolMul). */
 export function riskTolOf(p, diff) {
   const T = tendOf(p);
-  return (T ? T.riskTol : 0.15) * diff.riskTolMul;
+  return (T ? T.riskTol : 0.15) * diff.riskTolMul * RISK_TOL_SCALE;
 }
 
 /** Pass tendency multiplier (§2.5 `pass`; LeBron's 1.35 is his `skipPass` AI pass value). */
@@ -282,10 +290,11 @@ export function postAlways(p) {
  */
 export function dietFactor(p, world, zone) {
   const L = legendOf(p);
-  if (!L || zone === 'close') return 1;
+  if (!L) return 1;
   const z = zone === 'layup' || zone === 'dunk' || zone === 'tip' ? 'rim' : zone;
   const target = L.tend.mix[z];
-  if (!(target >= 0)) return 1;
+  // close shots get the feedback only for the legends whose profile has them (Giannis, Yao, Kyrie; I3)
+  if (!(target >= 0) || (z === 'close' && !(target > 0))) return 1;
   const M = world.metrics && world.metrics.players ? world.metrics.players[L.id] : null;
   const zs = M ? M.zone : null;
   const nz = zs ? zs[z].a : 0;
@@ -312,10 +321,15 @@ const THETA_LO = 0.85, THETA_SPAN = 0.35, THETA_CLOCK0 = 3, THETA_CLOCK_SPAN = 1
 /** Pass risk (R#34): lead-pass speed threshold, launch-point model (hand 0.30 m out, ±0.15 m wander over 1.5 m),
  * contact buffer for a defender already at the line, U_pass constants (EP × 0.92, lane penalty 0.6 inside 0.8 m). */
 export const LEAD_V = 1.0;
-const CONTACT_BUF = 0.20, HAND_FWD = 0.30, LAUNCH_MARGIN = 0.15, LAUNCH_SPAN = 1.5;
+const CONTACT_BUF = 0.05, HAND_FWD = 0.30, LAUNCH_MARGIN = 0.05, LAUNCH_SPAN = 1.5, LAUNCH_DELAY = 0.15;
+/** Guard shadow: a defender within SHADOW_R of the passer whose distance to the root → catch ray is under intR + SHADOW_PAD
+ * gets at least the contact odds (the launch happens 0.15–0.35 s after the press, from a hand that swings with the turn). */
+const SHADOW_R = 2.2, SHADOW_PAD = 0.35;
+/** Reach floor: a lane gap under this share of the defender's post-reaction run is treated as reachable. */
+const REACH_FLOOR_K = 0.5;
 const PASS_EP_K = 0.92, LANE_R = 0.8, LANE_PEN = 0.6, RISK_K = 0.6;
 /** Drive: laneClear segment (0.90 m × next 3 m), guardBeaten lateral offset, pBeat terms (§5.10). */
-const DRIVE_LANE_R = 0.90, DRIVE_LANE_LEN = 3.0, GUARD_LAT = 0.90;
+const DRIVE_LANE_R = 0.90, DRIVE_LANE_LEN = 3.0, GUARD_LAT = 0.90, LANE_SHUT_MUL = 0.6;
 export const PBEAT_BEATEN = 0.90;
 const PBEAT_BASE = 0.20, PBEAT_RUN = 0.40, PBEAT_HANDLE = 0.20, PBEAT_STR = 0.15, PBEAT_MIN = 0.05, PBEAT_MAX = 0.60;
 /** Drive finish estimate: finish point 1.2 m from the rim, trailing guard 1.0 m behind, help stops 0.8 m short,
@@ -511,7 +525,9 @@ export function abilityCtx(p, world) {
 export function estMake(p, world, kind, variant, x, z, vx, vz, contact) {
   resetShotInput(EST);
   EST.kind = kind; EST.variant = variant; EST.x = x; EST.z = z; EST.estimate = true;
-  EST.side = sideOfAI(world, p); EST.difficulty = world.difficultyId || 'normal';
+  // an easy CPU judges its shots like a normal one (T̄ 0.81, cpuMakeMul 0.96) although it shoots with the easy
+  // σ / multiplier: the overconfident opponent takes the marginal looks a careful one would pass up (§5.14 B easy)
+  EST.side = sideOfAI(world, p); EST.difficulty = world.difficultyId === 'easy' ? 'normal' : (world.difficultyId || 'normal');
   EST.takeoffVx = vx; EST.takeoffVz = vz;
   EST.quarter = world.quarter; EST.gameClock = world.gameClock;
   EST.scoreDiff = world.score ? world.score[p.team] - world.score[1 - p.team] : 0;
@@ -621,12 +637,23 @@ export function finishEst(h, world, g) {
   return pm;
 }
 
+/**
+ * Players exempt from the §5.10 lane gate (U_drive = 0 when the lane is not clear): LeBron, Giannis, Yao (spec) and
+ * Jordan, whose `jordan.air` mid-air switch exists to finish over the help (I3: without it the BRIGHT wings never
+ * attacked a lane Giannis shades, and their drive-finished share sat at 7 % against the ≥ 15 % band).
+ */
+export function laneGateFree(p) {
+  const id = p.id;
+  return id === 'lebron' || id === 'giannis' || id === 'yao' || id === 'jordan';
+}
+
 /** U_drive (§5.10) with an optional pBeat override (U_move uses 0.90). */
 export function uDrive(h, g, world, diff, pb, committed) {
-  const big = h.id === 'lebron' || h.id === 'giannis' || h.id === 'yao';
-  if (!committed && !big && !laneClear(h, g, world)) return 0;
+  // the lane gate (§5.10) scales instead of zeroing (I3): a shut lane costs a non-exempt driver LANE_SHUT_MUL, so a
+  // big payoff (a legend well below his rim share, a beaten guard) still attacks the help
+  const shut = !committed && !laneGateFree(h) && !laneClear(h, g, world);
   const beat = pb > 0 ? pb : (g ? pBeat(h, g, world) : PBEAT_BEATEN);
-  return 2 * finishEst(h, world, g) * beat * tendOf(h).shotRim * diff.cpuDriveMul * dietFactor(h, world, 'rim');
+  return 2 * finishEst(h, world, g) * beat * tendOf(h).shotRim * diff.cpuDriveMul * dietFactor(h, world, 'rim') * (shut ? LANE_SHUT_MUL : 1);
 }
 
 /**
@@ -664,21 +691,55 @@ function riskFrom(passer, recv, sx, sz, x, z, world) {
   let risk = 0, blocked = false;
   for (let i = 0; i < ps.length; i++) {
     const d = ps[i];
-    if (d.team === passer.team || d.disabled) continue;
-    const S = segClosest(d.pos.x, d.pos.z, sx, sz, ex, ez);
-    const s = S.t * end;
+    if (d.team === passer.team) continue;
+    // a moving defender keeps moving through his reaction time: he is checked where he is now and where his
+    // current velocity carries him by then (a guard stepping up at the press is in the lane at the release)
+    const react = aiDiff(world, d).reaction, ahead = react;
+    const S0 = segClosest(d.pos.x, d.pos.z, sx, sz, ex, ez);
+    let sd = S0.d, st = S0.t;
+    const S1 = segClosest(d.pos.x + d.vel.x * ahead, d.pos.z + d.vel.z * ahead, sx, sz, ex, ez);
+    if (S1.d < sd) { sd = S1.d; st = S1.t; }
+    const s = st * end;
     // the launch point wanders with the dribble / pass clip: near the hand a defender counts LAUNCH_MARGIN closer
-    const dl = Math.max(0, S.d - LAUNCH_MARGIN * Math.max(0, 1 - s / LAUNCH_SPAN));
+    const dl = Math.max(0, sd - LAUNCH_MARGIN * Math.max(0, 1 - s / LAUNCH_SPAN));
     const tb = s / PASS_RULE.speed + PASS_RULE.release;
+    // a stunned / fallen defender is back in play when his timer runs out: he counts if that happens before the
+    // ball gets to him (a failed poke stuns the passer's guard 0.30 s, while the pass is still in the hand)
+    const down = d.state === 'stunned' ? d.stunT : d.state === 'fallen' ? d.fallenT : 0;
+    if (down >= tb + LAUNCH_DELAY) continue;
     const intR = d.attrs.catchR + INTERCEPT.R_ADD + (has(d, 'jordan.hawk') ? 0.20 : 0);
-    const reachR = intR + d.attrs.run * Math.max(0, tb - aiDiff(world, d).reaction);
+    const reachR = intR + d.attrs.run * Math.max(0, tb - Math.max(react, down));
     let c = dl < reachR ? RISK_K * (1 - dl / reachR) : 0;
+    // a defender who only has to lean into the lane (the gap to his intercept radius is well inside what he covers
+    // after his reaction) gets there whenever he gambles: lane-jump odds × the game's contact odds (I3; the spec's
+    // linear term gave 0.33 to a hawk 0.14 m short of the lane, which caught 100 % of those passes)
+    const gap = dl - intR, cover = d.attrs.run * Math.max(0, tb - Math.max(react, down));
+    if (gap > 0 && gap < REACH_FLOOR_K * cover) {
+      const pi = interceptChance(d, intR, intR);
+      // the receiver's own defender always moves at the release (his closeout runs to the catch point)
+      const gp = recv && d.defAssign === recv ? 1 : laneGambleP(d, aiDiff(world, d));
+      const pr = gp * (pi + (1 - pi) * INTERCEPT.DEFLECT_P) * (1 - gap / (REACH_FLOOR_K * cover));
+      if (pr > c) c = pr;
+    }
     // a defender already inside his intercept radius of the path rolls without moving: the game's own odds
     // (interceptChance, else a 50 % deflection) are the floor of his chance
     if (dl < intR + CONTACT_BUF) {
       const pi = interceptChance(d, Math.min(dl, intR), intR);
       const pc = (pi + (1 - pi) * INTERCEPT.DEFLECT_P) * Math.min(1, (intR + CONTACT_BUF - dl) / CONTACT_BUF);
       if (pc > c) c = pc;
+    }
+    // the guard shadow (from the passer's root, the turn-proof launch point)
+    const gx = d.pos.x - passer.pos.x, gz = d.pos.z - passer.pos.z, gd = Math.sqrt(gx * gx + gz * gz);
+    if (gd < SHADOW_R) {
+      const lx = x - passer.pos.x, lz = z - passer.pos.z, ll = Math.sqrt(lx * lx + lz * lz);
+      if (ll > 1e-6) {
+        const along = (gx * lx + gz * lz) / ll, perp = Math.abs(gx * lz - gz * lx) / ll;
+        if (along > 0 && along < ll && perp < intR + SHADOW_PAD) {
+          const pi = interceptChance(d, Math.min(perp, intR), intR);
+          const pc = (pi + (1 - pi) * INTERCEPT.DEFLECT_P) * Math.min(1, (intR + SHADOW_PAD - perp) / SHADOW_PAD);
+          if (pc > c) c = pc;
+        }
+      }
     }
     risk += c;
     if (dl < LANE_R) blocked = true;

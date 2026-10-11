@@ -143,6 +143,12 @@ export function metricSets(basePosM) {
     ear: earSet(basePosM),
     // skull surface just in front of / above the ear root (reference for earOut)
     skullAtEar: sel(basePosM, (x, y, z) => Math.abs(x) < 0.0715 && Math.abs(x) > 0.04 && y > 0.70 && y < 0.73 && z > 0 && z < 0.03),
+    // upper lid + eyefold skin over the left pupil column (round 4, visible fissure for fissH; see faceMetrics)
+    upperLid: (() => {
+      const ps = LANDMARK_OBJ.PS_l, pi = LANDMARK_OBJ.PI_l;
+      const PSx = basePosM[ps * 3], PSy = basePosM[ps * 3 + 1], PSz = basePosM[ps * 3 + 2], PIy = basePosM[pi * 3 + 1];
+      return sel(basePosM, (x, y, z) => Math.abs(x - PSx) < 0.004 && y > PIy && y < PSy + 0.012 && z > PSz - 0.006);
+    })(),
   };
 }
 
@@ -162,10 +168,31 @@ export function faceMetrics(P, sets, lm = LANDMARK_OBJ) {
     faceLW: faceH / bizyg,
     chinProj: (PG[2] - SN[2]) * 1000,
     earOut: (mxAbsX(sets.ear) - mxAbsX(sets.skullAtEar)) * 1000,
-    fissH: (P(lm.PS_l)[1] - P(lm.PI_l)[1]) * 1000,
+    fissH: visibleFissure(P, sets, lm) * 1000,
     lipsH: (P(lm.LS)[1] - P(lm.LI)[1]) * 1000,
     noseIcd: 2 * mxAbsX(sets.nose) / icd,
   };
+}
+
+/**
+ * Palpebral fissure height (round 4): PS_l.y − PI_l.y, except where upper-lid / eyefold skin hangs in FRONT of the
+ * lid margin over the pupil column (|x − PS.x| < 2.5 mm, z > max(PS.z, PI.z) − 1.5 mm): then the visible opening ends
+ * at the lowest such vertex. Likeness rounds 2–3 measured Yao at 6.5–6.7 mm (widest-but-two) from the PS vertex while
+ * the judges saw "pinholes, no sclera" — the eyefold / epicanthus targets drape skin over a lid margin the vertex
+ * metric could not see (0.6 mm visible on the r4 bake). The other five faces have no overhang (unchanged values,
+ * LeBron −0.2 mm). Without the `upperLid` set (older bakes) it falls back to the vertex difference.
+ */
+function visibleFissure(P, sets, lm) {
+  const PS = P(lm.PS_l), PI = P(lm.PI_l);
+  let top = PS[1];
+  if (sets.upperLid) {
+    const zMin = Math.max(PS[2], PI[2]) - 0.0015;
+    for (const o of sets.upperLid) {
+      const q = P(o);
+      if (Math.abs(q[0] - PS[0]) < 0.0025 && q[1] > PI[1] + 0.0005 && q[2] > zMin && q[1] < top) top = q[1];
+    }
+  }
+  return top - PI[1];
 }
 
 const INF = Infinity;

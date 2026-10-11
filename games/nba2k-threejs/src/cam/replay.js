@@ -261,6 +261,9 @@ export class ReplayRecorder {
 
 // ======================================================================================================== triggers
 
+/** game.js 'score' payloads carry `winner` = the winning team (0/1) or −1; booleans are accepted too. */
+function isWinner(e) { return e.winner === true || (typeof e.winner === 'number' && e.winner >= 0); }
+
 const RESULT = { start: false, kind: '', window: { t0: 0, t1: 0, anchor: 0 }, focus: -1, other: -1, winner: false, deferred: false, t: 0, reason: '' };
 
 function typeOf(e, type) {
@@ -352,7 +355,7 @@ export class ReplayTriggers {
       const dunk = e.kind === 'dunk';
       const clutch = this._clutchMake(e);
       if (!dunk && !clutch) { r.reason = 'plain'; return r; }
-      r.winner = !!e.winner;
+      r.winner = isWinner(e);
       if (dunk) {
         kind = 'dunk';
         const s = rec ? rec.lastEvent(EVT.slam, t - 2.5, t + 1e-3, pi) : NaN;
@@ -402,7 +405,7 @@ export class ReplayTriggers {
 
   /** Make that wins or ties in the last 3.0 s of Q4/OT, a make at a period buzzer, or a game-winner. */
   _clutchMake(e) {
-    if (e.winner || e.buzzer) return true;
+    if (isWinner(e) || e.buzzer) return true;
     if (this._quarter(e) < 4 || this._clock(e) > REPLAY.CLUTCH_S) return false;
     let sf, sa;
     if (typeof e.scoreFor === 'number' && typeof e.scoreAgainst === 'number') { sf = e.scoreFor; sa = e.scoreAgainst; } else {

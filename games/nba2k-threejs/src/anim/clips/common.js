@@ -551,18 +551,31 @@ export const LIBRARY_IDS = Object.freeze([...new Set([
  * first player as fallback; everything else shared. Returns { shared, perPlayer, ids }.
  */
 export function registerClipLibrary(playerIds = PLAYER_IDS) {
+  const it = registerClipLibrarySteps(playerIds);
+  let r = it.next();
+  while (!r.done) r = it.next();
+  return r.value;
+}
+
+/**
+ * The same registration as a generator that yields after every registered def, so a loader can spread it over
+ * time slices (main.js: no long task during the loading screen). Its return value is registerClipLibrary's result.
+ */
+export function* registerClipLibrarySteps(playerIds = PLAYER_IDS) {
   let shared = 0, perPlayer = 0;
-  for (const d of COMMON_CLIPS) { registerClip(d); shared++; }
-  for (const d of SIGNATURE) { registerClip(d); shared++; }
+  for (const d of COMMON_CLIPS) { registerClip(d); shared++; yield shared + perPlayer; }
+  for (const d of SIGNATURE) { registerClip(d); shared++; yield shared + perPlayer; }
   for (const id of Object.keys(SHOT_GENERATORS)) {
     const gen = SHOT_GENERATORS[id];
     const owners = PLAYER_IDS.filter((p) => timingByClip(p, id));
     const fallback = owners.length ? owners[0] : PLAYER_IDS[0];
     registerClip(gen(fallback)); shared++;
-    for (const p of playerIds) if (owners.includes(p)) { registerClip(gen(p), p); perPlayer++; }
+    yield shared + perPlayer;
+    for (const p of playerIds) if (owners.includes(p)) { registerClip(gen(p), p); perPlayer++; yield shared + perPlayer; }
   }
   const fb = commonPerPlayer(PLAYER_IDS[0]);
   for (const d of fb) { registerClip(d); shared++; }
-  for (const p of playerIds) for (const d of commonPerPlayer(p)) { registerClip(d, p); perPlayer++; }
+  yield shared + perPlayer;
+  for (const p of playerIds) { for (const d of commonPerPlayer(p)) { registerClip(d, p); perPlayer++; } yield shared + perPlayer; }
   return { shared, perPlayer, ids: LIBRARY_IDS };
 }

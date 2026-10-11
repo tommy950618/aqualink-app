@@ -59,7 +59,7 @@ camera … R#44 = verdict), the numbering GP and PR use. CHR and ANIM cite the s
 | H6 | UI zh-CN default, English toggle; every UI string in `src/i18n.js`. **CHANGED** CJK literals allowed only in `src/i18n.js` and `src/legends.js` (player names). |
 | H7 | **CHANGED** Real player names and likenesses of the six legends are required [DEC]. Still forbidden anywhere (code, strings, textures, shoes, ball): NBA / team names / team logos / "2K" / brand names / brand logos / trademark nicknames (denylist §9.2). README carries: 非商业粉丝作品；球员姓名与肖像归其本人所有。/ Non-commercial fan project; names and likenesses belong to the players. |
 | H8 | All gameplay randomness through the seeded `Rng` (`src/math.js`); cosmetic randomness through a separate `Rng(seed ^ 0xA11CE5)` advanced only in fixed steps (animation) or `Rng(seed ^ 0xC20D)` (crowd). `Math.random` must not appear in `src/`. |
-| H9 | **CHANGED** `wc -l src/**/*.js` total in **[16,000, 32,000]**; no single file > 1,600 lines except `src/anim/clips/*.js`. |
+| H9 | **CHANGED** `wc -l src/**/*.js` total in **[16,000, 48,000]** (raised from 32,000 at integration [DEC]); no single file > 1,600 lines except `src/anim/clips/*.js` and `src/anim/clip.js`. |
 | H10 | Zero allocations per frame / per fixed step in step, animation, render, HUD, camera, replay, crowd, net, AI (module scratch objects; v1 rule). |
 | H11 | Works identically on static hosting and inside the Claude artifact iframe (supporting files next to the page; `localStorage` may throw → every access in try/catch with in-memory fallback). `.bin` files published with explicit `application/octet-stream`. |
 | H12 | WebGL2 required for the legends; WebGL1 or any asset failure → **simplified mode** (v1 primitive humanoids, `src/humanoid.js` kept as fallback), never a dead page. |
@@ -2688,7 +2688,7 @@ Mamba`, `King James`, `Greek Freak`, `Uncle Drew`, `Concord`, `Bred`, `Nike`, `A
 |---|---|---|
 | B1 | A1 changed | `startGame` on desktop, iPhone 11 portrait/landscape, Pixel 5: zero `console.error`, zero uncaught exceptions, zero failed requests, every request same-origin (incl. `assets/legends/*`); none during a full `fastForward(120)` game with intro and replays enabled |
 | B2 | A2 changed | static scan of `src/**/*.js`: imports start with `./` or `../`; the three.js import is the depth-correct `vendor/three.module.js` path (H2); no `importmap`; no dynamic `import(`; no top-level `await`; no `Math.random`; CJK only in `src/i18n.js` and `src/legends.js`; denylist §9.2 over the scanned files returns nothing |
-| B3 | A3 changed | `wc -l src/**/*.js` ∈ [16,000, 32,000]; no file > 1,600 lines except `src/anim/clips/*.js`; `vendor/` = `three.module.js` + `LICENSE.three.txt` |
+| B3 | A3 changed | `wc -l src/**/*.js` ∈ [16,000, 48,000]; no file > 1,600 lines except `src/anim/clips/*.js` and `src/anim/clip.js`; `vendor/` = `three.module.js` + `LICENSE.three.txt` |
 | B4 | A4 changed | body text contains `开始游戏`; no empty `[data-i18n]`; `[data-action=lang]` → `Play`, not `开始游戏`, and `__game.arena.jumbo.lastText` changes language; toggling back restores; reload keeps the choice |
 | B5 | A5 changed | 快速比赛 → `CHECK` then `LIVE` ≤ 3 s after `legendsReady`; 6 players; score bug `暗夜`/`烈阳` (zh) or `DRK`/`BRT` (en), `0 0`, `第1节`/`Q1`, `02:00`, shot clock `14`; after `fastForward(3)`: `01:57` and `11` |
 | B6 | A6 kept | joystick drag +60 px for 1 s → controlled `pos.x` +> 1.0 m; release → speed < 0.1 m/s within 0.5 s; −60 px y → `pos.z` −> 1.0 m |

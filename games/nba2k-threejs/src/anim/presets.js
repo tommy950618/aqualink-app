@@ -284,7 +284,7 @@ export const FORMS = Object.freeze({
   giannis: form({
     takeoff: { mid: 0.36, three: 0.42, pull: 0.40, fade: null }, dip: 0.09, kneeDip: 40, ballAtDip: 'belt',
     h: { mid: 0.25, three: 0.12, pull: 0.25, fade: null }, rva: -0.07, setLead: 0.14,
-    set: A(100, 18, 10, 98, 80, -65, 0), guide: A(92, 18, 35, 100, 10, -20, 0), relFlex: 145, followWrist: 60,
+    set: A(100, 18, 10, 98, 80, -65, 0), guide: A(92, 18, 35, 100, 10, -20, 0), relFlex: 156, followWrist: 60,   // relFlex spec 145: on the baked rig 145 launches the ball 0.07–0.09 m under the §4.9.2 2.65 (B46)
     followHold: 0.40, followHoldClutch: 0.40, guideAfter: { mode: 'pop', cm: 0 }, fadeDrift: 0, fadeLean: 0,
     forwardDrift: 0.15, airFade: { R: [15, 20], L: [15, 20] }, head: A(0, 0, 0), face: {}, launchMid: 2.65,
     lay: { h: 0.65, gScale: 1, to2: 0.38, to1: 0.13, vAir: 2.6 },

@@ -43,14 +43,18 @@ import { timingClip, catOf, prepareTiming } from './select.js';
 const G = 9.81;
 
 const m = (o) => Object.freeze(o);
-/** Per-player metrics (spec §4.1 table; reachM §2.2; eyeY / footLen / ankleX from the baked header). */
+/**
+ * Per-player metrics (spec §4.1 table; reachM §2.2). The measured rig fields (hipH, sLeg, shoulderY, armLen, handLen,
+ * ankleY, reach0, reachAug, eyeY, footLen, ankleX) are re-measured on the shipped v2 bake (assets/legends after the
+ * likeness re-bake moved shoulders / arms by up to 19 mm), so the headless proxy keeps matching the real rig (B57).
+ */
 export const PROXY_METRICS = Object.freeze({
-  kobe: m({ height: 1.96, hipH: 1.077, thigh: 0.488, calf: 0.511, sLeg: 1.000, shoulderY: 1.573, armLen: 0.599, handLen: 0.232, ankleY: 0.085, reach0: 2.31, reachAug: 2.43, reachM: 2.64, eyeY: 1.841, footLen: 0.305, ankleX: 0.225 }),
-  jordan: m({ height: 1.96, hipH: 1.074, thigh: 0.484, calf: 0.515, sLeg: 0.999, shoulderY: 1.570, armLen: 0.584, handLen: 0.245, ankleY: 0.083, reach0: 2.30, reachAug: 2.42, reachM: 2.65, eyeY: 1.835, footLen: 0.300, ankleX: 0.224 }),
-  lebron: m({ height: 2.03, hipH: 1.109, thigh: 0.513, calf: 0.516, sLeg: 1.030, shoulderY: 1.646, armLen: 0.583, handLen: 0.238, ankleY: 0.087, reach0: 2.37, reachAug: 2.49, reachM: 2.69, eyeY: 1.906, footLen: 0.316, ankleX: 0.229 }),
-  giannis: m({ height: 2.09, hipH: 1.190, thigh: 0.546, calf: 0.561, sLeg: 1.108, shoulderY: 1.691, armLen: 0.616, handLen: 0.252, ankleY: 0.091, reach0: 2.46, reachAug: 2.58, reachM: 2.81, eyeY: 1.971, footLen: 0.325, ankleX: 0.242 }),
-  yao: m({ height: 2.27, hipH: 1.256, thigh: 0.651, calf: 0.519, sLeg: 1.171, shoulderY: 1.841, armLen: 0.626, handLen: 0.262, ankleY: 0.093, reach0: 2.62, reachAug: 2.74, reachM: 2.95, eyeY: 2.139, footLen: 0.336, ankleX: 0.233 }),
-  kyrie: m({ height: 1.87, hipH: 1.013, thigh: 0.463, calf: 0.477, sLeg: 0.941, shoulderY: 1.500, armLen: 0.543, handLen: 0.212, ankleY: 0.081, reach0: 2.17, reachAug: 2.29, reachM: 2.515, eyeY: 1.754, footLen: 0.290, ankleX: 0.215 }),
+  kobe: m({ height: 1.96, hipH: 1.081, thigh: 0.488, calf: 0.511, sLeg: 1.004, shoulderY: 1.579, armLen: 0.600, handLen: 0.232, ankleY: 0.085, reach0: 2.318, reachAug: 2.438, reachM: 2.64, eyeY: 1.848, footLen: 0.305, ankleX: 0.226 }),
+  jordan: m({ height: 1.96, hipH: 1.073, thigh: 0.484, calf: 0.515, sLeg: 0.997, shoulderY: 1.568, armLen: 0.584, handLen: 0.245, ankleY: 0.083, reach0: 2.299, reachAug: 2.419, reachM: 2.65, eyeY: 1.837, footLen: 0.300, ankleX: 0.224 }),
+  lebron: m({ height: 2.03, hipH: 1.109, thigh: 0.513, calf: 0.516, sLeg: 1.030, shoulderY: 1.646, armLen: 0.564, handLen: 0.238, ankleY: 0.087, reach0: 2.353, reachAug: 2.473, reachM: 2.69, eyeY: 1.907, footLen: 0.316, ankleX: 0.229 }),
+  giannis: m({ height: 2.09, hipH: 1.188, thigh: 0.546, calf: 0.561, sLeg: 1.104, shoulderY: 1.690, armLen: 0.607, handLen: 0.258, ankleY: 0.094, reach0: 2.451, reachAug: 2.571, reachM: 2.81, eyeY: 1.975, footLen: 0.335, ankleX: 0.242 }),
+  yao: m({ height: 2.27, hipH: 1.262, thigh: 0.651, calf: 0.519, sLeg: 1.177, shoulderY: 1.850, armLen: 0.617, handLen: 0.262, ankleY: 0.093, reach0: 2.624, reachAug: 2.744, reachM: 2.95, eyeY: 2.154, footLen: 0.336, ankleX: 0.234 }),
+  kyrie: m({ height: 1.87, hipH: 1.014, thigh: 0.463, calf: 0.477, sLeg: 0.941, shoulderY: 1.502, armLen: 0.544, handLen: 0.212, ankleY: 0.081, reach0: 2.173, reachAug: 2.293, reachM: 2.515, eyeY: 1.756, footLen: 0.290, ankleX: 0.215 }),
 });
 
 // category codes for socket rules (resolved once per clip index)
@@ -260,8 +264,11 @@ export class AnimProxy {
   }
 
   applyClipBall(bm, mirror) {
-    let b = bm;
-    if (mirror && (b === BM.R || b === BM.L)) b = b === BM.R ? BM.L : BM.R;   // timing clips may be shared by both sides
+    // `mirror` is informational: both timing sources (registered clips via getClip and the catalog timing clips) build
+    // the '_L' side with mirrorDef, which already swaps R/L ball modes; swapping again here put the ball in the wrong
+    // hand for mirrored clips (the Animator does not swap either, so proxy and real now agree).
+    void mirror;
+    const b = bm;
     this.ballMode = b;
     if (b === BM.R) this.ballHand = HAND.R; else if (b === BM.L) this.ballHand = HAND.L;
   }

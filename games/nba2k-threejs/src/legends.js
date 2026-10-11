@@ -52,10 +52,10 @@ const RAW = {
     },
     spots: { rightElbow: 0.30, rightWing: 0.30, rightBlock: 0.15, leftWing: 0.15, rightBaseline: 0.10 },
     look: {
-      skin: '#8B5A3C', lips: '#6a4030', palms: '#b48466', skinRoughness: 0.48, warmK: 0.45, cavityK: 1.0, hlK: 0.10,
-      tattooK: 0, stubbleHair: 1, hair: '#151010', beard: '#151010', scalpDarken: 0.38, scalpRoughness: 0.62,
-      beardSkinDarken: 0.35, beardSkinMaskK: 1, browDarken: 0.35, glossBase: 0, clearcoatRoughness: 0.30,
-      sheenColor: '#6a5a50', iris: '#2A1A12',
+      skin: '#8B5A3C', lips: '#6a4030', palms: '#b48466', skinRoughness: 0.52, warmK: 0.10, cavityK: 0.45, hlK: 0.10,
+      tattooK: 0, stubbleHair: 1, hair: '#1a1311', beard: '#151010', scalpDarken: 0.65, scalpRoughness: 0.72,
+      beardSkinDarken: 0.70, beardSkinMaskK: 1, browDarken: 0.60, glossBase: 0, clearcoatRoughness: 0.30,
+      sheenColor: '#5e5650', skinSheen: { color: '#6a5c56', k: 0.10 }, iris: '#2A1A12',
       idleFace: { channel: 'scowl', base: 0.35, chewAmp: 0, chewHz: 0 },
     },
     kit: {
@@ -99,10 +99,10 @@ const RAW = {
     },
     spots: { leftElbow: 0.25, rightElbow: 0.25, rightWing: 0.25, leftBlock: 0.125, rightBlock: 0.125 },
     look: {
-      skin: '#4E3122', lips: '#3A221B', palms: '#A9785E', skinRoughness: 0.45, warmK: 0.45, cavityK: 1.0, hlK: 0.10,
-      tattooK: 0, stubbleHair: 0, hair: '#0E0A09', beard: '#0E0A09', scalpDarken: 0, scalpRoughness: 0.32,
-      beardSkinDarken: 0.40, beardSkinMaskK: 1, browDarken: 0.35, glossBase: 0.55, clearcoatRoughness: 0.22,
-      sheenColor: '#6a5a50', iris: '#2A1A12',
+      skin: '#4E3122', lips: '#3A221B', palms: '#A9785E', skinRoughness: 0.62, warmK: 0.0, cavityK: 0.55, hlK: 0.05,
+      tattooK: 0, stubbleHair: 0, hair: '#0E0A09', beard: '#0E0A09', scalpDarken: 0, scalpRoughness: 0.25,
+      beardSkinDarken: 0.80, beardSkinMaskK: 1, browDarken: 0.75, glossBase: 0.55, clearcoatRoughness: 0.22,
+      sheenColor: '#6a5a50', skinSheen: { color: '#5c5656', k: 0.12 }, iris: '#2A1A12',
       // gum chew: jawOpen = 0.06 + 0.06·max(0, sin(2π·1.5t)) (§2.6, ANIM §2.8)
       idleFace: { channel: 'jawOpen', base: 0.06, chewAmp: 0.06, chewHz: 1.5 },
     },
@@ -121,7 +121,7 @@ const RAW = {
         cut: 'mid-high', classic: 'away',
         home: { id: 'jordanHome', upper: '#FFFFFF', mudguard: { color: '#0a0a0a', roughness: 0.10 }, sidePanel: false,
           outsole: { color: '#a8d8f0', roughness: 0.30 }, midsole: '#F2F2F0' },
-        away: { id: 'jordanAway', upper: { color: '#0a0a0a', roughness: 0.80 }, mudguard: { color: '#0a0a0a', roughness: 0.10 },
+        away: { id: 'jordanAway', upper: { color: '#0a0a0a', roughness: 0.80 }, mudguard: { color: '#0a0a0a', roughness: 0.05 },
           heelTab: '#CE1141', midsole: '#FFFFFF', outsole: { color: '#CE1141', roughness: 0.85 } },
       },
       accessories: [
@@ -130,7 +130,7 @@ const RAW = {
       ],
       extras: {
         undershort: { color: '#9bc4e2', widthM: 0.015 },                    // inner 1.5 cm of both shorts hems
-        shortsNumber: { heightM: 0.075, u: 0.82, aboveHemM: 0.10, leg: 'L' }, // left leg front
+        shortsNumber: null,   // likeness round 3: the left-leg number still rendered garbled (UV metric); off until fixed
       },
     },
   },
@@ -154,10 +154,10 @@ const RAW = {
     },
     spots: { top: 0.35, leftWing: 0.30, rightWing: 0.20, leftBlock: 0.15 },
     look: {
-      skin: '#6A4530', lips: '#4a2e22', palms: '#A47A5E', skinRoughness: 0.42, warmK: 0.45, cavityK: 1.0, hlK: 0.10,
-      tattooK: 1.0, stubbleHair: 0.5, hair: '#141010', beard: '#120E0C', scalpDarken: 0.60, scalpRoughness: 0.70,
-      beardSkinDarken: 0.55, beardSkinMaskK: 1, browDarken: 0.35, glossBase: 0, clearcoatRoughness: 0.30,
-      sheenColor: '#6a5a50', iris: '#2A1A12',
+      skin: '#6A4530', lips: '#4a2e22', palms: '#A47A5E', skinRoughness: 0.55, warmK: 0.0, cavityK: 0.7, hlK: 0.06,
+      tattooK: 1.0, stubbleHair: 0.5, hair: '#141010', beard: '#18120e', scalpDarken: 0.70, scalpRoughness: 0.70,
+      beardSkinDarken: 0.75, beardSkinMaskK: 1, browDarken: 0.65, glossBase: 0, clearcoatRoughness: 0.50,
+      sheenColor: '#6a5a50', skinSheen: { color: '#4e4644', k: 0.06 }, iris: '#2A1A12',
       idleFace: { channel: null, base: 0, chewAmp: 0, chewHz: 0 },
     },
     kit: {
@@ -165,7 +165,7 @@ const RAW = {
       home: null,
       away: {
         label: 'wine', base: '#6F263D', number: '#FFB81C', outline: '#041E42', keyline: null, glyph: 'block', serifOne: false,
-        bands: [band('#FFB81C', 8), band('#041E42', 4)],
+        bands: [band('#FFB81C', 3), band('#041E42', 3)],
         shortsStripe: [band('#041E42', 10), band('#FFB81C', 20), band('#041E42', 10)],
         waistband: [band('#FFB81C', 6)], hem: [band('#041E42', 6)],
       },
@@ -174,10 +174,10 @@ const RAW = {
       shoes: { cut: 'high', home: ['#FFFFFF', '#FFB81C', '#6F263D'], away: ['#6F263D', '#FFB81C', '#111111'], classic: 'away' },
       accessories: [
         { id: 'headbandHigh', shell: 'headband_high', side: null,
-          region: 'Gy + 0.036 … + 0.082 base metres (= Gy + 0.040 … + 0.090 player metres), back edge +0.005', offsetMm: 6,
+          region: 'Gy + 0.034 … + 0.076 base metres at the front, dropping 4.5 cm toward the back (dips under the occiput)', offsetMm: 5,
           colors: { classic: '#111111', allstarA: '#FFFFFF', allstarB: '#111111' } },
-        { id: 'tattoos', shell: null, side: null, region: 'skin extra.R: both arms ≈ 70 % upper arms / 35 % forearms, 26 × 5 cm upper-back arch; 3D noise blobs 2–6 cm thresholded at 0.45',
-          darken: 0.12, desaturate: 0.30, colors: null },
+        { id: 'tattoos', shell: null, side: null, region: 'skin extra.R: 26 × 5 cm upper-back arch (likeness round 4: the arm noise blobs read as dirt / bruises and are off until line art ships)',
+          darken: 0.22, desaturate: 0.50, colors: null },
       ],
       extras: { undershort: null, shortsNumber: null },
     },
@@ -202,10 +202,10 @@ const RAW = {
     },
     spots: { top: 0.25, rightWing: 0.20, leftDunker: 0.25, rightDunker: 0.30 },
     look: {
-      skin: '#523326', lips: '#3e261c', palms: '#9c705a', skinRoughness: 0.45, warmK: 0.45, cavityK: 1.0, hlK: 0.10,
-      tattooK: 0, stubbleHair: 0, hair: '#141110', beard: '#141110', scalpDarken: 0.85, scalpRoughness: 0.75,
-      beardSkinDarken: 0.45, beardSkinMaskK: 1, browDarken: 0.35, glossBase: 0, clearcoatRoughness: 0.30,
-      sheenColor: '#6a5a50', iris: '#2A1A12',
+      skin: '#50352b', lips: '#3e261c', palms: '#9c705a', skinRoughness: 0.62, warmK: 0.0, cavityK: 0.7, hlK: 0.03,
+      tattooK: 0, stubbleHair: 0, hair: '#1a1512', beard: '#141110', scalpDarken: 1.0, scalpRoughness: 0.75,
+      beardSkinDarken: 0.80, beardSkinMaskK: 1, browDarken: 0.60, glossBase: 0, clearcoatRoughness: 0.45,
+      sheenColor: '#5e5650', skinSheen: { color: '#5a4e48', k: 0.04 }, iris: '#2A1A12',
       idleFace: { channel: null, base: 0, chewAmp: 0, chewHz: 0 },
     },
     kit: {
@@ -213,13 +213,13 @@ const RAW = {
       home: null,
       away: {
         label: 'green', base: '#00471B', number: '#EEE1C6', outline: '#FFFFFF', keyline: null, glyph: 'block', serifOne: false,
-        bands: [band('#EEE1C6', 8), band('#0077C0', 2)],
+        bands: [band('#EEE1C6', 3)],
         shortsStripe: [band('#0077C0', 2), band('#EEE1C6', 40), band('#0077C0', 2)],
         waistband: [band('#EEE1C6', 6)], hem: [band('#EEE1C6', 6)],
       },
       socks: { shell: 'mid', heightM: SOCK_SHELL_M.mid, color: '#FFFFFF', braceBulge: false },
       backName: 'ANTETOKOUNMPO', shortsFit: '2020s-knee',
-      shoes: { cut: 'low-mid', home: ['#FFFFFF', '#00471B', '#EEE1C6'], away: ['#111111', '#00471B', '#EEE1C6'], classic: 'away' },
+      shoes: { cut: 'low-mid', home: ['#FFFFFF', '#00471B', '#EEE1C6'], away: ['#111111', '#00471B', '#EEE1C6'], classic: 'home' },
       accessories: [],
       extras: { undershort: null, shortsNumber: null },
     },
@@ -245,10 +245,10 @@ const RAW = {
     },
     spots: { leftBlock: 0.40, rightBlock: 0.25, leftElbow: 0.15, rightElbow: 0.20 },
     look: {
-      skin: '#D8A985', lips: '#b8786a', palms: '#e4bea0', skinRoughness: 0.50, warmK: 0.60, cavityK: 0.70, hlK: 0.05,
-      tattooK: 0, stubbleHair: 0, hair: '#121010', beard: '#2a2420', scalpDarken: 0.85, scalpRoughness: 0.70,
-      beardSkinDarken: 1.0, beardSkinMaskK: 0.07, browDarken: 0.35, glossBase: 0, clearcoatRoughness: 0.30,
-      sheenColor: '#8090a0', iris: '#2A1A12',
+      skin: '#D8A985', lips: '#a87462', palms: '#e4bea0', skinRoughness: 0.52, warmK: 0.15, cavityK: 0.20, hlK: 0.05,
+      tattooK: 0, stubbleHair: 0, hair: '#121010', beard: '#2a2420', scalpDarken: 0.90, scalpRoughness: 0.70,
+      beardSkinDarken: 1.0, beardSkinMaskK: 0.07, browDarken: 0.60, glossBase: 0, clearcoatRoughness: 0.30,
+      sheenColor: '#8090a0', skinSheen: { color: '#7a6e68', k: 0.06 }, iris: '#2A1A12',
       idleFace: { channel: null, base: 0, chewAmp: 0, chewHz: 0 },
     },
     kit: {
@@ -256,7 +256,7 @@ const RAW = {
       home: null,
       away: {
         label: 'red', base: '#CE1141', number: '#FFFFFF', outline: '#C4CED4', keyline: '#000000', glyph: 'block', serifOne: true,
-        bands: [band('#FFFFFF', 6), band('#C4CED4', 4)],
+        bands: [band('#FFFFFF', 3), band('#C4CED4', 2)],
         shortsStripe: [band('#FFFFFF', 12), band('#C4CED4', 8), band('#000000', 4)],
         waistband: [band('#FFFFFF', 6)], hem: [band('#C4CED4', 6)],
       },
@@ -288,10 +288,10 @@ const RAW = {
     },
     spots: { top: 0.30, rightWing: 0.30, leftCorner: 0.15, rightCorner: 0.15, leftWing: 0.10 },
     look: {
-      skin: '#8A5A3B', lips: '#5e3a2c', palms: '#b88a6c', skinRoughness: 0.46, warmK: 0.45, cavityK: 0.85, hlK: 0.10,
-      tattooK: 1.0, stubbleHair: 0, hair: '#141010', beard: '#121010', scalpDarken: 0.85, scalpRoughness: 0.75,
-      beardSkinDarken: 0.55, beardSkinMaskK: 1, browDarken: 0.35, glossBase: 0, clearcoatRoughness: 0.30,
-      sheenColor: '#6a5a50', iris: '#2A1A12',
+      skin: '#8A5A3B', lips: '#5a3628', palms: '#b88a6c', skinRoughness: 0.56, warmK: 0.0, cavityK: 0.70, hlK: 0.06,
+      tattooK: 1.0, stubbleHair: 0, hair: '#1c1714', beard: '#1a1411', scalpDarken: 1.0, scalpRoughness: 0.75,
+      beardSkinDarken: 0.65, beardSkinMaskK: 1, browDarken: 0.80, glossBase: 0, clearcoatRoughness: 0.45,
+      sheenColor: '#5e5650', skinSheen: { color: '#6a5c56', k: 0.10 }, iris: '#2A1A12',
       idleFace: { channel: null, base: 0, chewAmp: 0, chewHz: 0 },
     },
     kit: {
@@ -299,7 +299,7 @@ const RAW = {
       home: null,
       away: {
         label: 'wine alternate', base: '#6F263D', number: '#FFB81C', outline: '#FFFFFF', keyline: null, glyph: 'block', serifOne: false,
-        bands: [band('#FFB81C', 8), band('#FFFFFF', 3)],
+        bands: [band('#FFB81C', 5), band('#FFFFFF', 2)],
         shortsStripe: [band('#FFFFFF', 6), band('#FFB81C', 24), band('#FFFFFF', 6)],
         waistband: [band('#FFB81C', 6)], hem: [band('#FFB81C', 6)],
       },
@@ -310,8 +310,8 @@ const RAW = {
         { id: 'headbandLow', worn: false, shell: 'headband_low', side: null, region: 'Gy + 0.012 … + 0.048', offsetMm: 5,
           colors: { classic: '#111111', allstarA: '#111111', allstarB: '#111111' } },
         { id: 'tattoos', shell: null, side: null, region: 'skin extra.R: 10 × 3 cm dotted bracket, mid left forearm; 3D noise blobs 2–6 cm thresholded at 0.45',
-          darken: 0.12, desaturate: 0.30, colors: null },
-        { id: 'mouthguard', shell: null, side: null, highTierOnly: true, sizeCm: [3.0, 2.5, 0.6], tris: 12,
+          darken: 0.30, desaturate: 0.50, colors: null },
+        { id: 'mouthguard', shell: null, side: null, highTierOnly: true, sizeCm: [1.8, 1.45, 0.30], tris: 12,
           region: 'rigid Mesh child of the head bone sharing the wet material; visible while smirk > 0.1 or idle with jawOpen ≥ 0.15',
           colors: { classic: '#f2f2f2', allstarA: '#f2f2f2', allstarB: '#f2f2f2' } },
       ],

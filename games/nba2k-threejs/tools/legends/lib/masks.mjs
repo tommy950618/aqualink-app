@@ -294,7 +294,14 @@ export function playerFields(f, ap, j, earPts, seed, tattooQuantiles) {
   const groom = (p, n, a, out) => {
     v.set(p, n, a);
     if (v.w('head', 'neck_01') < 0.05) return;
-    if (hf) out[0] = hf.densityAt(v, innerHair.density) * smooth(0, Math.max(0.0005, innerHair.fadeMm / 1000), hf.region(v));
+    // skin scalp mask: hair.maskFadeMm (round 2, Kobe / Yao) feathers the painted scalp edge wider than the shell's inner
+    // fade, centred 35 % outside / 65 % inside the hairline, so the scalp tint has no hard temple / sideburn / nape edge
+    if (hf) {
+      // `maskExtendMm` (round 3, Kobe) shifts the painted tint that far outside the shell edge, so the front stubble
+      // and the temple → sideburn line read as matte stubble tint instead of a bare band / crisp shell edge
+      const mf = hair.maskFadeMm != null ? hair.maskFadeMm / 1000 : 0, mx = (hair.maskExtendMm || 0) / 1000;
+      out[0] = hf.densityAt(v, innerHair.density, innerHair) * (mf > 0 ? smooth(-0.35 * mf, 0.65 * mf, hf.region(v) + mx) : smooth(0, Math.max(0.0005, innerHair.fadeMm / 1000), hf.region(v)));
+    }
     else if (bald) out[0] = bald.horseshoe(v);
     if (bf) {
       let g = bf.jawShadow(v);

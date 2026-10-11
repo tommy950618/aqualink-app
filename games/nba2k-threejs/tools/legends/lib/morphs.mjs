@@ -10,7 +10,7 @@
  *              cube, the default rig's jaw head) by rotDeg·wJ, then translation·wJ (metres). Positive rotDeg
  *              opens the mouth (R_x(α) maps +z toward −y). wJ is the shared jaw field below.
  *   tongue     {translate}: tongue vertices move by translate·wT (metres, after the jaw rotation).
- *   lids       true: procedural blink (§8.3): upper lid rotates down about the x axis through the eye centre,
+ *   lids       true (or a fraction 0..1): procedural blink (§8.3): upper lid rotates down about the x axis through the eye centre,
  *              lower lid rises by a quarter of that, lash cards follow their lid.
  * Storage (§3.9): per target the kept indices (u16) and Δ as int16 × 0.00002 m; vertices with |Δ| < 0.05 mm are
  * dropped. Only the channels listed for a player are baked.
@@ -235,7 +235,9 @@ export function bakeMorphs(o) {
     // 4. procedural blink
     if (ch.lids) {
       const b = blinkDelta({ keptPos, nKept, keptToObj, bodyKeptCount: o.bodyKeptCount, lashKept: o.lashKept, eyes: o.eyes, face: o.face });
-      for (let i = 0; i < D.length; i++) D[i] += b[i];
+      // `lids: true` = full blink; a number in (0, 1] = that fraction of it (e.g. Yao's grin squeezing the eyes)
+      const lk = typeof ch.lids === 'number' ? Math.max(0, Math.min(1, ch.lids)) : 1;
+      for (let i = 0; i < D.length; i++) D[i] += b[i] * lk;
     }
     // sparse i16q
     const idx = [], dl = [];

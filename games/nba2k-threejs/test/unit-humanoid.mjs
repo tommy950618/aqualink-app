@@ -1,11 +1,17 @@
-// Unit checks for src/humanoid.js (spec section 6 / 6.1). three.js core runs in Node; scene.js's
-// makeBlobTexture falls back to an inert canvas without a DOM.
+// Unit checks for src/humanoid.js, the simplified-mode fallback of v2 (spec v2 §1.1, H12): colours by argument
+// ({jersey, trim, skin, shorts?, shoe?}), shared geometry, materials cached per colour, v1 poses. three.js core runs in
+// Node; the blob shadow uses render/shadows.js sharedBlob() (a DataTexture, no DOM).
 // Run: node test/unit-humanoid.mjs
 import assert from 'node:assert/strict';
 import * as THREE from '../vendor/three.module.js';
-import { buildSharedGeometry, getTeamMaterials, createHumanoid, createMarker } from '../src/humanoid.js';
-import { TEAMS } from '../src/teams.js';
-import { COLORS } from '../src/constants.js';
+import { buildSharedGeometry, getColourMaterials, createHumanoid, createMarker } from '../src/humanoid.js';
+import { LEGENDS } from '../src/legends.js';
+
+// colour sets as main.js feeds them: §2.7 classic kit base / number and §2.6 skin hex
+const kitCol = (id) => { const L = LEGENDS[id]; const k = L.kit[L.kit.classic]; return { jersey: k.base, trim: k.number, skin: L.look.skin }; };
+const COL_A = kitCol('kobe');
+const COL_B = kitCol('jordan');
+const hex = (v) => parseInt(String(v).replace('#', ''), 16);
 
 let passed = 0;
 function check(name, fn) {
@@ -47,23 +53,26 @@ check('shared geometry is built once and covers every part', () => {
   assert.ok(Math.abs(cone.min.y) < 1e-6 && Math.abs(cone.max.y - 0.3) < 1e-6, 'cone apex at origin pointing down');
 });
 
-check('team materials are cached per team id and use the team colours', () => {
-  const a = getTeamMaterials(TEAMS[0]), b = getTeamMaterials(TEAMS[0]), c = getTeamMaterials(TEAMS[1]);
-  assert.equal(a, b);
-  assert.notEqual(a, c);
-  assert.equal(a.jersey.color.getHex(), TEAMS[0].jersey);
-  assert.equal(a.shorts.color.getHex(), TEAMS[0].shorts);
-  assert.equal(c.jersey.color.getHex(), TEAMS[1].jersey);
-  assert.ok(a.jersey.isMeshLambertMaterial && a.shorts.isMeshLambertMaterial);
-  assert.equal(a.skin, c.skin, 'skin materials shared across teams');
-  assert.equal(a.shoe, c.shoe, 'shoe material shared across teams');
-  assert.equal(a.skin.length, 3);
-  assert.equal(a.skin[0].color.getHex(), COLORS.skin[0]);
-  assert.equal(a.shoe.color.getHex(), COLORS.shoe);
+check('materials are cached per colour and use the colours given by argument', () => {
+  const a = getColourMaterials(COL_A), b = getColourMaterials({ ...COL_A }), c = getColourMaterials(COL_B);
+  assert.equal(a.jersey, b.jersey, 'same colour → same material');
+  assert.notEqual(a.jersey, c.jersey);
+  assert.equal(a.jersey.color.getHex(), hex(COL_A.jersey));
+  assert.equal(a.shorts.color.getHex(), hex(COL_A.jersey), 'shorts default to the jersey colour');
+  assert.equal(a.skin.color.getHex(), hex(COL_A.skin));
+  assert.equal(a.shoe.color.getHex(), hex(COL_A.trim), 'trim colours the shoes by default');
+  assert.equal(c.jersey.color.getHex(), hex(COL_B.jersey));
+  assert.ok(a.jersey.isMeshLambertMaterial && a.skin.isMeshLambertMaterial && a.shoe.isMeshLambertMaterial);
+  const n = getColourMaterials({ jersey: 0x123456, trim: 0xabcdef, skin: 0x8d5524, shorts: '#010203', shoe: 0x222222 });
+  assert.equal(n.jersey.color.getHex(), 0x123456, 'numbers accepted');
+  assert.equal(n.shorts.color.getHex(), 0x010203);
+  assert.equal(n.shoe.color.getHex(), 0x222222);
+  const d = getColourMaterials(null);
+  assert.ok(d.jersey && d.skin && d.shoe, 'defaults without colours');
 });
 
 check('createHumanoid builds the section 6 hierarchy with 11 Lambert meshes and a blob shadow', () => {
-  const h = createHumanoid(TEAMS[0], 1);
+  const h = createHumanoid(COL_A);
   assert.ok(h.group.isGroup && h.pelvis.isGroup);
   assert.equal(h.pelvis.parent, h.group);
   for (const name of PART_NAMES) {
@@ -90,15 +99,17 @@ check('createHumanoid builds the section 6 hierarchy with 11 Lambert meshes and 
   let meshCount = 0;
   h.group.traverse((o) => { if (o.isMesh) meshCount++; });
   assert.equal(meshCount, 12, '11 body meshes + shadow');
-  assert.equal(p.head.material, getTeamMaterials(TEAMS[0]).skin[1], 'skin by index');
-  const h2 = createHumanoid(TEAMS[1], 5);
-  assert.equal(h2.parts.head.material, getTeamMaterials(TEAMS[1]).skin[2], 'skin index wraps');
+  assert.equal(p.head.material, getColourMaterials(COL_A).skin, 'skin colour by argument');
+  assert.equal(p.torso.material, getColourMaterials(COL_A).jersey, 'jersey colour by argument');
+  assert.deepEqual(h.colors, COL_A);
+  const h2 = createHumanoid(COL_B);
+  assert.equal(h2.parts.head.material.color.getHex(), hex(COL_B.skin));
   assert.equal(h2.parts.shorts.geometry, h.parts.shorts.geometry, 'geometry shared');
   assert.equal(h2.shadow.material, h.shadow.material, 'shadow material shared');
 });
 
 check('standing idle: head at 1.72 m, hand at the hip, soles at the floor', () => {
-  const h = createHumanoid(TEAMS[0], 0);
+  const h = createHumanoid(COL_A);
   h.setPose('idle', { t: 0, dt: 0 });
   h.headWorld(V);
   assert.ok(Math.abs(V.y - 1.72) < 1e-6, 'head y ' + V.y);
@@ -115,7 +126,7 @@ check('standing idle: head at 1.72 m, hand at the hip, soles at the floor', () =
 });
 
 check('every pose over 40 frames leaves no NaN anywhere', () => {
-  const h = createHumanoid(TEAMS[1], 2);
+  const h = createHumanoid(COL_B);
   for (const pose of POSES) {
     for (let i = 0; i < 40; i++) {
       const tt = i / 60;
@@ -134,7 +145,7 @@ check('every pose over 40 frames leaves no NaN anywhere', () => {
 });
 
 check('windup hand point is 2.0-2.4 m high and in front of the shooter', () => {
-  const h = createHumanoid(TEAMS[0], 0);
+  const h = createHumanoid(COL_A);
   h.group.position.set(0, 0, -8.3);
   h.group.rotation.y = Math.PI;   // facing -Z (toward the hoop)
   // Mid-jump release frame: f = 0.8 on a 0.55 s meter over a 0.55 s jump of 0.55 m.
@@ -157,7 +168,7 @@ check('windup hand point is 2.0-2.4 m high and in front of the shooter', () => {
 });
 
 check('joints blend smoothly (damped at 18/s) instead of popping', () => {
-  const h = createHumanoid(TEAMS[0], 0);
+  const h = createHumanoid(COL_A);
   h.setPose('idle', { t: 0, dt: 0 });
   assert.ok(Math.abs(h.parts.upperArmR.rotation.x) < 1e-9);
   h.setPose('windup', { f: 0, dt: 1 / 60 });
@@ -182,7 +193,7 @@ check('joints blend smoothly (damped at 18/s) instead of popping', () => {
 });
 
 check('run cycle, dribble arm, jump height and shadow scale follow the params', () => {
-  const h = createHumanoid(TEAMS[0], 0);
+  const h = createHumanoid(COL_A);
   h.setPose('run', { speed: 5.2, phi: Math.PI / 2, dt: 0 });
   const A = 0.35 + 0.05 * 5.2;
   assert.ok(Math.abs(h.parts.legL.rotation.x - A) < 1e-9 && Math.abs(h.parts.legR.rotation.x + A) < 1e-9);
@@ -222,23 +233,23 @@ check('run cycle, dribble arm, jump height and shadow scale follow the params', 
 });
 
 check('createMarker gives a downward cone above the head and a floor ring in the team colour', () => {
-  const m = createMarker(TEAMS[0].jersey);
+  const m = createMarker(hex(COL_A.jersey));
   assert.ok(m.cone.isMesh && m.ring.isMesh && m.group.isGroup);
   assert.equal(m.cone.parent, m.group);
   assert.equal(m.ring.parent, m.group);
-  assert.equal(m.cone.material.color.getHex(), TEAMS[0].jersey);
+  assert.equal(m.cone.material.color.getHex(), hex(COL_A.jersey));
   assert.equal(m.ring.material.opacity, 0.8);
   assert.ok(m.ring.material.transparent);
   m.update(1.5, -6, 1.72, 0.125);   // sin(2*pi*2*0.125) = 1 -> +0.05
   assert.equal(m.group.position.x, 1.5);
   assert.equal(m.group.position.z, -6);
   assert.ok(Math.abs(m.cone.position.y - (1.72 + 0.35 + 0.05)) < 1e-9, 'cone bob ' + m.cone.position.y);
-  m.setColor(TEAMS[1].jersey);
-  assert.equal(m.ring.material.color.getHex(), TEAMS[1].jersey);
+  m.setColor(hex(COL_B.jersey));
+  assert.equal(m.ring.material.color.getHex(), hex(COL_B.jersey));
 });
 
 check('setPose and handWorld do not allocate (heap stable over 20k calls)', () => {
-  const h = createHumanoid(TEAMS[0], 0);
+  const h = createHumanoid(COL_A);
   const params = { t: 0, speed: 4, f: 0.5, ballY: 0.5, handSign: 1, jumpY: 0.2, lean: 0, releaseAge: 0.1, dt: 1 / 60 };
   const run = () => {
     for (let i = 0; i < 20000; i++) {

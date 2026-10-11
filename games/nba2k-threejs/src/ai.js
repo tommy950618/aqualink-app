@@ -43,7 +43,7 @@ import { RIM, FIXED_DT, SHOT_V2, TRIGGERS, JAB, INTERCEPT, LINES, BLOCK, isThree
 import { clamp, lerp } from './math.js';
 import { predictLanding, matchupCost, PERMS, shakeChance } from './physics.js';
 import { cpuReleaseError } from './shot.js';
-import { has, eligible, postEntryD, headingCos } from './abilities.js';
+import { has, eligible, postEntryD, headingCos, pathClear } from './abilities.js';
 import { dunkAllowed } from './context.js';
 import { selectDefJump } from './anim/select.js';
 import { pressButton, releaseButton, clearEdges } from './input.js';
@@ -52,7 +52,7 @@ import {
   closeGapOf, closeoutSpeed, contestJumpTend, helpProb, helpRadiusOf, helpReactionMul, pokeProb, laneGambleP,
   riskTolOf, clutchShotMul, isMismatch, postAlways, driveSideRoll, dietFactor, distXZ, rimD, dirTo,
   clampCourt, segClosest, aiDiff, userControls, guardOf, onBallDefender, nearestOpp, openness, guardBeaten,
-  laneClear, frontDefenderOf, POST_DIST_ZONE, doubled, inPaint, abilityCtx, estMake, predictKind, epAt, theta,
+  laneClear, laneGateFree, frontDefenderOf, POST_DIST_ZONE, doubled, inPaint, abilityCtx, estMake, predictKind, epAt, theta,
   finishEst, uDrive, passRisk, bestPassTarget, postEst, rimProtectorHome, rimKind, spotHeld, CATCH_GATE, LEAD_V,
   PBEAT_BEATEN, OPEN_MAX, POST_DEPTH, POST_DEPTH_YAO, CLAMP_X, CLAMP_Z_MIN, CLAMP_Z_MAX,
 } from './ai-tend.js';
@@ -66,23 +66,29 @@ const HYSTERESIS = 0.40;                    // a chosen handler action persists 
 const NOISE = 0.05;                         // per-action utility noise rng.range(0, 0.05)
 const URGENT = 3, PANIC = 1;                // shot clock: best SHOOT variant / release immediately
 const URGENT_GATE = 2.0;                    // below this the catch gate is bypassed (non-urgent presses: clock > 2 s)
+const URGENT_DRIVE_CLOCK = 1.8, URGENT_DRIVE_MARGIN = 0.10;   // urgent: one quick attack when it beats the heave
 const SETUP_T = 0.8, PASS_GATE = 0.50;
 const U_PROBE = 0.85, U_PROBE_LATE = 0.6, PROBE_LATE_CLOCK = 6, U_RESET = 0.65;
 const U_JAB = 0.95, MAX_JABS = 2, JAB_R = JAB.BITE_R, JAB_REDECIDE = 0.25;
 // θ(shotClock) lives in ai-tend.js (with THETA_TUNE); THETA_TUNE and PATIENCE_TUNE are the two balance knobs §5.10
 // allows (θ ± 0.1, patience ± 30 %), set by test/balance.mjs band A (pace 5.5–10 s)
 const PATIENCE_TUNE = 1.30;
-const PATIENCE_ADD = 0.5, PATIENCE_OPEN = 2.5, ISO_EXTRA = 0.6, ISO_R = 1.5;
+// patience (§5.10: θ + 0.5 while tLive < tend.patience and openness < 2.5): I3 widens the openness test to 5.0 m (only
+// a wide-open look skips patience) and applies the same bar to drives; with the spec's 2.5 m the possessions ran
+// 4.3–5.4 s (band 5.5–10) with both knobs already at their limits
+const PATIENCE_ADD = 0.5, PATIENCE_OPEN = 5.0, ISO_EXTRA = 0.6, ISO_R = 1.5;
 const PASS_MARGIN = 0.10;
+const SWING_T = 1.5, SWING_ADD = 0.12, SWING_EP = 0.75;   // ball movement (I3): hold time / tend.pass, bonus over probe, receiver EP floor
 const MOVE_ELSE = 0.85;
 const POST_MAX_D = 6.5;
-const FADE_R = 1.0, STEPBACK_R = 1.2, PUMP_R = 1.2, SETFEET_V = 2.5, SETFEET_CLEAR = 1.0, SETFEET_T = 0.35;
+// FADE_R: the spec's 1.0 m sits inside every on-ball gap (1.0–1.4 m), so no fadeaway was ever taken (I3: 1.6 m)
+const FADE_R = 1.6, STEPBACK_R = 1.2, PUMP_R = 1.2, SETFEET_V = 2.5, SETFEET_CLEAR = 1.0, SETFEET_T = 0.35;
 const DOUBLE_T = 0.3;
 const RESET_R = 0.7, RESET_CLOCK = 8, RESET_D = 7.5, RESET_OUT_D = 8.2;
 const PROBE_STEP = 1.6, PROBE_SPACE_R = 2.0, PROBE_MAG = 0.50, PROBE_MAG_ISO = 0.60;   // probing jog (≈ 2.5–3.2 m/s)
 const DRIVE_STOP = 0.9, DRIVE_AROUND = 0.8, DRIVE_COMMIT = 0.25, DRIVE_COMMIT_D = 6.0, DRIVE_COMMIT_NEAR = 0.6;
 const FLOATER_ROW_D = 2.15, DRIVE_DUNK_D = 3.4, DRIVE_FINISH_LO = 2.1, DRIVE_FINISH_SPAN = 1.4;
-const FLOATER_LO = 2.3, FLOATER_HI = 3.8;
+const FLOATER_LO = 2.3, FLOATER_HI = 4.4, RUNWAY_D = 10.5;
 const STD2_SPEED = TRIGGERS.LAYUP.STD2_SPEED, COS45 = Math.cos(Math.PI / 4);
 const POST_SPOT_X = 2.4, POST_SPOT_Z = -9.4, POST_STICK = 0.5, POST_ABANDON = 1.6;
 const POST_T_MIN = 0.9, POST_T_SPAN = 1.3, POST_T_MAX = 3.5, POST_T_FIRST = 0.35;
@@ -97,18 +103,23 @@ const SHOT_HAND_FWD = 0.35;                 // the layup / dunk ball rides this 
 const RECOVER_D = 1.3;                      // a beaten on-ball defender recovers to 1.3 m in front of the rim
 const GETOPEN_STEP = 1.3, GETOPEN_T = 0.9, GETOPEN_NEAR = 1.2, GETOPEN_GAIN = 0.05;   // receiver v-cut / lift
 const SPOT_TAKEN_PAD = 0.15, SHOT_SIDE = 0.75, SHOT_SIDE_FWD = 0.25;   // shot steer: side spot when a blocker holds the front
-const CONTEST_R = 1.6, LATE_JUMP = 0.20, JUMP_LEAD = 0.03, CONTEST_V = 2.0, CLOSE_IN_R = 1.0, SHOT_FRONT = 0.70;
+// JUMP_LEAD: the jump press leads the apex by airtime/2 − JUMP_LEAD; the spec's 0.03 assumes the ball is blockable at
+// the release, but with the clip's takeoff delay the apex that meets the ball passing over a defender in front comes
+// later (I3 measured band-A blocks 2.7 → 4–5 % of FGA and contested FG −2 points at 0.11)
+const CONTEST_R = 1.6, LATE_JUMP = 0.20, JUMP_LEAD = 0.11, CONTEST_V = 2.0, CLOSE_IN_R = 1.0, SHOT_FRONT = 0.70;
 const RIM_PROTECT = { yao: TRIGGERS.YAO_ANCHOR.AI_HAND_BALL, giannis: 0.45, lebron: TRIGGERS.CHASE.AI_HAND_BALL };
 const HELP_LOOK = 0.4, HELP_LOOK_PROTECTOR = 0.8, HELP_DRIVE_V = 3.0, HELP_T = 1.5, HELP_FRONT = 1.0, HELP_SPRINT_D = 2.5;
-const DOUBLE_HELP_R = 3.5, DOUBLE_HELP_K = 0.5;
+const DOUBLE_HELP_R = 3.5, DOUBLE_HELP_K = 0.5, DIG_K = 0.6;   // DIG_K: a helper's swipe = DIG_K × the on-ball poke odds
 const PROTECT_D = 2.2, PROTECT_W = 0.5, OFF_TOWARD_BALL = 0.6, GAP_RIM_MARGIN = 0.3, YAO_DROP_R = 4.5, YAO_POST_R = 5.5;
 const CROWD_R = 0.8, CROWD_T = 1.0, YAO_ARC_COST = 2.0, PERCEIVE_DT = 0.1, PERCEIVE_MAX = 1.5, PURSUIT_TAU = 0.25;
 const STEAL_RANGE_HAWK = 0.15, POKE_CATCH = 0.5, POKE_LIVE = 0.8, POKE_MAX_V = 3.0, POKE_REACH = 0.5, POKE_COMMIT = 0.35;
 const ARRIVE_R = 1.0, STOP_R = 0.06, SPRINT_MIN_D = 1.0, SPRINT_MIN_STAMINA = 0.15;
-const PUMP_FAKE_UPUNDER = 0.6, PUMP_TAP = 0.05, PUMP_REDECIDE = 0.15, PUMP_UPUNDER_D = 3.0, UPUNDER_AFTER = 0.15;
+const UPUNDER_P = 0.6, PUMP_FAKE_UPUNDER = 0.6, PUMP_TAP = 0.05, PUMP_REDECIDE = 0.15, PUMP_UPUNDER_D = 3.0, UPUNDER_AFTER = 0.15;
 const LOB_HOLD = 0.34, REL_MIN = 0.125;
 const RIP_P = 0.5;
+const TRIPLE_JAB = 0.4, TRIPLE_FADE = 0.5, TRIPLE_T = 2.2, TRIPLE_D = 7.6;   // the triple-threat jab series (Kobe, Jordan)
 const MAX_YAO_BOUNCES = 2;
+const YAO_KICK_CLOCK = 1.0;                // Yao beyond the arc under 3 s: kick out while ≥ 1.0 s remains
 
 // ------------------------------------------------------------------------------------------------ scratch (H10)
 const B = { x: 0, z: 0 }, G = { x: 0, z: 0 };
@@ -142,7 +153,7 @@ function makeAiState() {
     isoLeft: 0, arcBand: false, jabWant: false, jabRolled: false, pumpDone: false, plan: '', driveSide: 1, driveSprint: false,
     driveEuro: false, driveFtRolled: false, finishD: 2.5, postTime: 1.5, postPlan: '', bounces: 0, forcePass: false,
     passTo: null, passLob: false, upUnder: false, laneDelayCd: 0, aimOn: false, aimX: 0, aimZ: 0, openCd: 0, openX: 0, openZ: 0,
-    doubleRolled: false, wasPost: false,
+    doubleRolled: false, wasPost: false, ballT: 0, forceThrow: false, fadeNext: false,
     scores: { shoot: 0, drive: 0, move: 0, jab: 0, post: 0, pass: 0, probe: 0 },
     gates: { setup: false, catch: false, iso: false, patience: false },
     pokes: 0,
@@ -150,12 +161,6 @@ function makeAiState() {
 }
 
 // ------------------------------------------------------------------------------------------------ small helpers
-
-
-
-
-
-
 
 /** Write intent.move toward (x, z): full stick beyond 1 m, easing in, dead stop inside 6 cm; `mag` caps the stick. */
 function steerTo(p, x, z, sprint, mag) {
@@ -199,31 +204,9 @@ function silence(it) {
 
 function tap(b, ms) { pressButton(b, ms); releaseButton(b, ms); }
 
-
-
-
-
-
-
-
-
-
-
-
 // ------------------------------------------------------------------------------------------------ estimates (§5.10)
 
-
-
-
-
-
-
-
 // ------------------------------------------------------------------------------------------------ passes (§5.10, R#34)
-
-
-
-
 
 // ------------------------------------------------------------------------------------------------ shared per world
 
@@ -378,7 +361,7 @@ function initHold(p, ai, world) {
   ai.hadBall = true; ai.action = 'probe'; ai.holdCd = 0; ai.catchCd = CATCH_GATE; ai.passGateCd = PASS_GATE;
   ai.isoLeft = isoMovesRoll(p, world.rng); ai.arcBand = arcBandRoll(p, world.rng); ai.jabRolled = false; ai.jabWant = false; ai.pumpDone = false; ai.plan = '';
   ai.releaseOn = false; ai.pumpOn = false; ai.ripWant = false; ai.bounces = 0; ai.forcePass = false; ai.doubleT = 0; ai.postT = 0; ai.postPlan = '';
-  ai.upUnder = false; ai.driveFtRolled = false; ai.passTo = null; ai.wasPost = false;
+  ai.upUnder = false; ai.driveFtRolled = false; ai.passTo = null; ai.wasPost = false; ai.ballT = 0; ai.forceThrow = false; ai.fadeNext = false;
   p.slot = -1; p.cutting = false; p.passTarget = null;
 }
 
@@ -386,6 +369,7 @@ function handler(p, ai, world, tick, ms, dt) {
   const it = p.intent;
   if (!ai.hadBall) initHold(p, ai, world);
   it.post = false;
+  ai.ballT += dt;
   if (p.dribbleBounced && p.dribbling) ai.bounces++;
   // a shot in progress: hold the button to the planned release (pump fakes: quick release)
   if (p.shot.active) {
@@ -443,9 +427,24 @@ function decide(p, ai, world, urgent) {
   const sc0 = SCORES;
   sc0.shoot = 0; sc0.drive = 0; sc0.move = 0; sc0.jab = 0; sc0.post = 0; sc0.pass = 0; sc0.probe = 0; sc0.reset = 0;
   let best = 'probe', bestU = -Infinity;
-  if (urgent && !clearing) {
-    // the best SHOOT now — but a gated three (Yao, Giannis closed) attacks inside first while the clock allows
+  if (ai.fadeNext && !urgent && !clearing) {
+    // the gather is done: the fadeaway now (the shot was already decided before the gather)
+    ai.fadeNext = false;
+    if (p.holding) { best = 'shoot'; ai.plan = 'fade'; }
+  } else if (urgent && !clearing) {
+    // the best SHOOT now — but a gated three (Yao, Giannis closed) attacks inside first while the clock allows, and
+    // Yao stranded beyond the arc kicks it to a teammate while a catch-and-shoot still fits (≥ 1.0 s)
     best = isThree(p.pos.x, p.pos.z) && !threeGateOK(p, open, sc) ? 'drive' : 'shoot';
+    // with time for one attack (≥ 1.8 s) a better drive beats the heave from where he stands (EP vs EP)
+    if (best === 'shoot' && sc >= URGENT_DRIVE_CLOCK && !p.legend.traits.noDribbleMoves) {
+      const e = epAt(p, world, p.pos.x, p.pos.z, p.vel.x, p.vel.z, false, true);
+      const g0 = onBallDefender(p, world);
+      if (uDrive(p, g0, world, diff, 0, false) > e.ep + URGENT_DRIVE_MARGIN) best = 'drive';
+    }
+    if (postAlways(p) && isThree(p.pos.x, p.pos.z) && sc >= YAO_KICK_CLOCK) {
+      const q = bestPassTarget(p, world, PASS_OUT) || safestMate(p, world);
+      if (q) { best = 'pass'; ai.passTo = q; ai.passLob = false; ai.forceThrow = true; }
+    }
   } else if (setupG) {
     best = 'setup';
   } else if (clearing) {
@@ -456,27 +455,38 @@ function decide(p, ai, world, urgent) {
     // shoot
     const e = epAt(p, world, p.pos.x, p.pos.z, p.vel.x, p.vel.z, false, true);
     const three = e.pts === 3;
-    let uShoot = e.ep * zoneTend(p, e.zone) * clutchShotMul(p, world) * dietFactor(p, world, e.zone);
+    let ep0 = e.ep;
+    // a fadeaway taker holding the ball with his guard up reads the fade (its contest multipliers), not the set shot
+    if (p.holding && T.fade >= TRIPLE_FADE && g && gd <= FADE_R && !inPaint(p)) {
+      const pf = estMake(p, world, 'fade', null, p.pos.x, p.pos.z, 0, 0, true);
+      if (pf * e.pts > ep0) ep0 = pf * e.pts;
+    }
+    let uShoot = ep0 * zoneTend(p, e.zone) * clutchShotMul(p, world) * dietFactor(p, world, e.zone);
     sc0.shoot = uShoot;
     const gateOK = !catchG && (!three || threeGateOK(p, open, sc));
     const th = theta(sc) + (patienceG ? PATIENCE_ADD : 0);
-    const isoOK = !isoG || e.ep >= theta(sc) + ISO_EXTRA;
+    const isoOK = !isoG || ep0 >= theta(sc) + ISO_EXTRA;
     if (gateOK && isoOK && uShoot >= th) { const u = uShoot + rng.range(0, NOISE); if (u > bestU) { bestU = u; best = 'shoot'; } }
     // drive
     let uDr = 0;
     // a started drive that is inside 6 m or past its guard is committed: it attacks the help (finish / floater /
     // kick-out on equal terms) instead of being called off by the lane gate, which only governs starting a drive
     // (LeBron / Giannis / Yao ignore the lane gate anyway: their drive commits only while the lane is clear)
-    const big = p.id === 'lebron' || p.id === 'giannis' || p.id === 'yao';
-    const committed = ai.action === 'drive' && (big ? laneClear(p, g, world) : guardBeaten(p, g));
+    const big = laneGateFree(p);
+    // (I3) a non-big's drive also stays committed while it is still attacking: ≥ 3 m/s within 45° of the rim
+    const committed = ai.action === 'drive' && (big ? laneClear(p, g, world) : (guardBeaten(p, g) || (p.speed >= HELP_DRIVE_V && headingCos(p) >= COS45)));
     if (p.legend.id !== 'yao' || ai.bounces < MAX_YAO_BOUNCES) uDr = uDrive(p, g, world, diff, 0, committed);
     // the commitment follows the shot diet: a legend above his rim share pulls up more readily
     if (committed && uDr > 0) uDr += (DRIVE_COMMIT + (d < DRIVE_COMMIT_D ? DRIVE_COMMIT_NEAR : 0)) * dietFactor(p, world, 'rim');
     sc0.drive = uDr;
-    if (uDr > 0) { const u = uDr + rng.range(0, NOISE); if (u > bestU) { bestU = u; best = 'drive'; } }
-    // dribble move
+    // patience covers the drive too: inside the patience window a drive against a set guard must clear the same bar
+    // as a contested shot, θ(shot clock) + 0.5 (a committed drive keeps going; a beaten guard raises U_drive through
+    // pBeat 0.90, so a clear advantage still clears the bar)
+    const drivePatient = patienceG && !committed && uDr < th;
+    if (uDr > 0 && !drivePatient) { const u = uDr + rng.range(0, NOISE); if (u > bestU) { bestU = u; best = 'drive'; } }
+    // dribble move (the hold's isoMoves budget, §2.5, caps them: Kyrie 2–4 a hold, Kobe / Jordan 1–2)
     let uMv = 0;
-    if (p.dribbling && g && gd <= ISO_R && !p.legend.traits.noDribbleMoves && p.moveCd <= 0 && T.iso > 0) {
+    if (p.dribbling && g && gd <= ISO_R && !p.legend.traits.noDribbleMoves && p.moveCd <= 0 && T.iso > 0 && ai.isoLeft > 0) {
       SHAKE_OPTS.committed = false; SHAKE_OPTS.combo = 1; SHAKE_OPTS.diffMul = shakeDiffMul(world, p, g);
       const ps = shakeChance(p, g, 'move.cross', SHAKE_OPTS).pShake;
       uMv = (uDrive(p, g, world, diff, PBEAT_BEATEN) * ps + MOVE_ELSE * (1 - ps)) * T.iso;
@@ -506,6 +516,11 @@ function decide(p, ai, world, urgent) {
         let uPa = PASS_OUT.score;
         if (ai.forcePass) uPa *= 1 + T.kickWhenDoubled;
         sc0.pass = uPa;
+        // ball movement: after holding it SWING_T / tend.pass seconds without a better option the handler swings
+        // the ball to a safe receiver (a probe-level utility + SWING_ADD); not late in the clock (≤ 6 s), where a
+        // swing only hands the receiver an urgent heave
+        if (sc > PROBE_LATE_CLOCK && ai.ballT >= SWING_T / tendOf(p).pass && PASS_OUT.ep >= SWING_EP) uPa = Math.max(uPa, U_PROBE + SWING_ADD);
+        sc0.pass = uPa;
         const need = Math.max(sc0.shoot >= th ? sc0.shoot : 0, uDr, uMv) + (ai.forcePass ? 0 : PASS_MARGIN);
         if (uPa >= need) {
           const u = uPa + rng.range(0, NOISE);
@@ -525,10 +540,31 @@ function decide(p, ai, world, urgent) {
   if (best !== ai.action) {
     if (best === 'drive') startDrive(p, ai, world, diff);
     if (best === 'post') { ai.postAbandonCd = POST_ABANDON; }
-    if (best === 'shoot') { ai.plan = ''; ai.setFeetCd = SETFEET_T; }
+    if (best === 'shoot' && ai.plan !== 'fade') { ai.plan = ''; ai.setFeetCd = SETFEET_T; }
     ai.action = best;
     ai.holdCd = HYSTERESIS;
   }
+}
+
+/**
+ * After a pump fake in the paint: the up-and-under (a rim finish) with p UPUNDER_P × the rim diet, else the
+ * follow-up is decided again (Yao: the hook) — keeps Yao's finishes near his profile (hooks, few rim shots).
+ */
+function upUnderRoll(p, world, d) {
+  return d <= PUMP_UPUNDER_D && world.rng.next() < UPUNDER_P * dietFactor(p, world, 'rim');
+}
+
+/** The teammate with the lowest pass risk (no tolerance: Yao's clock-forced kick-out beats his heave). */
+function safestMate(p, world) {
+  const ps = world.players;
+  let best = null, br = Infinity;
+  for (let i = 0; i < ps.length; i++) {
+    const q = ps[i];
+    if (q === p || q.team !== p.team || q.disabled) continue;
+    const r = passRisk(p, q, q.pos.x, q.pos.z, world);
+    if (r < br) { br = r; best = q; }
+  }
+  return best;
 }
 
 function shakeDiffMul(world, h, d) {
@@ -585,6 +621,9 @@ function shoot(p, ai, world, ms, urgentNow) {
       const jumpShot = predictKind(p, world, p.pos.x, p.pos.z, false).kind === 'jumper';
       if (jumpShot && gd <= PUMP_R && !ai.pumpDone && rng.next() < T.pumpFake) ai.plan = 'pump';
       else if (p.holding && gd <= FADE_R && rng.next() < T.fade) ai.plan = 'fade';
+      // the fadeaway from the dribble (Kobe, Jordan): gather the ball with a shot fake, then fade away (the fade
+      // needs the ball in the hands, §5.9 row 14)
+      else if (jumpShot && p.dribbling && T.fade >= TRIPLE_FADE && gd <= FADE_R && !ai.pumpDone && rng.next() < T.fade) { ai.plan = 'pump'; ai.fadeNext = true; }
       else if (p.dribbling && gd <= STEPBACK_R && rng.next() < T.stepback) ai.plan = 'stepback';
     }
   }
@@ -601,7 +640,7 @@ function shoot(p, ai, world, ms, urgentNow) {
   else if (d <= TRIGGERS.LAYUP.STD1_MAX) stickRim(p, 1, 0.6);
   pressButton(it.primary, ms);
   ai.pumpOn = ai.plan === 'pump';
-  if (ai.pumpOn) { ai.pumpCd = PUMP_TAP; ai.pumpDone = true; ai.upUnder = d <= PUMP_UPUNDER_D; }
+  if (ai.pumpOn) { ai.pumpCd = PUMP_TAP; ai.pumpDone = true; ai.upUnder = upUnderRoll(p, world, d); }
   ai.action = ai.pumpOn ? 'probe' : 'shoot';
   ai.holdCd = ai.pumpOn ? PUMP_REDECIDE : HYSTERESIS;
   ai.plan = '';
@@ -615,6 +654,12 @@ function probe(p, ai, world, tick) {
   const g = onBallDefender(p, world);
   const gd = g ? distXZ(g.pos.x, g.pos.z, p.pos.x, p.pos.z) : OPEN_MAX;
   if (p.id === 'yao' && ai.bounces >= MAX_YAO_BOUNCES && p.dribbling) { stopMove(p.intent); return; }
+  // the triple-threat series (Kobe, Jordan: jab ≥ 0.4, fade ≥ 0.5): with the guard up on him and the ball still in
+  // his hands he stays put for up to TRIPLE_T — jab, jab, fadeaway or the rip-through — instead of putting it down
+  if (p.holding && T.jab >= TRIPLE_JAB && T.fade >= TRIPLE_FADE && g && gd <= JAB_R + 0.3 && ai.ballT < TRIPLE_T && d < TRIPLE_D) {
+    stopMove(p.intent);
+    return;
+  }
   if (p.id === 'yao') {                                     // Yao probes toward the block on his side
     const sp = topSpot('yao');
     const side = p.pos.x > 0.5 ? 1 : p.pos.x < -0.5 ? -1 : (sp.x < 0 ? -1 : 1);
@@ -679,7 +724,10 @@ function drive(p, ai, world, tick, ms) {
     A.x = g.pos.x - G.z * s * DRIVE_AROUND + G.x * 1.5; A.z = g.pos.z + G.x * s * DRIVE_AROUND + G.z * 1.5;
   }
   clampCourt(A);
-  steerTo(p, A.x, A.z, ai.driveSprint && d > 1.6);
+  // an open runway sets up the signature long finishes (Giannis' long gather ≥ 5 m/s, Jordan's FT-line dunk ≥ 6 m/s):
+  // the driver always sprints when no defender is within the path radius of his line to the rim
+  const runway = d <= RUNWAY_D && (has(p, 'giannis.longDunk') || has(p, 'jordan.ftDunk')) && pathClear(p, world, TRIGGERS.LONG_GATHER.PATH_R);
+  steerTo(p, A.x, A.z, (ai.driveSprint || runway) && d > 1.6);
   if (p.state !== 'idle' && p.state !== 'move') return;
   if (ai.catchCd > 0 && world.shotClock > URGENT_GATE) return;   // catch gate (R#25 / R#40)
   const c = abilityCtx(p, world);
@@ -691,16 +739,18 @@ function drive(p, ai, world, tick, ms) {
   if (has(p, 'giannis.longDunk') && eligible(p, 'giannis.longDunk', c)) { pressFinish(p, ai, ms, false, 1); return; }
   if (ai.driveEuro && has(p, 'giannis.euro') && d <= 6.8 && eligible(p, 'giannis.euro', c)) { pressFinish(p, ai, ms, false, 1); return; }
   {
-    // generic finishes
-    if (d >= TRIGGERS.DUNK.D_MIN && d <= DRIVE_DUNK_D && dunkAllowed(p, world, d)) { pressFinish(p, ai, ms, true, 0); return; }
+    // generic finishes: the floater over a rim protector is weighed first (EP × tend.shotClose × diet against the
+    // finish's EP × tend.shotRim × diet, the dunk included), then the dunk, then the layup
     const sp = p.speed, hc = headingCos(p);
+    const dunkOK = d >= TRIGGERS.DUNK.D_MIN && d <= DRIVE_DUNK_D && dunkAllowed(p, world, d);
     if (d > FLOATER_LO && d <= FLOATER_HI && p.dribbling && sp >= 3.0 && rimProtectorHome(p, world)) {
-      // floater over a rim protector when its utility (EP × tend.shotClose) beats the layup's (EP × tend.shotRim)
       const T = tendOf(p);
-      const pf = estMake(p, world, 'floater', null, p.pos.x, p.pos.z, p.vel.x, p.vel.z, true) * T.shotClose;
-      const pl = finishEst(p, world, onBallDefender(p, world)) * T.shotRim;
-      if (pf > pl) { pressFinish(p, ai, ms, true, 1); return; }
+      const pf = estMake(p, world, 'floater', null, p.pos.x, p.pos.z, p.vel.x, p.vel.z, true) * T.shotClose * dietFactor(p, world, 'close');
+      const pFin = dunkOK ? Math.max(finishEst(p, world, onBallDefender(p, world)), estMake(p, world, 'dunk', 'power2', p.pos.x, p.pos.z, p.vel.x, p.vel.z, true))
+        : finishEst(p, world, onBallDefender(p, world));
+      if (pf > pFin * T.shotRim * dietFactor(p, world, 'rim')) { pressFinish(p, ai, ms, true, 1); return; }
     }
+    if (dunkOK) { pressFinish(p, ai, ms, true, 0); return; }
     const std2 = sp >= STD2_SPEED && hc >= COS45 && d <= (p.id === 'jordan' ? TRIGGERS.LAYUP.STD2_MAX_JORDAN : TRIGGERS.LAYUP.STD2_MAX);
     // Kyrie's floater row is automatic inside (2.2, 4.5] with a rim protector home: his layups go up from ≤ 2.2 m
     const kyrieAuto = has(p, 'kyrie.finisher') && rimProtectorHome(p, world);
@@ -791,13 +841,14 @@ function doPass(p, ai, world, ms, recv, lob) {
   if (!recv || recv === p || !p.hasBall) { ai.action = 'probe'; return; }
   if (p.state !== 'idle' && p.state !== 'move' && p.state !== 'post') { ai.action = 'probe'; return; }
   // the lane is re-checked on the step the pass is thrown (stale decisions are dropped)
-  if (!isUsersTeammate(p, world)) {
+  if (!isUsersTeammate(p, world) && !ai.forceThrow) {
     const tf = distXZ(p.pos.x, p.pos.z, recv.pos.x, recv.pos.z) / p.attrs.passSpeed + p.attrs.passRelease;
     const cx = clamp(recv.pos.x + recv.vel.x * tf, -CLAMP_X, CLAMP_X), cz = clamp(recv.pos.z + recv.vel.z * tf, CLAMP_Z_MIN, CLAMP_Z_MAX);
     const tol = riskTolOf(p, aiDiff(world, p));
     if (passRisk(p, recv, cx, cz, world) > tol || (recv.speed > LEAD_V && passRisk(p, recv, recv.pos.x, recv.pos.z, world) > tol)) { ai.action = 'probe'; ai.holdCd = 0; return; }
   }
   stopMove(it);
+  ai.forceThrow = false;
   p.passTarget = recv; ai.passTo = recv;
   if (lob) { pressButton(it.secondary, ms); ai.passHoldCd = LOB_HOLD; } else tap(it.secondary, ms);
   ai.action = 'probe'; ai.holdCd = HYSTERESIS;
@@ -861,7 +912,9 @@ function postPlay(p, ai, world, tick, ms, dt) {
     dirTo(G, p.pos.x, p.pos.z, RIM.x, RIM.z);
     const dx = p.pos.x + G.x * 1.0, dz = p.pos.z + G.z * 1.0;
     const pDrop = estMake(p, world, 'layup', 'power', dx, dz, 0, 0, false) * (g && !guardBeaten(p, g) ? 0.85 : 1);
-    ai.postPlan = pDrop > pShot + rng.range(-0.08, 0.08) ? 'drop' : 'shot';
+    // weighed with the legend's shot diet (Yao's profile: hooks and jumpers, few rim finishes)
+    const wDrop = pDrop * dietFactor(p, world, 'rim'), wShot = pShot * dietFactor(p, world, POST_DIST_ZONE(p));
+    ai.postPlan = wDrop > wShot + rng.range(-0.08, 0.08) ? 'drop' : 'shot';
     if (ai.postPlan === 'shot' && g && distXZ(g.pos.x, g.pos.z, p.pos.x, p.pos.z) <= PUMP_R && rng.next() < T.pumpFake) ai.postPlan = 'pump';
   }
   it.post = false;
@@ -873,7 +926,7 @@ function postPlay(p, ai, world, tick, ms, dt) {
     return;
   }
   if (ai.postPlan === 'pump') {
-    pressButton(it.primary, ms); ai.pumpOn = true; ai.pumpCd = PUMP_TAP; ai.pumpDone = true; ai.upUnder = d <= PUMP_UPUNDER_D; ai.postPlan = 'done';
+    pressButton(it.primary, ms); ai.pumpOn = true; ai.pumpCd = PUMP_TAP; ai.pumpDone = true; ai.upUnder = upUnderRoll(p, world, d); ai.postPlan = 'done';
     return;
   }
   // the post shot: stick neutral (Giannis: lateral for the hook)
@@ -1140,6 +1193,12 @@ function defence(p, ai, world, tick, ms, S) {
     dirTo(G, h.pos.x, h.pos.z, RIM.x, RIM.z);
     if (h.state === 'post') { A.x = h.pos.x + G.x * 0.9 - G.z * 0.5; A.z = h.pos.z + G.z * 0.9 + G.x * 0.5; } else { A.x = RIM.x - G.x * HELP_FRONT; A.z = RIM.z - G.z * HELP_FRONT; }
     steerTo(p, A.x, A.z, distXZ(p.pos.x, p.pos.z, A.x, A.z) > HELP_SPRINT_D);
+    // the dig: a helper (post double, drive help) who ends up within reach of a dribbling handler swipes at the ball
+    // with the same attempt interval and gamble as an on-ball poke, scaled by DIG_K (I3)
+    if (tick && ai.stealCd <= 0 && pokeAllowed(p, h, world) && distXZ(p.pos.x, p.pos.z, h.pos.x, h.pos.z) <= stealRangeOf(p)) {
+      ai.stealCd = diff.cpuStealInterval;
+      if (world.rng.next() < DIG_K * pokeProb(p)) { tap(it.tertiary, ms); ai.pokes++; }
+    }
     return;
   }
   if (man === h) onBall(p, ai, world, man, diff, tick, ms);
@@ -1201,10 +1260,9 @@ function onBall(p, ai, world, man, diff, tick, ms) {
   // poke (CPU attempt interval, R7 graces; tend.stealGamble)
   // no reach-in against a handler attacking at speed or inside a move (a failed poke stuns: the drive would be free)
   // a gamble: within POKE_REACH of his range the defender steps in (≤ POKE_COMMIT s) and pokes once in range
-  const range = p.attrs.stealRange + (has(p, 'jordan.hawk') ? STEAL_RANGE_HAWK : 0);
+  const range = stealRangeOf(p);
   const dMan = distXZ(p.pos.x, p.pos.z, man.pos.x, man.pos.z);
-  const pokeOK = man.dribbling && man.state !== 'cross' && man.speed <= POKE_MAX_V && p.canAct && p.stealCd <= 0
-    && world.liveT >= POKE_LIVE && world.time - man.cx.catchT >= POKE_CATCH;
+  const pokeOK = pokeAllowed(p, man, world);
   if (ai.pokeCd > 0 && pokeOK) {
     if (dMan <= range) { tap(it.tertiary, ms); ai.pokes++; ai.pokeCd = 0; } else steerTo(p, man.pos.x, man.pos.z, false);
     return;
@@ -1217,6 +1275,14 @@ function onBall(p, ai, world, man, diff, tick, ms) {
   }
 }
 
+
+function stealRangeOf(p) { return p.attrs.stealRange + (has(p, 'jordan.hawk') ? STEAL_RANGE_HAWK : 0); }
+
+/** A CPU poke is on: the man dribbles (not inside a move, not attacking at speed), R7 graces, the defender can act. */
+function pokeAllowed(p, man, world) {
+  return man.dribbling && man.state !== 'cross' && man.speed <= POKE_MAX_V && p.canAct && p.stealCd <= 0
+    && world.liveT >= POKE_LIVE && world.time - man.cx.catchT >= POKE_CATCH;
+}
 
 function shotSteer(p, sh, world) {
   const it = p.intent;
@@ -1303,7 +1369,14 @@ function maybeHelp(p, ai, world, h, diff) {
     if (q === p || q.team === h.team || q === g || userControls(world, q)) continue;
     if (distXZ(q.pos.x, q.pos.z, sx, sz) < myD) return;
   }
-  if (world.rng.next() < helpProb(p, diff)) ai.helpCd = HELP_T;
+  if (world.rng.next() >= helpProb(p, diff)) return;
+  ai.helpCd = HELP_T;
+  // switch on the rotation (I3): the helper keeps the driver and the beaten guard takes the helper's man, so a kick-out
+  // finds new matchups (the scramble that makes post mismatches); Yao never switches (§5.10: no Yao on a perimeter
+  // player while another assignment exists), and the human's assignment is never changed
+  if (p.id !== 'yao' && g && g.id !== 'yao' && g.team === p.team && !userControls(world, g) && p.defAssign && p.defAssign !== h) {
+    const m = p.defAssign; p.defAssign = h; g.defAssign = m;
+  }
 }
 
 /**
@@ -1386,7 +1459,11 @@ function planJump(p, ai, world, sh, diff, help) {
   schedule(p, ai, world, sh, tBall, to, air, diff);
 }
 
-/** Schedule the jump: leave the floor at tRel + 0.03 − airtime/2 + N(0, jumpSigma) (the press leads by the takeoff). */
+/**
+ * Schedule the jump: press at tRel + 0.03 − airtime/2 + N(0, jumpSigma). The clip's takeoff delay `to` is not taken
+ * off: the apex lands ≈ `to` after the release, where the ball rising toward the rim passes over a defender in front
+ * (I3 measured: taking `to` off cut the band-A block rate from ~3.3 % to ~1.3 %).
+ */
 function schedule(p, ai, world, sh, tBall, to, air, diff) {
   const tPressAbs = sh.shot.pressT + tBall + JUMP_LEAD - air * 0.5 + world.rng.gauss(0, diff.jumpSigma);
   const wait = tPressAbs - world.time;

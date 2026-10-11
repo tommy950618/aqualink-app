@@ -145,6 +145,9 @@ export class Character {
     this._buildKit(worn, cut);
     // ---- groom ----
     this._buildGroom(R);
+    /** Worn shell names (cloth / accessories, then the player's groom shells), e.g. ['jersey', 'shorts', 'socks_high', 'sleeve_r', …, 'hair_inner']. */
+    const groomNames = GROOM_ORDER.inner.concat(GROOM_ORDER.outer).filter((n) => !!a.data.shells[n]);
+    this.shells = Object.freeze(worn.map((w) => w.name).concat(groomNames));
 
     // ---- assemble & bind ----
     const object = new THREE.Group();

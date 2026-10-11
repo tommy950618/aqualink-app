@@ -28,16 +28,17 @@
 import { RIM, FIXED_DT, DIFFICULTY, LINES } from './constants.js';
 import { Rng } from './math.js';
 import { makeIntent, clearEdges, pressButton, releaseButton } from './input.js';
-import { onBallGap } from './ai-tend.js';
+import { onBallGap, passRisk } from './ai-tend.js';
 
 export const BOT_MODES = Object.freeze(['off', 'idle', 'avg', 'good', 'drive', 'pullup']);
 
 const SIGMA_AVG = 0.050, SIGMA_GOOD = 0.030;
 const PLAY_DELAY = 0.8;                 // offence starts at LIVE + 0.8 s
 const P_DRIVE = 0.40, P_PULLUP = 0.30;  // pass-and-shoot = the rest (0.30)
-const DRIVE_SHOOT_D = 2.0, PULLUP_RUN_T = 1.5, PULLUP_D = 3.5, PULLUP_WAIT = 6 * FIXED_DT;
+const DRIVE_SHOOT_D = 2.0, PULLUP_RUN_T = 1.5, PULLUP_D = 3.5, PULLUP_WAIT = 6 * FIXED_DT, PULLUP_PLANT_V = 1.0, PULLUP_PLANT_MAX = 0.6;
 const RETURN_PASS_T = 0.4, RETURN_SHOOT_T = 0.5, CROSS_R = 1.2, CROSS_P = 0.5;
 const BLOCK_P = 0.5, BLOCK_SIGMA = 0.10, STEAL_EVERY = 2.5, IDLE_TURNOVER_T = 0.5;
+const BOT_RISK = 0.6, PASS_WAIT = 1.5;  // pass-and-shoot: lanes riskier than this are skipped (CPU handlers: 0.25–0.45)
 const HOLD_MIN = 0.13;                  // a SHOOT released under 0.12 s would be a pump fake
 const STICK_IDLE = 0.15;
 
@@ -205,9 +206,10 @@ export class TestBot {
         return;
       }
       case 'pass': {
-        // aim the stick at the most open teammate and tap PASS
+        // aim the stick at the most open teammate whose lane is readable as safe and tap PASS; an average player
+        // waits up to PASS_WAIT for a lane (standing, ball protected) before he settles for the pull-up
         const q = this.openMate(me, w);
-        if (!q) { this.play = 'pullup'; this.pullDir = 1; return; }
+        if (!q) { this.stop(); if (this.phaseT >= PASS_WAIT) { this.play = 'pullup'; this.phaseT = 0; this.pullDir = me.pos.x >= 0 ? 1 : -1; } return; }
         const dx = q.pos.x - me.pos.x, dz = q.pos.z - me.pos.z, l = Math.sqrt(dx * dx + dz * dz) || 1;
         it.move.x = dx / l; it.move.z = dz / l; it.move.mag = 1; it.sprint = false;
         const t = this.ms();
@@ -263,9 +265,11 @@ export class TestBot {
       return;
     }
     if (this.phase === 1) {
+      // the v1 case waited 6 steps; v2 feet decelerate, so the pull-up also waits for the plant (speed under
+      // PULLUP_PLANT_V, ≤ PULLUP_PLANT_MAX) — pressed while still sliding at ≥ 2 m/s it would resolve to a std2 layup
       this.stop();
       this.phaseT += FIXED_DT;
-      if (this.phaseT >= PULLUP_WAIT - 1e-9) { this.phase = 2; this.pressShoot(w); }
+      if (this.phaseT >= PULLUP_WAIT - 1e-9 && (me.speed < PULLUP_PLANT_V || this.phaseT >= PULLUP_PLANT_MAX)) { this.phase = 2; this.pressShoot(w); }
     }
   }
 
@@ -281,12 +285,18 @@ export class TestBot {
     return best;
   }
 
+  /**
+   * The most open teammate the average player would actually throw to: he reads the lane roughly (the AI's pass-risk
+   * estimate, accepting more risk than a CPU handler, BOT_RISK) and does not throw through a defender; null when
+   * every lane is shut (the play becomes a pull-up).
+   */
   openMate(me, w) {
     const ps = w.players;
     let best = null, bestOpen = -1;
     for (let i = 0; i < ps.length; i++) {
       const q = ps[i];
       if (q === me || q.team !== me.team) continue;
+      if (passRisk(me, q, q.pos.x, q.pos.z, w) > BOT_RISK) continue;
       const open = this.nearestDef(q, w);
       if (open > bestOpen) { bestOpen = open; best = q; }
     }

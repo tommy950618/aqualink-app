@@ -63,6 +63,15 @@ export const FACE_AR = Object.freeze([
   [0.08, 0.15], [0.10, 0.12], [0.15, 0.30], [0.10, 0.25], [0.20, 0.30], [0.20, 0.40], [0.15, 0.30], [0.10, 0.20], [0.05, 0.07],
 ]);
 
+/** Pop guard limits (popGuard): at most 22° per shown update, or 660°/s over longer frames. */
+const GUARD_MIN = 22 * Math.PI / 180, GUARD_RATE = 660 * Math.PI / 180;
+/**
+ * Bones the pop guard limits: legs (foot-lock re-plants and reach limits of the foot IK) and fingers (hand-preset
+ * switches at 30 Hz). Arms, spine and head stay free: hand IK contacts (rim grab, ball contact) must land exactly.
+ */
+const GUARDED = new Uint8Array(BONE_COUNT);
+for (const n of ['thigh_l', 'calf_l', 'foot_l', 'ball_l', 'thigh_r', 'calf_r', 'foot_r', 'ball_r']) GUARDED[BONE[n]] = 1;
+for (let b = 0; b < BONE_COUNT; b++) if (/^(thumb|index|middle|ring|pinky)_/.test(BONE_NAMES[b])) GUARDED[b] = 1;
 /** Detail flags per quality tier (spec §4.14; the integrator also decides which players run at 30 Hz). */
 export const DETAIL_TIERS = Object.freeze({
   high: Object.freeze({ fingers: true, footIK: true, handIK: true, look: true, eyes: true, breathing: true, expressions: true, halfRate: false }),
@@ -152,6 +161,8 @@ export class Animator {
     this.pLast = new Pose(); this.pSnap = new Pose();
     this.snapK = 0; this.snapDur = 0.2; this.snapAge = 0; this.snapAgePrev = 0;
     this.xfL = new Float64Array(BONE_COUNT * 4); this.xfT = new Float64Array(BONE_COUNT * 3);
+    // pop guard (R#37): last written bone-local rotations and the render time since the last full evaluation
+    this.guardL = new Float64Array(BONE_COUNT * 4); this.guardOn = false; this.guardDt = 0;
     this.xfOn = false; this.xfAge = 0; this.xfAgePrev = 0; this.xfDur = 0.20;
     this.hasLast = false;
     // skeletons: render and step-query
@@ -808,9 +819,10 @@ export class Animator {
    * writes the bones and the morph / eye uniforms. frameDt = render frame time (springs, face smoothing).
    */
   evaluate(alpha, frameDt) {
-    if (this.external) return;
+    if (this.external) { this.guardOn = false; return; }
     const t0 = typeof performance !== 'undefined' ? performance.now() : 0;
     this.frameN++;
+    if (frameDt > 0) this.guardDt += frameDt;
     // self-driven root (no game stepping: lineup / intro / viewer without an owner)
     if (this.stepCalls === 0 && (this.walk.active || !this.owner)) this.selfDrive(frameDt);
     this.stepCalls = 0;
@@ -886,6 +898,8 @@ export class Animator {
         sk.fkAll();
       }
     }
+    // ---- pop guard: no bone turns more than GUARD_MIN per shown update (R#37, B49) ----
+    this.popGuard(culled);
     // ---- write bones ----
     if (this.bones) this.writeBones();
     // ---- 5 face ----
@@ -893,6 +907,31 @@ export class Animator {
     if (this.ch && this.ch.eyeOffset && d.eyes) { this.ch.eyeOffset.x = this.look.out.x; this.ch.eyeOffset.y = this.look.out.y; }
     this.stats.evals++;
     if (t0) this.stats.cpuMs = 0.9 * this.stats.cpuMs + 0.1 * (performance.now() - t0);
+  }
+
+  /**
+   * Pop guard (R#37 "never a snap", B49): every GUARDED bone-local rotation may turn at most max(GUARD_MIN, GUARD_RATE·dt)
+   * since the last full evaluation (dt includes frames skipped at 30 Hz), so foot-lock re-plants, IK reach limits
+   * and preset switches ease over a few frames instead of snapping. 22° per update is far above ordinary motion
+   * (a sprint's thigh swing is ≈ 12° per 60 Hz frame), so normal animation is untouched. Gameplay sockets come from
+   * the fixed-step queries and are not affected. Culled characters (15 Hz, unseen) only refresh the reference.
+   */
+  popGuard(culled) {
+    const L = this.sk.L, G = this.guardL;
+    const dt = this.guardDt; this.guardDt = 0;
+    if (!this.guardOn || culled) { G.set(L); this.guardOn = true; return; }
+    const maxA = Math.max(GUARD_MIN, GUARD_RATE * dt);
+    let changed = false;
+    for (let b = 0; b < BONE_COUNT; b++) {
+      const o = b * 4;
+      if (!GUARDED[b]) { G[o] = L[o]; G[o + 1] = L[o + 1]; G[o + 2] = L[o + 2]; G[o + 3] = L[o + 3]; continue; }
+      const d = L[o] * G[o] + L[o + 1] * G[o + 1] + L[o + 2] * G[o + 2] + L[o + 3] * G[o + 3];
+      const ad = d < 0 ? -d : d;
+      const ang = 2 * Math.acos(ad > 1 ? 1 : ad);
+      if (ang > maxA) { qnlerp(G, o, L, o, maxA / ang, L, o); changed = true; }
+      G[o] = L[o]; G[o + 1] = L[o + 1]; G[o + 2] = L[o + 2]; G[o + 3] = L[o + 3];
+    }
+    if (changed) this.sk.fkAll();
   }
 
   /** Render clip time of a layer: prevT + alpha·(t − prevT) (loop-aware), the frozen time when fading out. */
@@ -1386,7 +1425,7 @@ export class Animator {
       let tgt = this.faceSet[k];
       if (this.faceRule[k] > tgt) tgt = this.faceRule[k];
       if (P.exprK[k] > 0 && P.expr[k] > tgt) tgt = P.expr[k];
-      if (k === E_SCOWL && this.id === 'kobe' && tgt < 0.35) tgt = 0.35;            // Mamba stare baseline
+      if (k === E_SCOWL && this.id === 'kobe' && tgt < 0.35) tgt = 0.35;            // Kobe's stare baseline
       if (k === E_JAW && this.id === 'jordan') {                                       // gum chew (idle)
         const chew = (0.06 + 0.06 * Math.max(0, Math.sin(2 * Math.PI * 1.5 * t))) * (1 - act);
         if (chew > tgt) tgt = chew;

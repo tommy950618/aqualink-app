@@ -30,7 +30,9 @@ export const L = Object.freeze({
 const AND = Math.min;
 
 /** Sock shell heights above the ankle landmark (base metres). */
-export const SOCK_HEIGHTS = Object.freeze({ socks_low: 0.09, socks_crew: 0.13, socks_mid: 0.19, socks_high: 0.27 });
+// likeness round 4: crew 0.13 → 0.17 (LeBron / Yao / Kyrie showed only ≈ 4 cm of sock above the shoe), mid 0.19 → 0.23
+// (Giannis ≈ 20 cm above the malleolus), high 0.27 → 0.22 (Kobe's socks reached the knee; the profile asks mid-calf)
+export const SOCK_HEIGHTS = Object.freeze({ socks_low: 0.09, socks_crew: 0.17, socks_mid: 0.23, socks_high: 0.22 });
 /** Shoe collar heights above the floor (player metres) per cut; covers remove body vertices below Hc − 0.012. */
 export const SHOE_COLLAR = Object.freeze({ low: 0.085, lowmid: 0.100, midhigh: 0.125, high: 0.145 });
 
@@ -42,10 +44,13 @@ const sockRegion = (h) => ({
 // +3 mm ankle-brace bulge (Kobe, Yao): offsetScale 1 + 3/2.5 within ±4 cm of the ankle, 1 cm soft edges
 const braceScale = (v) => 1 + (0.003 / 0.0025) * (1 - smooth(0.03, 0.04, Math.abs(v.y - L.ankleY)));
 
+/** Lash card densities (likeness round 2: 0.9 on both cards read as mascara on the six male faces). */
+export const LASH_DENSITY = Object.freeze({ upper: 0.5, lower: 0.15 });
+
 /** Shared shell definitions (base mesh). `uv` selects the UV mode, `players` who wears it by default. */
 export const SHARED_SHELLS = [
   { name: 'jersey', kind: 'cloth', material: 'kit', offset: 0.007, coverInset: 0.015, simplify: 0.55, maxError: 0.003, uv: { mode: 'torso-ellipse', y0: 0.103, y1: 0.599 },
-    relax: { iterations: 12, strength: 0.5, pinBelowY: L.pelvisY + 0.10 } },
+    relax: { iterations: 24, strength: 0.5, pinBelowY: L.pelvisY + 0.10 } },
   { name: 'shorts', kind: 'cloth', material: 'kit', offset: 0.010, coverInset: 0.02, simplify: 0.6, maxError: 0.004, uv: { mode: 'torso-ellipse', y0: -0.314, y1: 0.168 },
     relax: { iterations: 60, strength: 0.7 } },
   ...Object.entries(SOCK_HEIGHTS).map(([name, h]) => ({ name, kind: 'cloth', material: 'kit', offset: 0.0025, coverInset: 0.008, simplify: 0.8, maxError: 0.0008, region: 'socks', h, uv: { mode: 'limb', chains: { l: ['calf_l', 'foot_l'], r: ['calf_r', 'foot_r'] } } })),
@@ -54,7 +59,7 @@ export const SHARED_SHELLS = [
   { name: 'sleeve_r', kind: 'cloth', material: 'kit', offset: 0.003, coverInset: 0.015, simplify: 0.6, players: ['kobe'], uv: { mode: 'limb', chains: { r: ['upperarm_r', 'lowerarm_r', 'hand_r'] } } },
   { name: 'tape_r_im', kind: 'cloth', material: 'kit', offset: 0.0008, coverInset: 0.003, simplify: 0.3, maxError: 0.05, minIsland: 4, players: ['kobe'], uv: { mode: 'limb', chains: { r: ['hand_r', 'middle_01_r', 'middle_02_r', 'middle_03_r'] } } },
   { name: 'wristband_l', kind: 'cloth', material: 'kit', offset: 0.004, coverInset: 0.01, players: ['jordan'], uv: { mode: 'limb', chains: { l: ['lowerarm_l', 'hand_l'] } } },
-  { name: 'headband_high', kind: 'cloth', material: 'kit', offset: 0.006, coverInset: 0.008, players: ['lebron'], uv: { mode: 'torso-ellipse', y0: L.Gy + 0.030, y1: L.Gy + 0.092 } },
+  { name: 'headband_high', kind: 'cloth', material: 'kit', offset: 0.005, coverInset: 0.008, players: ['lebron'], uv: { mode: 'torso-ellipse', y0: L.Gy - 0.016, y1: L.Gy + 0.082 } },
   { name: 'headband_low', kind: 'cloth', material: 'kit', offset: 0.005, coverInset: 0.008, players: [], uv: { mode: 'torso-ellipse', y0: L.Gy + 0.006, y1: L.Gy + 0.058 } },
 ];
 
@@ -83,7 +88,9 @@ export const REGIONS = {
       const y0 = L.pelvisY + 0.10, y1 = L.pelvisY + 0.14;
       if (v.y <= y0) return 1;
       if (v.y < y1) return 1 + (v.y - y0) / (y1 - y0);
-      return 1 + smooth(L.armpitY - 0.05, y1, v.y);
+      // likeness round 4: the chest keeps ≥ 1.45× (≈ 10 mm of air) instead of 1× (the 7 mm shell followed the pecs, abs
+      // and navel like body paint)
+      return 1.45 + 0.55 * smooth(L.armpitY - 0.05, y1, v.y);
     },
   },
   shorts: {
@@ -93,10 +100,12 @@ export const REGIONS = {
       // kneeY + 0.065 already stays clear of the calf)
       const notHand = 0.05 - v.w('hand_l', 'hand_r', 'lowerarm_l', 'lowerarm_r');
       const waist = (L.pelvisY + 0.085) - v.y;
-      const hem = v.y - (L.kneeY + 0.065);
+      // likeness round 4: hem kneeY + 0.065 → + 0.035 (every judge asked for longer, knee-length shorts: the hem sat
+      // 7–12 cm above the kneecap)
+      const hem = v.y - (L.kneeY + 0.035);
       return AND(hip * 0.05, notHand * 0.05, waist, hem);
     },
-    g: (v) => 1 + 2.8 * smooth(L.pelvisY - 0.10, L.kneeY + 0.06, v.y),
+    g: (v) => 1 + 2.8 * smooth(L.pelvisY - 0.10, L.kneeY + 0.03, v.y),
   },
   socks: null,   // sockRegion(h) per definition
   sleeve_r: {
@@ -124,13 +133,24 @@ export const REGIONS = {
     g: () => 1,
   },
   headband_high: {
-    // Gy + 0.036 … + 0.082, back edge + 0.005 (rides a little higher at the back)
+    // Gy + 0.034 … + 0.076 at the front (≈ 4.2 cm, high on the forehead), dropping 4 cm toward the back so it dips
+    // under the occipital bulge (likeness round 3: with a 1.5 cm drop the band still covered the crown from the side
+    // and read as a flat-top haircut / wedge; now the buzz-covered dome shows above it from the side, back and 3/4).
+    // Round 4: the band stays level across the forehead and both temples (φ < 0.40π) and the whole drop happens behind
+    // the ears (smooth 0.40π → 0.85π); the (1 − cos φ)/2 tilt curved the bottom edge down at the temples like a hairline.
+    // (smooth(0.40π, 0.85π, φ) is the shared groom.mjs smoothstep)
     f(v) {
       const phi = Math.atan2(Math.abs(v.x), v.z - L.headCZ);
-      const tilt = 0.005 * (1 - Math.cos(phi)) / 2;
-      return AND((v.w('head') - 0.8) * 0.05, v.y - (L.Gy + 0.036 + tilt), (L.Gy + 0.082 + tilt) - v.y);
+      const tilt = -0.040 * smooth(0.40 * Math.PI, 0.85 * Math.PI, phi);
+      return AND((v.w('head') - 0.8) * 0.05, v.y - (L.Gy + 0.034 + tilt), (L.Gy + 0.076 + tilt) - v.y);
     },
-    g: () => 1,
+    // rolled terry edges: the offset tapers to 0.5 within 6 mm of the top and bottom edges (no brim ledge)
+    g(v) {
+      const phi = Math.atan2(Math.abs(v.x), v.z - L.headCZ);
+      const tilt = -0.040 * smooth(0.40 * Math.PI, 0.85 * Math.PI, phi);
+      const d = Math.min(v.y - (L.Gy + 0.034 + tilt), (L.Gy + 0.076 + tilt) - v.y);
+      return 0.5 + 0.5 * smooth(0, 0.006, d);
+    },
   },
   headband_low: {
     f(v) {
@@ -586,7 +606,7 @@ export function buildSharedShells(ctx) {
     for (const k of A) uv.push(...uvByK.get(k));
     const sh = {
       name: 'lashes', kind: 'groom', material: 'groom', offset: 0, a: A, b: A.slice(), t: A.map(() => 0), uv,
-      offsetScale: A.map(() => 1), density: A.map(() => 0.9), fade: A.map(() => 1), edge: A.map(() => 0.1),
+      offsetScale: A.map(() => 1), density: A.map((k) => (lz.upper.has(k) ? LASH_DENSITY.upper : LASH_DENSITY.lower)), fade: A.map(() => 1), edge: A.map(() => 0.1),
       tris, cover: [], loops: [], lod1: null, vertexCount: A.length, uvMode: 'lash-local',
       groom: { family: [1, 0, 0], fadeMm: 0, part: 'lashes', layer: 'detail' },
     };
@@ -643,12 +663,12 @@ export function buildGroomShells(ctx) {
     const hf = hairFields(f, hair, beard, ear);
     const inner = hair.layers[0];
     make('hair_inner', hf.region, { offset: inner.offsetMm / 1000, family: famVec(inner.family), fadeMm: inner.fadeMm, simplify: inner.simplify ?? 0.7, part: 'hair', layer: 'inner', uvMode: 'head-metric' },
-      (v) => ({ density: hf.densityAt(v, inner.density), offsetScale: 1, fade: 1 }), hmUv, hm.Nu);
+      (v) => ({ density: hf.densityAt(v, inner.density, inner), offsetScale: 1, fade: 1 }), hmUv, hm.Nu);
     const outer = hair.layers[1];
     if (outer) {
       const inset = (outer.insetMm || 0) / 1000;
       make('hair_outer', (v) => hf.region(v) - inset, { offset: outer.offsetMm / 1000, family: famVec(outer.family || inner.family), fadeMm: outer.fadeMm, simplify: outer.simplify ?? 0.7, part: 'hair', layer: 'outer', uvMode: 'head-metric' },
-        (v) => ({ density: hf.densityAt(v, outer.density), offsetScale: hf.outerScale(v, outer), fade: 1 }), hmUv, hm.Nu);
+        (v) => ({ density: hf.densityAt(v, outer.density, outer), offsetScale: hf.outerScale(v, outer), fade: 1 }), hmUv, hm.Nu);
     }
   }
   if (beard && beard.layers && beard.layers.length) {

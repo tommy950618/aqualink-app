@@ -214,7 +214,10 @@ export class Dribble {
     if (p0 < A_BOUNCE && p1 >= A_BOUNCE) { this.bounced = true; this.bounceDt = (A_BOUNCE - p0) / rate; }
     if (p0 < C_CATCH && p1 >= C_CATCH) {
       // entering contact: remember where the ball meets the hand (blend toward the live hand point)
-      this.ballAt(C_CATCH, this.x, this.z, this.yaw, _bp, 0);
+      // the end of the rise (psi just below C_CATCH): ballAt(C_CATCH) itself is the contact branch, which blends from
+      // cEnter and would return the stale cEnter of the previous contact (the ball then jumped back toward an old
+      // catch point, up to several metres once the player had moved)
+      this.ballAt(C_CATCH - 1e-9, this.x, this.z, this.yaw, _bp, 0);
       this.cEnterX = _bp[0]; this.cEnterY = _bp[1]; this.cEnterZ = _bp[2];
       if (this.pickup) { this.picked = true; this.pickup = false; p1 = C_CATCH; }
     } else if (this.pickup && p0 >= C_CATCH) { this.picked = true; this.pickup = false; p1 = p0; }

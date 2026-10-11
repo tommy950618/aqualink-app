@@ -265,9 +265,11 @@ function wrapOffsets(m, a, b) {
  * the median of the shell metric over the loop's segments (one smooth path per band; per-segment pens leave
  * saw-tooth edges where the metric changes along a strap), line width in metres, round caps / joins.
  */
-function strokeLoop(ctx, rctx, surf, loop, bands, rough, S) {
+function strokeLoop(ctx, rctx, surf, loop, bands, rough, S, opt) {
   if (!bands || !bands.length || !loop || loop.uv.length < 2) return;
-  const m = surf.map, P = loop.uv;
+  const m = surf.map, P = smoothLoop(opt && opt.despike ? despike(loop.uv) : loop.uv, (opt && opt.passes) || 3);
+  // optional per-point width weights (0..1, likeness round 4: strap gap fade, see strapWeights)
+  const W = opt && opt.others ? strapWeights(P, opt.others, surf) : null;
   let ua = Infinity, ub = -Infinity;
   for (const p of P) { if (p[0] < ua) ua = p[0]; if (p[0] > ub) ub = p[0]; }
   const cum = [];
@@ -290,16 +292,94 @@ function strokeLoop(ctx, rctx, surf, loop, bands, rough, S) {
     ctx.strokeStyle = bands[bi].color;
     rctx.strokeStyle = grey(rough);
     for (const c of [ctx, rctx]) {
-      c.lineWidth = 2 * cum[bi];
-      c.beginPath();
-      for (const k of offs) {
-        c.moveTo(px(m, P[0][0] + k, S) / sx, py(m, P[0][1], S) / sy);
-        for (let i = 1; i < P.length; i++) c.lineTo(px(m, P[i][0] + k, S) / sx, py(m, P[i][1], S) / sy);
+      if (!W) {
+        c.lineWidth = 2 * cum[bi];
+        c.beginPath();
+        for (const k of offs) {
+          c.moveTo(px(m, P[0][0] + k, S) / sx, py(m, P[0][1], S) / sy);
+          for (let i = 1; i < P.length; i++) c.lineTo(px(m, P[i][0] + k, S) / sx, py(m, P[i][1], S) / sy);
+        }
+        c.stroke();
+        continue;
       }
-      c.stroke();
+      // tapered: one round-capped segment per edge at the smaller end weight (fully faded segments are skipped)
+      for (let i = 0; i < P.length - 1; i++) {
+        const w = Math.min(W[i], W[i + 1]);
+        if (w <= 0.02) continue;
+        c.lineWidth = 2 * cum[bi] * w;
+        c.beginPath();
+        for (const k of offs) {
+          c.moveTo(px(m, P[i][0] + k, S) / sx, py(m, P[i][1], S) / sy);
+          c.lineTo(px(m, P[i + 1][0] + k, S) / sx, py(m, P[i + 1][1], S) / sy);
+        }
+        c.stroke();
+      }
     }
   }
   for (const c of [ctx, rctx]) { c.setTransform(1, 0, 0, 1, 0, 0); c.restore(); }
+}
+
+/**
+ * Strap fade (likeness round 4): over the shoulder the jersey's cylindrical UV folds, so the neck loop and the
+ * armhole loops run within a few UV-centimetres of each other (even cross) although the strap is ≈ 6 cm wide on
+ * the body; trims stroked there were mapped back and forth across the strap as white / gold zig-zag chevrons. Each
+ * point's width weight is smooth(4 cm, 7 cm) of its distance (UV × the shell's median metric) to the nearest
+ * point of the other trim loops: 0 on the folded strap, 1 on the necklines and lower armholes.
+ */
+function strapWeights(P, others, surf) {
+  const met = [0, 0], mus = [], mvs = [];
+  for (const p of P) { surf.metric(p[0], p[1], met); mus.push(met[0]); mvs.push(met[1]); }
+  mus.sort((a, b) => a - b); mvs.sort((a, b) => a - b);
+  const mu = mus[mus.length >> 1], mv = mvs[mvs.length >> 1];
+  return P.map((p) => {
+    let best = Infinity;
+    for (const o of others) {
+      for (let i = 0; i < o.length - 1; i++) {
+        for (let k = -1; k <= 1; k++) {
+          const ax = o[i][0] + k, ay = o[i][1], bx = o[i + 1][0] + k, by = o[i + 1][1];
+          const vx = (bx - ax) * mu, vy = (by - ay) * mv, wx = (p[0] - ax) * mu, wy = (p[1] - ay) * mv;
+          const l2 = vx * vx + vy * vy, t = l2 > 0 ? Math.max(0, Math.min(1, (vx * wx + vy * wy) / l2)) : 0;
+          const d = Math.hypot(wx - vx * t, wy - vy * t);
+          if (d < best) best = d;
+        }
+      }
+    }
+    const t = Math.max(0, Math.min(1, (best - 0.04) / 0.03));
+    return t * t * (3 - 2 * t);
+  });
+}
+
+/**
+ * Despiked copy of a loop polyline (likeness round 4, waistband / hems): each interior point's v is replaced by the
+ * median of its 5-point window, so the one- or two-point excursions of the marching-triangle cut (the "V notch" in
+ * the centre-front waistband) do not survive into the trim bands.
+ */
+function despike(P) {
+  const n = P.length;
+  if (n < 5) return P;
+  return P.map((p, i) => {
+    if (i < 2 || i > n - 3) return [p[0], p[1]];
+    const w = [P[i - 2][1], P[i - 1][1], p[1], P[i + 1][1], P[i + 2][1]].sort((a, b) => a - b);
+    return [p[0], w[2]];
+  });
+}
+
+/**
+ * Laplacian-smoothed copy of a boundary loop polyline (k passes of ¼·prev + ½·self + ¼·next; end points kept): the
+ * marching-triangle boundaries zig-zag by about one body triangle, which the trim bands traced as white / navy
+ * saw-tooth streaks (likeness round 2).
+ */
+function smoothLoop(P, k) {
+  let A = P.map((p) => [p[0], p[1]]);
+  for (let it = 0; it < k; it++) {
+    const B = A.map((p) => [p[0], p[1]]);
+    for (let i = 1; i < A.length - 1; i++) {
+      B[i][0] = 0.25 * A[i - 1][0] + 0.5 * A[i][0] + 0.25 * A[i + 1][0];
+      B[i][1] = 0.25 * A[i - 1][1] + 0.5 * A[i][1] + 0.25 * A[i + 1][1];
+    }
+    A = B;
+  }
+  return A;
 }
 
 /** Soft lens-shaped band from (x0, y0) to (x1, y1) px, max width wPx, centre colour `rgba` (gradient across). */
@@ -426,12 +506,14 @@ function drawNumber(ctx, rctx, str, kit, cx, cy, sxu, syu) {
     for (const c of targets) {
       c.setTransform(sxu, 0, 0, syu, cx - lay.centreX * sxu, cy - 4 * syu);
       c.lineWidth = lw;
-      c.lineCap = 'square';
       c.lineJoin = join;
       c.miterLimit = 10;
       c.strokeStyle = c === ctx ? color : grey(KIT_LAYOUT.rough.number);
       for (const g of lay.glyphs) {
         for (const s of strokesOf(g.d, st.serifOne)) {
+          // rounded glyphs get round caps too (Kobe); the serif foot of a '1' is butt-capped so the feet of '11' keep
+          // a visible gap instead of merging through their outlines into a 'U' (likeness round 2, Yao)
+          c.lineCap = s === GLYPHS['1s'][0] ? 'butt' : kit.glyph === 'rounded' ? 'round' : 'square';
           c.beginPath();
           c.moveTo(g.x + s.p[0][0], s.p[0][1]);
           for (let i = 1; i < s.p.length; i++) c.lineTo(g.x + s.p[i][0], s.p[i][1]);
@@ -549,16 +631,32 @@ function paintShortsNumber(ctx, rctx, job, kit, S) {
 function paintTrims(ctx, rctx, job, kit, S) {
   const R = KIT_LAYOUT.rough;
   const je = job.surfaces.jersey;
-  if (je) for (const l of je.info.loops) if (l.kind === 'neck' || l.kind === 'armhole_l' || l.kind === 'armhole_r') strokeLoop(ctx, rctx, je, l, kit.bands, R.trim, S);
+  if (je) {
+    const trimLoops = je.info.loops.filter((l) => l.kind === 'neck' || l.kind === 'armhole_l' || l.kind === 'armhole_r');
+    for (const l of trimLoops) {
+      const others = trimLoops.filter((o) => o !== l).map((o) => smoothLoop(o.uv, 3));
+      strokeLoop(ctx, rctx, je, l, kit.bands, R.trim, S, { others });
+    }
+  }
   const sh = job.surfaces.shorts;
   if (sh) {
     for (const l of sh.info.loops) {
-      if (l.kind === 'waist') strokeLoop(ctx, rctx, sh, l, kit.waistband, R.trim, S);
+      if (l.kind === 'waist') strokeLoop(ctx, rctx, sh, l, kit.waistband, R.trim, S, { despike: true, passes: 8 });
       else if (l.kind === 'leg_l' || l.kind === 'leg_r') {
         const bands = kit.undershort ? [{ color: kit.undershort.color, mm: kit.undershort.widthM * 1000 }].concat(kit.hem) : kit.hem;
-        strokeLoop(ctx, rctx, sh, l, bands, R.trim, S);
+        strokeLoop(ctx, rctx, sh, l, bands, R.trim, S, { despike: true, passes: 8 });
       }
     }
+  }
+  // headband rolled terry edges (likeness round 3): a 3 mm lighter (dark band) / darker (white band) loop along the top
+  // and bottom edges so the band reads as fabric, not as a flat-top haircut of the same black as the buzz
+  for (const hn of ['headband_high', 'headband_low']) {
+    const hb = job.surfaces[hn], col = kit.accessories[hn];
+    if (!hb || !col) continue;
+    const lum = hexRgb(col).reduce((a, b) => a + b, 0) / 765;
+    // round 4: 5 mm #4a4a52 rolled edges on a dark band (3 mm ×3.3 still merged with the buzz at gameplay distance)
+    const edge = lum < 0.5 ? '#4a4a52' : shade(col, 0.82);
+    for (const l of hb.info.loops) if (l.kind === 'top' || l.kind === 'bottom') strokeLoop(ctx, rctx, hb, l, [{ color: edge, mm: 5 }], R.headband, S);
   }
   const sl = job.surfaces.sleeve_r;
   if (sl) {
@@ -651,6 +749,31 @@ export function swatchU(name) {
 }
 
 /**
+ * Kit base colours painted with a different albedo than their data value (likeness round 4): the Cavs wine
+ * #6F263D rendered crushed toward crimson (#4f0726 … #651330 lit), so the paint lifts it to #7A3048.
+ */
+const PAINT_BASE = Object.freeze({ '#6F263D': '#7A3048' });
+
+/**
+ * Terry rib of a dark headband (likeness round 4): vertical stripes ±8 % value, 1.5 mm pitch along the band
+ * (u = around the head; the band's metric is taken at mid height).
+ */
+function paintRibs(ctx, job, color, S) {
+  const hb = job.surfaces.headband_high || job.surfaces.headband_low;
+  if (!hb) return;
+  const m = hb.map, met = [0, 0];
+  hb.metric(0.5, 0.5, met);
+  const pitchU = 0.0015 / Math.max(1e-4, met[0]);
+  const step = pitchU * pxU(m, S);
+  if (!(step > 0.6)) return;
+  clipRect(ctx, m.rect, S);
+  const r = KIT_LAYOUT.rects[m.rect];
+  ctx.fillStyle = shade(color, 1.08);
+  for (let x = r[0] * S, i = 0; x < r[2] * S; x += step, i++) if (i % 2 === 0) ctx.fillRect(x, r[1] * S, step / 2, (r[3] - r[1]) * S);
+  ctx.restore();
+}
+
+/**
  * Paints a whole kit atlas.
  * @param {CanvasRenderingContext2D} ctx   albedo canvas (S × S)
  * @param {CanvasRenderingContext2D} rctx  roughness canvas (S × S, grey = round(255·roughness))
@@ -663,13 +786,18 @@ export function paintKit(ctx, rctx, job, S) {
   for (const c of [ctx, rctx]) { c.setTransform(1, 0, 0, 1, 0, 0); c.globalAlpha = 1; c.globalCompositeOperation = 'source-over'; }
   ctx.fillStyle = '#000000'; ctx.fillRect(0, 0, S, S);
   rctx.fillStyle = grey(0.8); rctx.fillRect(0, 0, S, S);
-  // 1 base fills
-  fillRect(ctx, rctx, 'jersey', kit.base, R.jersey, S);
-  fillRect(ctx, rctx, 'shorts', kit.base, R.shorts, S);
+  // 1 base fills (wine #6F263D is painted pre-compensated: it rendered #4f0726–#651330, crushed toward crimson)
+  const base = PAINT_BASE[String(kit.base).toUpperCase()] || kit.base;
+  fillRect(ctx, rctx, 'jersey', base, R.jersey, S);
+  fillRect(ctx, rctx, 'shorts', base, R.shorts, S);
   fillRect(ctx, rctx, 'socks', kit.socks, R.socks, S);
   fillRect(ctx, rctx, 'sleeve', kit.accessories.sleeve_r || '#111111', R.sleeve, S);
   const hb = kit.accessories.headband_high || kit.accessories.headband_low || '#111111';
-  fillRect(ctx, rctx, 'headband', hb, R.headband, S);
+  // terry cloth reads lighter / bluer than a black buzz (round 3: #111111 merged with the hair #0e0707; round 4:
+  // #1c1c1f still had no value step against the buzz → charcoal #2a2a2e with a 1.5 mm ±8 % rib stripe)
+  const hbDark = hexRgb(hb).reduce((a, b) => a + b, 0) < 120;
+  fillRect(ctx, rctx, 'headband', hbDark ? '#2a2a2e' : hb, R.headband, S);
+  if (hbDark) paintRibs(ctx, job, '#2a2a2e', S);
   fillRect(ctx, rctx, 'wristband', kit.accessories.wristband_l || '#111111', R.wristband, S);
   fillRect(ctx, rctx, 'tape', kit.accessories.tape_r_im || '#f4f4f4', R.tape, S);
   // 2 folds, 3 stripes, 4 trims, 5 numbers / name / shorts number

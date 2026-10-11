@@ -104,12 +104,24 @@ export function hairFields(f, hair, beard, ear) {
     return Math.min(fU, fW, fEar);
   };
   const taper = hair.hairline.nape === 'taper';
-  const densityAt = (v, base) => (taper ? base * mix(0.45, 1, smooth(napeY, ELy, v.y)) : base);
+  // `layer.sideDensity` (round 4, Kobe / Giannis / Kyrie): density multiplier on the sides and the nape, i.e. below
+  // ET.y + 1 cm, ramping back to 1 at ET.y + 4.5 cm (the top and the frontal hairline keep their density), so a buzz /
+  // fade thins over and behind the ear instead of reading as a uniform black helmet with a hard sideburn wedge.
+  // The painted scalp tint (masks.mjs) uses the same function, so skin shows through on the sides too.
+  const densityAt = (v, base, layer) => {
+    // (a nape line at or above the lobe has no taper band: the reversed smoothstep would thin the whole head)
+    let d = taper && napeY < ELy - 0.002 ? base * mix(0.45, 1, smooth(napeY, ELy, v.y)) : base;
+    const sd = layer && layer.sideDensity != null ? layer.sideDensity : null;
+    if (sd != null) d *= mix(sd, 1, smooth(ETy + 0.01, ETy + 0.045, v.y));
+    return d;
+  };
   return {
     region, densityAt, yM, yFront, ySB, napeY, phiC, phiK,
     /** outer-layer offsetScale: sides taper + optional fringe overhang at the front */
     outerScale(v, layer) {
       let s = mix(layer.sidesScale ?? 1, 1, smooth(ETy + 0.02, ETy + 0.05, v.y));
+      // optional back taper (round 2, Yao): the crown back above the ear line thins to `backScale` behind the ear
+      if (layer.backScale != null) s *= mix(1, layer.backScale, smooth(ear.phiEb - 0.2, ear.phiEb + 0.5, f.phi(v.x, v.z)) * (1 - smooth(ETy + 0.05, ETy + 0.09, v.y)));
       if (layer.fringe) {
         const phi = f.phi(v.x, v.z);
         const wFront = (1 - smooth(layer.fringe.depthCm / 100 * 0.66, layer.fringe.depthCm / 100 * 1.33, v.y - yFront(phi))) * (1 - smooth(phiK - 0.15, phiK, phi));
@@ -167,11 +179,14 @@ export function beardFields(f, beard) {
   }
   if (C.Gt) {
     const w = C.Gt.wCm / 100, hgt = C.Gt.hCm / 100, soulW = C.Gt.soulWCm / 100;
-    const cy = (LI[1] + ME[1]) / 2 + 0.002;
+    // `liftMm` (round 2) raises the chin ellipse so it meets the soul strip under a full lower lip
+    const cy = (LI[1] + ME[1]) / 2 + 0.002 + (C.Gt.liftMm || 0) / 1000;
     comps.Gt = (v) => {
       const fe = (1 - Math.hypot(v.x / (w / 2), (v.y - cy) / (hgt / 2))) * Math.min(w, hgt) / 2;
       const fs = Math.min(soulW / 2 - Math.abs(v.x), v.y - (SM[1] - 0.002), (LI[1] - 0.0008) - v.y);
-      return Math.min(Math.max(fe, fs), (v.nz - 0.2) * 0.02, -lips(v));
+      // the soul strip may face down under the lower lip (labiomental fold): only the chin ellipse needs a forward normal
+      // (round 2: the nz > 0.2 cut on both left Kobe's and Jordan's goatee as a disc detached from the lip)
+      return Math.min(Math.max(Math.min(fe, (v.nz - 0.2) * 0.02), Math.min(fs, (v.nz + 0.4) * 0.02)), -lips(v));
     };
   }
   if (C.Lk) {
@@ -190,13 +205,30 @@ export function beardFields(f, beard) {
     const phiA = f.phiT - C.F.dA / f.rT, phiB = f.phiCH + C.F.dB / f.rCH;
     const dN = C.F.dN, gap = (C.F.moustacheGapMm ?? 0.5) / 1000;
     const yCheek = (phi) => (phi <= phiB ? yB : phi >= phiA ? yA : mix(yB, yA, (phi - phiB) / (phiA - phiB)));
-    const yN = (phi) => ME[1] - dN + (L.EL_l[1] - 0.015 - (ME[1] - dN)) * smooth(0.35, 1.45, phi);
+    // neckline: lowest under the chin, rising to the ear lobe; `neckCurve` [φ0, φ1] (default [0.35, 1.45]) sets where it
+    // rises (an earlier start gives a flatter U that follows the jaw instead of a centre tail)
+    const nc = C.F.neckCurve || [0.35, 1.45];
+    // neckline end height at the ear (round 3): `neckBackY` (landmark expression, Kyrie 'GO.y+0.004' ends the beard
+    // at the jaw angle) or ear lobe − `neckEarDropM` (default 0.015; LeBron 0.030 wraps the mandible angle)
+    const yEnd = C.F.neckBackY != null ? landmarkY(C.F.neckBackY, L) : L.EL_l[1] - (C.F.neckEarDropM ?? 0.015);
+    const yN = (phi) => ME[1] - dN + (yEnd - (ME[1] - dN)) * smooth(nc[0], nc[1], phi);
+    // back cut: default a vertical plane 0.02 rad in front of the tragus; `backCut: 'ramus'` (round 3, Kyrie) slopes
+    // it from the tragus down to the gonion so the beard stops at the jaw angle instead of running down the neck side
+    const phiBack0 = f.phiT - 0.02, Ty = L.T_l[1];
+    const phiGO = C.F.backCut === 'ramus' ? Math.min(phiBack0, f.phi(L.GO_l[0], L.GO_l[2]) + 0.03) : phiBack0, GOy = L.GO_l[1];
+    const phiBack = (y) => (C.F.backCut === 'ramus' ? phiBack0 + (phiGO - phiBack0) * smooth(Ty, GOy, y) : phiBack0);
     F = { yA, yB, phiA, phiB, yCheek, yN };
     comps.F = (v) => {
       const phi = f.phi(v.x, v.z), r = f.r(v.x, v.z);
-      let fc = Math.min(yCheek(phi) - v.y, v.y - yN(phi), (f.phiT - 0.02 - phi) * r, v.z - (f.headCZ - 0.02), (v.w('head', 'neck_01') - 0.5) * 0.05);
+      // `cornerRoundMm` (round 4, Kyrie / LeBron): rounds the corner where the back cut meets the neckline (smooth
+      // minimum), so the beard turns up along the jaw angle instead of leaving a square notch under the ear
+      const kR = (C.F.cornerRoundMm || 0) / 1000;
+      const fNB = kR > 0 ? -smax(-(v.y - yN(phi)), -(phiBack(v.y) - phi) * r, kR) : Math.min(v.y - yN(phi), (phiBack(v.y) - phi) * r);
+      let fc = Math.min(yCheek(phi) - v.y, fNB, v.z - (f.headCZ - 0.02), (v.w('head', 'neck_01') - 0.5) * 0.05);
       if (C.F.moustache) {
-        const fm = Math.min(CHx + 0.006 - Math.abs(v.x), v.y - (yU(v.x) + 0.001), (SN[1] - gap) - v.y, v.z - frontZ);
+        // `moustacheLipMarginMm` (round 4, Kyrie; default 1) keeps the moustache's lower edge that far above the
+        // upper-lip vermilion so the cupid's bow shows
+        const fm = Math.min(CHx + 0.006 - Math.abs(v.x), v.y - (yU(v.x) + (C.F.moustacheLipMarginMm ?? 1) / 1000), (SN[1] - gap) - v.y, v.z - frontZ);
         fc = smax(fc, fm, 0.004);          // rounded junction of the moustache and the cheek beard
       }
       return Math.min(fc, -lips(v), 0.01 * (1 - 2 * v.ear));
@@ -270,7 +302,8 @@ export function beardFields(f, beard) {
     let s = 0;
     if (J.jaw) {
       const d = jawLineDist(v);
-      const band = 1 - smooth(J.bandM * 0.66, J.bandM, d);
+      // wide inner ramp (round 2): smooth(0.66·band, band) read as a strap-like stripe with a visible upper edge
+      const band = 1 - smooth(J.bandM * 0.3, J.bandM, d);
       // under the chin down to ME.y − 0.02, soft on every side (no hard cut where the band ends)
       const under = smooth(ME[1] - 0.02, ME[1] - 0.012, v.y) * (1 - smooth(ME[1], ME[1] + 0.006, v.y))
         * (1 - smooth(Math.abs(GOl[0]) - 0.012, Math.abs(GOl[0]), Math.abs(v.x))) * smooth(-0.05, -0.3, v.ny);

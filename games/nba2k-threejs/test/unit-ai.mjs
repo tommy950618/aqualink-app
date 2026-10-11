@@ -9,7 +9,7 @@ import vm from 'node:vm';
 import { Game } from '../src/game.js';
 import * as AI from '../src/ai.js';
 import {
-  tendOf, threeGateOK, onBallGap, riskTolOf, dietFactor, probeBand, closeGapOf, isMismatch, pokeProb, laneGambleP,
+  tendOf, threeGateOK, onBallGap, riskTolOf, RISK_TOL_SCALE, dietFactor, probeBand, closeGapOf, isMismatch, pokeProb, laneGambleP,
 } from '../src/ai-tend.js';
 import { TestBot, BOT_MODES } from '../src/testbot.js';
 import { matchupCost } from '../src/physics.js';
@@ -179,10 +179,10 @@ check('passRisk: grows as a defender nears the line; 0 with nobody around; bestP
   assert.ok(AI.passRisk(h, r, r.pos.x, r.pos.z, w) <= riskTolOf(h, DIFFICULTY.normal), 'Kyrie\'s lane is safe again');
   assert.ok(out.risk <= riskTolOf(h, DIFFICULTY.normal) + 1e-12);
   assert.ok(Number.isFinite(out.ep) && out.ep > 0);
-  // riskTol × riskTolMul (§2.5, §5.11)
-  near(riskTolOf(h, DIFFICULTY.normal), tendOf(h).riskTol, 1e-12);
-  near(riskTolOf(h, DIFFICULTY.easy), tendOf(h).riskTol * 1.6, 1e-12);
-  near(riskTolOf(h, DIFFICULTY.hard), tendOf(h).riskTol * 0.7, 1e-12);
+  // riskTol × riskTolMul (§2.5, §5.11) on the calibrated risk scale (I3: × RISK_TOL_SCALE)
+  near(riskTolOf(h, DIFFICULTY.normal), tendOf(h).riskTol * RISK_TOL_SCALE, 1e-12);
+  near(riskTolOf(h, DIFFICULTY.easy), tendOf(h).riskTol * 1.6 * RISK_TOL_SCALE, 1e-12);
+  near(riskTolOf(h, DIFFICULTY.hard), tendOf(h).riskTol * 0.7 * RISK_TOL_SCALE, 1e-12);
 });
 
 check('bestPassTarget over random live states: the chosen pass is never above the passer\'s riskTol', () => {
@@ -275,6 +275,96 @@ check('tendency helpers: three gates, Yao drop, closeout gap, mismatch, poke / l
 });
 
 // ------------------------------------------------------------------------------------------------ whole games
+
+// ------------------------------------------------------------------------------------------------ I3 behaviours
+
+check('pass risk (I3): a hawk a step short of the lane, the receiver\'s own closeout and a guard whose stun ends in flight all count', () => {
+  const g = makeGame({ seed: 12 });
+  const w = g.world;
+  const lb = g.byId.lebron, ky = g.byId.kyrie, gi = g.byId.giannis, mj = g.byId.jordan, kb = g.byId.kobe, yao = g.byId.yao;
+  g.stageLive(lb.team, lb);
+  // the check formation the avg bot used to throw into: Jordan (hawk, Kyrie's man) 0.14 m outside his intercept radius
+  g.teleport(lb, 0, -4.6, Math.PI); g.teleport(ky, 6.0, -6.5, Math.PI); g.teleport(gi, 2.7, -12.5, Math.PI);
+  g.teleport(mj, 4.6, -7.1, 0); g.teleport(kb, 0, -6.0, 0); g.teleport(yao, 1.0, -11.3, 0);
+  mj.defAssign = ky; kb.defAssign = lb; yao.defAssign = gi;
+  assert.ok(AI.passRisk(lb, ky, ky.pos.x, ky.pos.z, w) > riskTolOf(lb, DIFFICULTY.normal), 'Jordan\'s lane is not safe');
+  // a stunned guard in the lane: counted when his stun runs out before the ball passes him, not when it lasts
+  g.teleport(mj, 6.8, -1.0, 0); g.teleport(kb, 2.0, -5.4, 0);
+  const free = AI.passRisk(lb, ky, ky.pos.x, ky.pos.z, w);
+  kb.stun(0.05);
+  near(AI.passRisk(lb, ky, ky.pos.x, ky.pos.z, w), free, 1e-9, 'short stun = in play');
+  kb.stun(2.0);
+  assert.ok(AI.passRisk(lb, ky, ky.pos.x, ky.pos.z, w) < free, 'a long stun takes him out');
+});
+
+check('giannis.longDunk (I3): with an empty runway the AI sprints into the long gather; with Yao in the lane it does not', () => {
+  for (let seed = 1; seed <= 4; seed++) {
+    for (const blocked of [false, true]) {
+      const g = makeGame({ seed });
+      const gi = g.byId.giannis, yao = g.byId.yao;
+      g.stageLive(gi.team, gi);
+      g.teleport(gi, 0, RIM.z + 10.5, Math.PI);
+      for (const q of g.players) if (q !== gi) g.teleport(q, q.team === gi.team ? (q.id === 'lebron' ? -6.5 : 6.5) : (q.id === 'yao' ? -6.8 : 6.8), -1.0, 0);
+      if (blocked) g.teleport(yao, 0.4, RIM.z + 4.2, 0);
+      let kind = '';
+      for (let t = 0; t < 300 && !kind; t++) {
+        g.step(FIXED_DT);
+        if (t === 0) { gi.ai.catchCd = 0; gi.ai.setupCd = 0; gi.ai.holdCd = 0; g.world.shotClock = 12; }
+        if (blocked) { g.teleport(yao, 0.4, RIM.z + 4.2, 0); }
+        if (gi.shot.active) kind = gi.shot.kind + '/' + gi.shot.variant;
+      }
+      if (blocked) assert.notEqual(kind, 'dunk/longGather', `seed ${seed}: no long gather through Yao`);
+      else assert.equal(kind, 'dunk/longGather', `seed ${seed}: open runway → long gather (got ${kind})`);
+    }
+  }
+});
+
+check('fadeaway (I3): holding + stick away + SHOOT resolves to a fade (no dribble first); Kobe and Jordan take fades in auto games', () => {
+  const g = makeGame({ seed: 13, auto: false });
+  const bot = new TestBot(g, { seed: 13 }); bot.set('off'); g.input = bot;
+  const lb = g.byId.lebron;
+  g.stageLive(lb.team, lb);
+  g.setControlled(lb);
+  g.teleport(lb, 0, RIM.z + 5.2, Math.PI);
+  for (const q of g.players) if (q.team !== lb.team) g.teleport(q, q.id === 'kobe' ? 0 : 6.8, q.id === 'kobe' ? RIM.z + 4.2 : -1.0, 0);
+  stepN(g, 30);                                         // past the catch hold (0.35 s), ball still in the hands
+  assert.ok(lb.holding, 'holding before the press');
+  const it = bot.intent, ms = (g.world.time + FIXED_DT) * 1000;
+  it.move.x = 0; it.move.z = 1; it.move.mag = 1;       // away from the rim (+z)
+  it.primary.held = true; it.primary.justPressed = true; it.primary.pressTs = ms; it.primary.heldTime = 0;
+  g.step(FIXED_DT);
+  assert.equal(lb.shot.kind, 'fade', `kind ${lb.shot.kind}`);
+  let fades = 0;
+  for (const seed of [1, 2, 3]) {
+    const a = makeGame({ seed, q: 60 });
+    a.on('shot', (e) => { if ((e.playerId === 'kobe' || e.playerId === 'jordan') && e.kind === 'fade') fades++; });
+    let n = 0; while (a.state !== 'GAME_OVER' && n < 60 * 60 * 25) { a.step(FIXED_DT); n++; }
+  }
+  assert.ok(fades >= 3, `Kobe / Jordan fades ${fades}`);
+});
+
+check('switch on the help (I3): rotations change matchups mid-possession; Yao never switches', () => {
+  let switches = 0, yaoMoved = 0;
+  for (const seed of [4, 5]) {
+    const g = makeGame({ seed, q: 60 });
+    let off = -1, start = null;
+    let n = 0;
+    while (g.state !== 'GAME_OVER' && n < 60 * 60 * 25) {
+      g.step(FIXED_DT); n++;
+      const w = g.world;
+      if (w.state !== 'LIVE') { off = -1; continue; }
+      const defs = g.roster[1 - w.offense];
+      if (off !== w.offense || !start) { off = w.offense; start = new Map(defs.map((d) => [d, d.defAssign])); continue; }
+      for (const d of defs) if (d.defAssign !== start.get(d)) {
+        switches++;
+        if (d.id === 'yao' && d.defAssign && isThree(d.defAssign.pos.x, d.defAssign.pos.z)) yaoMoved++;
+        start.set(d, d.defAssign);
+      }
+    }
+  }
+  assert.ok(switches > 0, 'some help rotations switched');
+  assert.equal(yaoMoved, 0, 'Yao never switched onto a perimeter player');
+});
 
 check('auto game (seed 2, q 60): every legend shoots, no NaN, intents carry sim-time stamps, Yao takes no non-urgent three', () => {
   const g = makeGame({ seed: 2, q: 60 });

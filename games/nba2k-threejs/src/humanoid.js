@@ -1,11 +1,14 @@
-// Low-poly player model (spec section 6 / 6.1, section 14 row 12): shared geometries built once,
-// two Lambert materials per team plus shared skin/shoe materials, a blob shadow, the controlled-player
-// marker and the pose system. Every pose writes joint targets into a module-level scratch object and the
-// joints are damped toward them each frame, so state changes never pop. No allocations in setPose/handWorld.
+// Simplified-mode fallback player (spec v2 §1.1, H12): the v1 low-poly humanoid, kept only for WebGL / asset
+// failures. Colours come by argument (`createHumanoid({jersey, trim, skin, shorts?, shoe?})`, fed from the §2.7 kits
+// and §2.6 skin hexes by main.js), shared geometries are built once, materials are cached per colour, the blob
+// shadow uses the shared blob texture of render/shadows.js. Every pose writes joint targets into a module-level
+// scratch object and the joints are damped toward them each frame, so state changes never pop. No allocations in
+// setPose / handWorld.
 import * as THREE from '../vendor/three.module.js';
-import { COLORS } from './constants.js';
 import { clamp, damp, TAU } from './math.js';
-import { makeBlobTexture } from './scene.js';
+import { sharedBlob } from './render/shadows.js';
+
+const DEFAULT_SHOE = 0x222222;
 
 // Skeleton dimensions (metres). Feet at y 0, hips 0.95, shoulders 1.42, head centre 1.72 (top 1.84).
 const HIP_Y = 0.95;
@@ -63,7 +66,6 @@ const V_HAND_R = new THREE.Vector3();
 
 let sharedGeometry = null;
 let sharedMaterials = null;
-const teamMaterialCache = new Map();
 
 // Shared geometry and materials
 
@@ -88,10 +90,8 @@ export function buildSharedGeometry() {
 
 function getSharedMaterials() {
   if (sharedMaterials) return sharedMaterials;
-  const skin = COLORS.skin.map((c) => new THREE.MeshLambertMaterial({ color: c }));
-  const shoe = new THREE.MeshLambertMaterial({ color: COLORS.shoe });
   let blob = null;
-  try { blob = makeBlobTexture(); } catch (err) { blob = null; } // headless (no canvas) fallback
+  try { blob = sharedBlob().texture; } catch (err) { blob = null; } // headless fallback
   const shadow = new THREE.MeshBasicMaterial({
     map: blob,
     color: blob ? 0xffffff : 0x000000,
@@ -99,25 +99,35 @@ function getSharedMaterials() {
     depthWrite: false,
     opacity: SHADOW_OPACITY,
   });
-  sharedMaterials = Object.freeze({ skin: Object.freeze(skin), shoe, shadow, blob });
+  sharedMaterials = Object.freeze({ shadow, blob });
   return sharedMaterials;
 }
 
-// Jersey + shorts Lambert materials, cached per team id, plus the shared skin[] and shoe materials.
-export function getTeamMaterials(team) {
-  const key = team && team.id !== undefined ? team.id : String(team);
-  let mats = teamMaterialCache.get(key);
-  if (!mats) {
-    const shared = getSharedMaterials();
-    mats = Object.freeze({
-      jersey: new THREE.MeshLambertMaterial({ color: team.jersey }),
-      shorts: new THREE.MeshLambertMaterial({ color: team.shorts }),
-      skin: shared.skin,
-      shoe: shared.shoe,
-    });
-    teamMaterialCache.set(key, mats);
-  }
-  return mats;
+function colourHex(v, fallback) {
+  if (typeof v === 'number' && Number.isFinite(v)) return v & 0xffffff;
+  if (typeof v === 'string' && /^#?[0-9a-fA-F]{6}$/.test(v)) return parseInt(v.replace('#', ''), 16);
+  return fallback;
+}
+
+const lambertCache = new Map();
+function lambert(hex) {
+  let m = lambertCache.get(hex);
+  if (!m) { m = new THREE.MeshLambertMaterial({ color: hex }); lambertCache.set(hex, m); }
+  return m;
+}
+
+/**
+ * Lambert materials of one colour set {jersey, trim, skin, shorts?, shoe?} (hex numbers or '#rrggbb'), cached per
+ * colour so humanoids sharing a colour share the material. trim colours the shoes when `shoe` is not given.
+ */
+export function getColourMaterials(colors) {
+  const c = colors || {};
+  const jersey = colourHex(c.jersey, 0x6f263d);
+  const shorts = colourHex(c.shorts, jersey);
+  const trim = colourHex(c.trim, 0xffffff);
+  const skin = colourHex(c.skin, 0x8d5524);
+  const shoe = colourHex(c.shoe, colourHex(c.trim, DEFAULT_SHOE));
+  return Object.freeze({ jersey: lambert(jersey), shorts: lambert(shorts), trim: lambert(trim), skin: lambert(skin), shoe: lambert(shoe) });
 }
 
 function makeMesh(geometry, material, name, parent, x, y, z) {
@@ -253,10 +263,11 @@ function sideSign(side) {
 // Humanoid
 
 // group origin = feet on the floor; callers set group.position (x, 0, z) and group.rotation.y = yaw.
-export function createHumanoid(team, skinIdx) {
+// colors = {jersey, trim, skin, shorts?, shoe?} (see getColourMaterials).
+export function createHumanoid(colors) {
   const g = buildSharedGeometry();
-  const m = getTeamMaterials(team);
-  const skin = m.skin[((skinIdx | 0) % m.skin.length + m.skin.length) % m.skin.length];
+  const m = getColourMaterials(colors);
+  const skin = m.skin;
 
   const group = new THREE.Group();
   group.name = 'humanoid';
@@ -295,7 +306,7 @@ export function createHumanoid(team, skinIdx) {
     pelvis,
     parts,
     shadow,
-    team,
+    colors: colors || null,
     handSign: 1,
     jumpY: 0,
     phase: 0,        // internal stride phase, used when params.phi is not supplied

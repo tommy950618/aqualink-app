@@ -39,6 +39,12 @@ const REST_T = 1.5;                                     // v1 §5.13 resting fre
 const DRIBBLE_BOUNCE_STRENGTH = 0.5;                    // v1 dribble bounce sound strength
 const SAFE_RESET = { x: 0, y: BALL.CHEST_Y, z: -4.6 };  // handler spot after a NaN reset (a CHECK follows)
 const STEP_OUT = { floor: 0, rim: 0, board: 0, scored: false };
+/**
+ * Catch speed cap of the intended receiver of a pass. The v1 cap (BALL.CATCH_MAX_SPEED 14 m/s) keeps players from
+ * snatching hard rim / board deflections, but LeBron's skip flick flies at 15 m/s (spec §5.5 / C6), so the receiver
+ * it was thrown to may catch passes up to this speed (interceptors keep the v1 cap).
+ */
+const RECEIVER_MAX_SPEED = 17;
 
 function v3get(v, k, alt) {
   return v[k] !== undefined ? v[k] : v[alt];
@@ -177,7 +183,8 @@ export class Ball {
     const jumpY = player.jumpY > 0 ? player.jumpY : 0;
     if (this.pos.y < BALL.CATCH_MIN_Y || this.pos.y > a.catchTopY + jumpY) return false;
     const v = this.vel;
-    return v.x * v.x + v.y * v.y + v.z * v.z < BALL.CATCH_MAX_SPEED * BALL.CATCH_MAX_SPEED;
+    const vMax = st === 'pass' && this.passInfo.receiver === player ? RECEIVER_MAX_SPEED : BALL.CATCH_MAX_SPEED;
+    return v.x * v.x + v.y * v.y + v.z * v.z < vMax * vMax;
   }
 
   /** True when a free ball's centre is out of bounds (v1 §1), or a held ball's holder stands out. */
