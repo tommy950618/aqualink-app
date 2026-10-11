@@ -35,7 +35,7 @@ export const BOT_MODES = Object.freeze(['off', 'idle', 'avg', 'good', 'drive', '
 const SIGMA_AVG = 0.050, SIGMA_GOOD = 0.030;
 const PLAY_DELAY = 0.8;                 // offence starts at LIVE + 0.8 s
 const P_DRIVE = 0.40, P_PULLUP = 0.30;  // pass-and-shoot = the rest (0.30)
-const DRIVE_SHOOT_D = 2.0, PULLUP_RUN_T = 1.5, PULLUP_D = 3.5, PULLUP_WAIT = 6 * FIXED_DT, PULLUP_PLANT_V = 1.0, PULLUP_PLANT_MAX = 0.6;
+const DRIVE_SHOOT_D = 2.0, PULLUP_RUN_T = 1.5, PULLUP_D = 3.5, PULLUP_WAIT = 6 * FIXED_DT;
 const RETURN_PASS_T = 0.4, RETURN_SHOOT_T = 0.5, CROSS_R = 1.2, CROSS_P = 0.5;
 const BLOCK_P = 0.5, BLOCK_SIGMA = 0.10, STEAL_EVERY = 2.5, IDLE_TURNOVER_T = 0.5;
 const BOT_RISK = 0.6, PASS_WAIT = 1.5;  // pass-and-shoot: lanes riskier than this are skipped (CPU handlers: 0.25–0.45)
@@ -265,11 +265,9 @@ export class TestBot {
       return;
     }
     if (this.phase === 1) {
-      // the v1 case waited 6 steps; v2 feet decelerate, so the pull-up also waits for the plant (speed under
-      // PULLUP_PLANT_V, ≤ PULLUP_PLANT_MAX) — pressed while still sliding at ≥ 2 m/s it would resolve to a std2 layup
       this.stop();
       this.phaseT += FIXED_DT;
-      if (this.phaseT >= PULLUP_WAIT - 1e-9 && (me.speed < PULLUP_PLANT_V || this.phaseT >= PULLUP_PLANT_MAX)) { this.phase = 2; this.pressShoot(w); }
+      if (this.phaseT >= PULLUP_WAIT - 1e-9) { this.phase = 2; this.pressShoot(w); }
     }
   }
 

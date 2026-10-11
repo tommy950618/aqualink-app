@@ -248,6 +248,29 @@ check('button latches: press → justPressed once; press + release inside one st
   input.destroy();
 });
 
+check('catch-up steps: a press / release later than the step time waits for the step that reaches it', () => {
+  const { doc, input, it, $ } = setup();
+  clock = 30000; down(doc, $('btnPrimary'), 5); clock = 30050; up(doc, 5);
+  // one slow frame delivered both events; its catch-up steps stand for 29950, 29967, … 30067
+  input.sample(29950);
+  assert.equal(it.primary.justPressed, false, 'step before the press: nothing yet'); assert.equal(it.primary.held, false);
+  input.sample(30017);
+  assert.equal(it.primary.justPressed, true); assert.equal(it.primary.held, true); assert.equal(it.primary.justReleased, false);
+  input.sample(30034);
+  assert.equal(it.primary.justPressed, false); assert.equal(it.primary.held, true, 'still held before the release time');
+  input.sample(30051);
+  assert.equal(it.primary.justReleased, true); assert.equal(it.primary.held, false); assert.equal(it.primary.quickTap, true);
+  // a release that ended an earlier hold is folded even when the next press is still ahead
+  clock = 31000; down(doc, $('btnSecondary'), 6); input.sample(31001);
+  clock = 31100; up(doc, 6); clock = 31200; down(doc, $('btnSecondary'), 6);
+  input.sample(31150);
+  assert.equal(it.secondary.justReleased, true); assert.equal(it.secondary.held, false); assert.equal(it.secondary.justPressed, false);
+  input.sample(31210);
+  assert.equal(it.secondary.justPressed, true); assert.equal(it.secondary.held, true);
+  clock = 31300; up(doc, 6); input.sample(clock);
+  input.destroy();
+});
+
 check('touch quick tap on SHOOT (< 120 ms) sets quickTap on the release step; a 150 ms hold does not', () => {
   const { doc, input, it, $ } = setup();
   clock = 10000; down(doc, $('btnPrimary'), 3);

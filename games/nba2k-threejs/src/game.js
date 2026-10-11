@@ -1198,6 +1198,11 @@ export class Game {
     CEL_CTX.gameWinner = winner; CEL_CTX.jumper = isJumpShot(kind); CEL_CTX.blocker = false; CEL_CTX.chaseDown = false;
     const sel = selectCelebration(credit, CEL_CTX);
     if (sel.celebrate) credit.celebrate(sel);
+    // §4.11 face timelines, independent of the celebration roll and of a celebration clip waiting for the landing:
+    // Kobe's own big make → jawJut 1.0 held 1.2 s; Kyrie's own three / tough make → smirk 0.8 for 1.5 s
+    const cls = CEL_CTX.cls, an = credit.animator;
+    if (!an || typeof an.setFace !== 'function') { /* headless proxy without a face */ } else if (credit.id === 'kobe' && cls !== 'normal') an.setFace('jawJut', 1, 1.2);
+    else if (credit.id === 'kyrie' && (cls === 'three' || cls === 'tough')) an.setFace('smirk', 0.8, 1.5);
     b.active = false;
     this.ball.ctx = 'none';
     if (w.state === 'LIVE') this.deadBall('MADE', 1 - off, CLOCK.DEAD.MADE);

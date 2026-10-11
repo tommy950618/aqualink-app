@@ -350,7 +350,9 @@ function boot() {
     hud.resize();
     if (flow && flow.screenMode === 'lineup') flow.onLineupSelect(flow.focusId);
   }
-  function queueResize() { if (!resizeQueued) { resizeQueued = true; requestAnimationFrame(resize); } }
+  // resize at once (the canvas must follow a rotation within 500 ms even when a slow frame delays rAF), then once more
+  // on the next frame for viewports that settle late (iOS visualViewport after an orientation change)
+  function queueResize() { resize(); if (!resizeQueued) { resizeQueued = true; requestAnimationFrame(resize); } }
   window.addEventListener('resize', queueResize);
   if (window.visualViewport) window.visualViewport.addEventListener('resize', queueResize);
   window.addEventListener('orientationchange', () => { queueResize(); for (const ms of ORIENTATION_RETRIES) setTimeout(queueResize, ms); });

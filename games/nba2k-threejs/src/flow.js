@@ -43,6 +43,8 @@ const SHOWCASE_CLIP = {
   yao: 'cel.yao.fistPump', kyrie: 'cel.kyrie.skyPoint',
 };
 const PLAY_STATES = { CHECK: 1, LIVE: 1, DEAD: 1 };
+/** Above this speed (m/s) an off-ball player keeps the full animation rate on low / medium (§4.14 30 Hz players). */
+const HALF_RATE_MAX_SPEED = 2.5;
 /** Game-over stand-off spots of the five non-MVP legends (≥ 4.5 m from the MVP at (0, −5.6)). */
 const GAMEOVER_SPOTS = [[-5.0, -8.6], [-2.6, -10.6], [2.6, -10.6], [5.0, -8.6], [0, -11.6]];
 
@@ -794,7 +796,9 @@ export class Flow {
         const c = this.character(i);
         if (c) { c.object.position.x = x; c.object.position.z = z; c.object.rotation.y = yaw; }
         const an = p.animator;
-        if (an.detail) an.detail.halfRate = lowDetail && PLAY_STATES[st] === 1 && !p.isUser && !p.hasBall && an.action < 0 && !p.isJumping;
+        // 30 Hz only for players standing or walking (§4.14 "others"): a running player's limbs turn > 25° per 30 Hz
+        // update (B49 / R#37) and read as choppy
+        if (an.detail) an.detail.halfRate = lowDetail && PLAY_STATES[st] === 1 && !p.isUser && !p.hasBall && an.action < 0 && !p.isJumping && p.speed < HALF_RATE_MAX_SPEED;
         if (this.focusId === p.id && an.setYawOverride) an.setYawOverride(a.director.turntable.yaw);
         an.evaluate(alpha, paused ? 0 : frameDt);
       }

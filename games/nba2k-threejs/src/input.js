@@ -586,13 +586,14 @@ export class Input {
       const name = BUTTONS[i], b = this._btn[name], a = it[name];
       // a pending press not reached yet → the button is still up at tNow (its release, if any, waits with it)
       const pressLater = b.pressLatch && b.pressTs > tNow;
-      // a pending release not reached yet → still held at tNow
-      const releaseLater = b.releaseLatch && (pressLater || b.releaseTs > tNow);
+      // a pending release not reached yet → still held at tNow (a release that ends the deferred press waits with it;
+      // one that ended an earlier hold before that press is folded now)
+      const releaseLater = b.releaseLatch && (b.releaseTs > tNow || (pressLater && b.releaseTs >= b.pressTs));
       const press = b.pressLatch && !pressLater, release = b.releaseLatch && !releaseLater;
       a.justPressed = press;
       a.justReleased = release;
       a.doubleTap = press && b.doubleLatch;
-      a.held = pressLater ? false : releaseLater ? true : b.down;
+      a.held = releaseLater && !pressLater ? true : pressLater ? false : b.down;
       a.pressTs = b.pressTs;
       a.releaseTs = b.releaseTs;
       a.prevPressTs = b.prevPressTs;

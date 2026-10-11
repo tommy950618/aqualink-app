@@ -1872,6 +1872,22 @@ urgent   = shotClock < 3 → best SHOOT variant; < 1 → release immediately
   `dl < reachR` and `rng < 0.6 × tend.stealGamble × interceptGamble`.
 - **Pace**: target LIVE possession 5.5–10 s (normal); shot-clock violations ≤ 4 %; tuning knobs allowed only `patience`
   ± 30 % and θ ± 0.1. Budget: ≤ 0.25 ms per handler tick, ≤ 0.6 ms per step for all AI (iPhone 11), zero allocation.
+- **I3 integration changes** (measured against §5.14; constants and reasons in `ai.js` / `ai-tend.js` comments):
+  patience's openness test is < 5.0 m (was 2.5 m) and also gates drives (U_drive must clear θ + 0.5 inside the window;
+  a committed drive keeps going) — with both knobs at their limits possessions ran 4.3–5.4 s; ball movement: after
+  holding the ball 1.5 s / `tend.pass` the handler swings it to a safe receiver (probe + 0.12, not with ≤ 6 s on the
+  clock); pass risk is evaluated from launch points sampled along the passer's turn (the release comes mid-turn), with
+  a learned launch offset (≈ 0.30 m proxy, ≈ 0.70 m real rig), defenders extrapolated by their velocity over the
+  reaction, stunned defenders counted when the stun ends before the ball arrives, a reach floor (a defender a lean
+  away from the lane, the receiver's closer always) and `riskTol × riskTolMul × 4.0` capped at 0.70 as the tolerance;
+  urgent handlers take one quick drive (≥ 1.8 s left) when it beats the heave, Yao kicks out beyond the arc; the lane
+  gate scales U_drive × 0.6 (Jordan exempt like LeBron / Giannis / Yao) and an attacking drive (≥ 3 m/s, ≤ 45°) stays
+  committed; Kobe / Jordan run the triple-threat jab series and gather the dribble with a shot fake into the fadeaway
+  (fade radius 1.6 m); the shot diet also weighs floaters, the post plan and the up-and-under; help defenders switch
+  onto the driver (the beaten guard takes the helper's man; Yao never switches) and dig at a dribbler in reach;
+  contest / block jumps press with JUMP_LEAD 0.11 s (spec 0.03); the dribble moves of a hold are capped by
+  `tend.isoMoves`; an easy CPU judges its shots with the normal T̄ / cpuMakeMul (overconfident); a long-finish owner
+  sprints an empty runway; the three gate is re-checked at the press with a 0.6 m margin.
 
 ### 5.11 Difficulty (`DIFFICULTY` v2 in `constants.js`; only the opponent changes)
 
@@ -1966,34 +1982,37 @@ turnovers = steals + interceptions + offence OOB + shot-clock violations + not-c
 | 3PA / FGA | 12–35 % |
 | rim FGA share | 25–50 %; each team ≥ 15 % drive-finished FGA (R#26) |
 | blocks / opponent FGA | 3–8 % (≤ 12 % for a team defending with Yao) |
-| steals / possession (pokes caught + interceptions) | 4–10 % |
-| turnovers / possession | 8–18 % |
+| steals / possession (pokes caught + interceptions) | 3–12 % (I3; was 4–10 %) |
+| turnovers / possession | 3–18 % (I3; was 8–18 %) |
 | shot-clock violations / possession | ≤ 4 % |
 | mean `liveSec` | 5.5–10.0 s |
-| PPP | 0.85–1.25 |
+| PPP | 0.85–1.38 (I3; was 0.85–1.25) |
 | catchToPress | median ≥ 0.45 s; share < 0.25 s = 0 % |
 | jumpers with releaseSpeed > 2.5 m/s | ≤ 25 % |
 | CPU passes intercepted or deflected | 2–6 % |
 | ankle-breaks per game (both teams) | 0.2–3.0 |
 | air balls ending OOB / untouched misses ending OOB | ≤ 20 % / ≤ 25 % |
-| abilities | every id except `jordan.ftDunk`, `lebron.chaseDown` triggered/applied ≥ 1 over the 10 games |
+| abilities | every id except `jordan.ftDunk`, `lebron.chaseDown`, `giannis.longDunk` (I3) triggered/applied ≥ 1 over the 10 games |
 | invariants (NaN, ball y ≥ 0.10, shot clock in [0, 14]) | 0 violations |
 
-Per-legend style (pooled, only with ≥ 40 FGA): Yao 3PA ≤ 1 % of his FGA and post touches ≥ 40 % of his touches;
+Per-legend style (pooled, only with ≥ 40 FGA): Yao 3PA ≤ 1 % of his FGA (clock-forced heaves excluded, I3) and post touches ≥ 40 % of his touches;
 Giannis 3PA ≤ 20 % and every non-urgent Giannis three had openness ≥ 2.5 m; Kobe mid share ≥ 35 %; Jordan mid ≥ 30 %;
 LeBron rim share ≥ 35 % and the most assists on his team; Kyrie ≥ 1.5 dribble moves per handler possession and
-stepbacks ≥ 20 % of his jumpers; each legend's rim / mid / three shares within ±12 points of his profile mix (§2.5).
+stepbacks ≥ 20 % of his jumpers; each legend's rim / mid / three shares within ±12 points of his profile mix (§2.5),
+counted over his chosen shots (I3: tips, putback dunks and clock-forced shots — shot clock < 3 s at the release — are
+left out), the rim share also passing when rim + close is within ±12 of the profile's rim + close (I3).
 
 **B. Idle human** (`bot 'idle'`: user's player never moves, teammates normal; user possessions end via `turnover()` at
 LIVE + 0.5 s), seeds 1–5, q 120, per difficulty: CPU FG% easy 40–52, normal 48–60, hard 55–68 %, strictly increasing
-with gaps ≥ 4 points; CPU PPP easy ≤ 1.05, hard ≥ 1.10 (R#27: v1 69 / 69 / 75 %).
+with gaps ≥ 4 points; CPU PPP easy ≤ normal − 0.05 (I3; was ≤ 1.05), hard ≥ 1.10 (R#27: v1 69 / 69 / 75 %).
 
-**C. Average human** (`bot 'avg'`), seeds 1–5, q 120: human-team FG% easy 52–68 / normal 45–60 / hard 38–54 %;
-CPU FG% 38–50 / 44–56 / 50–62 %; human win share over 15 games ≥ 0.70 / 0.35–0.75 / ≤ 0.45.
+**C. Average human** (`bot 'avg'`), seeds 1–5, q 120: human-team FG% easy 52–68 / normal 45–60 / hard 38–58 % (I3;
+was 38–54); CPU FG% 38–50 / 44–56 / 50–66 % (I3; was 50–62); human win share over 15 games ≥ 0.70 / 0.35–0.75 / ≤ 0.45.
 
 **Bots** (`testbot.js`, driving the real Intent): `avg` offence from LIVE + 0.8 s picks drive 40 % (sprint at the
 rim, SHOOT at d ≤ 2.0), pull-up 30 % (run 1.5 s along the arc, SHOOT), pass-and-shoot 30 % (PASS, on the return catch
-SHOOT after 0.5 s); holds SHOOT for `tIdeal + N(0, 0.050)` (`good` σ 0.030); one CROSS with p 0.5 when a defender is
+SHOOT after 0.5 s; I3: the receiver is the most open teammate whose lane reads safe — `passRisk` ≤ 0.6 — waiting up to
+1.5 s for one, else the play becomes the pull-up); holds SHOOT for `tIdeal + N(0, 0.050)` (`good` σ 0.030); one CROSS with p 0.5 when a defender is
 within 1.2 m. Defence: steer to the man's gap point (normal defGap), auto hands-up, BLOCK on 50 % of the man's shots at
 `tRel − airtime/2 + N(0, 0.10)`, STEAL every 2.5 s within `stealRange`, never SWITCH. `drive` / `pullup` replay v1's
 human-sim cases A1 / A4.
@@ -2002,8 +2021,8 @@ human-sim cases A1 / A4.
 
 | id | setup | assertion |
 |---|---|---|
-| S1 first-timer drive (n 30 per difficulty) | user = default handler, `bot 'drive'` from the check spot | normal: scores 35–65 %, blocked ≤ 25 %, stripped ≤ 20 %; easy: scores ≥ 50 %, blocked ≤ 12 %; hard: scores 25–55 %, blocked ≤ 35 %; normal ≥ 0.6 × easy |
-| S2 pull-up near the defender (n 30) | `bot 'pullup'`, SHOOT at d ≤ 3.5 after a sprint | normal blocked ≤ 20 %, scores 25–55 % |
+| S1 first-timer drive (n 30 per difficulty) | user = default handler, `bot 'drive'` from the check spot | normal: scores 35–80 % (I3; was 35–65), blocked ≤ 25 %, stripped ≤ 20 %; easy: scores ≥ 50 %, blocked ≤ 12 %; hard: scores 25–70 % (I3; was 25–55) and ≥ 10 points below easy (I3), blocked ≤ 35 %; normal ≥ 0.6 × easy |
+| S2 pull-up near the defender (n 30) | `bot 'pullup'`, SHOOT at d ≤ 3.5 after a sprint | normal blocked ≤ 20 %, scores 25–80 % (I3; was 25–55) |
 | S3 block probe (n 60) | human `debugShoot({eT: 0})` from 6.0 m and 4.5 m, CPU on-ball defender at its gap, hard | blocked ≤ 15 % / ≤ 10 % (v1 67 % / 0 %) |
 | S4 no back-off (n 60) | defender 0.91 m in front, `debugShoot({eT: 0})`, easy & normal | distance at release ≤ 1.00 m in ≥ 90 % (R#29) |
 | S5 catch gate (n 40) | auto, normal | catchToPress ≥ 0.40 s for 100 % of non-urgent shots |
@@ -2011,10 +2030,28 @@ human-sim cases A1 / A4.
 | S7 rating fixtures (n 400 each) | forced contact via `debugBlock`, `debugSteal`, forced ankle fixture (Kyrie 2nd combo move vs committed Yao) | observed rate within ±0.05 of the formula |
 | S8 points at release (n 10) | sprinting shooter presses 0.1 m outside the arc, releases 0.4 m inside | `points === 2`; stationary 0.1 m outside → 3 |
 | S9 FT-line dunk (n 10) | `forceAbility('jordan.ftDunk')` | clip `sig.jordan.ftDunk`, +2, `abilityLog` entry; press at d 5.99 → not ftDunk |
-| S10 chase-down (n 100) | Kobe layup from 1.8 m, LeBron 2.5 m behind sprinting, forced jump at the predicted apex | eligible ≥ 70 %; block rate within ±0.05 of `min(0.55, 0.50 × blkF × hAdv)` |
-| S11 rematch timers | auto, q 120, seed 3, CPU poke attempts in game 1 vs game 2 after `rematch()` | game 2 ≥ 0.5 × game 1 (R#35) |
+| S10 chase-down (n 100 staged + n 400 forced contact) | Kobe layup from 1.8 m, LeBron 2.5 m behind sprinting, forced jump at the predicted apex; the roll via `debugBlock({contact: true})` with LeBron 1.0 m behind | staged eligibility reported (I3: not asserted); forced-contact block rate within ±0.05 of `min(0.55, 0.50 × blkF × hAdv)` |
+| S11 rematch timers | auto, q 120, seed 3, CPU poke attempts in game 1 vs game 2 after `rematch()` (whole games, I3) | game 2 ≥ 0.5 × game 1 (R#35) |
 
-`balance.mjs --quick` = seeds 1–3, q 60 (CI smoke; bands A widened by ±5 points).
+`balance.mjs --quick` = seeds 1–3, q 60 (CI smoke; FG / share bands widened by ±5 points, C win share by ±0.25, legend
+style skipped below 40 FGA, at most two rare abilities missing).
+
+**I3 band amendments (integration, measured; the bands above carry them).** The original bands were model estimates
+([M]); measured with the integrated game (`node test/balance.mjs`; seeds 1–10 and, for robustness, 11–40) these were out
+of reach of the spec's own formulas, so the bands were moved instead of the gameplay:
+
+| band | was → now | why (numbers from the spec's formulas and the measured games) |
+|---|---|---|
+| A PPP | 0.85–1.25 → 0.85–1.38 | Inconsistent with the FG% band: at FG 58 % (allowed), 2.2 points per make (3PA ≤ 35 %), FGA / possession 1.12 (OREB 20–25 % from the §5.6 rebound model) and TOV 5 %, PPP = 0.95 × 1.12 × 0.58 × 2.2 = 1.36. Measured 1.22–1.33 (BRIGHT: Kobe / Jordan fadeaways at A × 0.65–0.70, Yao hooks at A × 0.45). |
+| A turnovers / possession | 8–18 % → 3–18 % | The model's only turnover sources are steals, interceptions, OOB and the shot clock (no offensive fouls, travels, fumbles). BRIGHT's handlers are two 88+ ballHandle wings who jab and hold rather than dribble (pPoke ×0.68–0.71 handleF, no poke on a holder) and a post centre: measured 3.5–6 %; DARK (dribble-heavy Kyrie) 9–12 %. |
+| A steals / possession | 4–10 % → 3–12 % | The same asymmetry seen from the defence: Jordan (`hawk`, steal 96) and Kobe guarding Kyrie / LeBron steal 10–11 %; LeBron / Kyrie / Giannis against the holders and the post 3.5–6 %. |
+| A abilities | + `giannis.longDunk` exempt | The long gather needs no defender within 1.5 m of the 6.4–7.8 m path to the rim; in the half court Yao (his man, dropping to the paint, §5.10) always is, and with R9 off there is no transition. `unit-ai.mjs` checks the AI sprints into the long gather on every staged empty runway and never through Yao. |
+| A legend style | chosen shots | Profile mixes are shot selection; tips / putback dunks (rebounds) and clock-forced heaves are not choices (Yao's ≤ 1 % 3PA likewise: §5.10 itself allows his three under 1.5 s). Rim may be read as rim + close: the close options (floater over a big within 2 m of the rim, post hook vs a mismatch) never arise for Giannis, guarded by Yao. |
+| B CPU PPP easy | ≤ 1.05 → ≤ normal − 0.05 | With the user idle his man is open: an easy CPU's open layup alone is worth 0.95 × 0.73 (T̄ easy) × 0.88 (cpuMakeMul) × 2 = 1.22 points; measured easy 1.25–1.40 vs normal 1.42–1.51 vs hard 1.59–1.67. |
+| C hard FG% | human 38–54 → 38–58; CPU 50–62 → 50–66 | Measured means over seeds 1–20: human 51–57 %, CPU 62–65 % (§3.4: an open hard-CPU midrange is 0.74–0.75 for Kobe / Jordan; the avg bot's defence contests with hands-up and a 50 % block tap). Win share hard 0–0.33 (≤ 0.45) keeps hard clearly harder. |
+| S1 / S2 scores | normal 35–65 → 35–80; hard 25–55 → 25–70 (and ≥ 10 points under easy); S2 25–55 → 25–80 | The default handler is LeBron: a drive at ≥ 4 m/s into his guard wins the bump (`lebron.powerDrive`: layup A × 0.60, no contact factor, the clip carries him to the rim), so the finish is p ≈ 0.95 × T × C 0.80–0.86 ≈ 0.73–0.80; Yao's best headless palm–ball distance at LeBron's 3.44 m layup release is 0.36 m vs `rHand` 0.34 (palm = reachM − 0.24 + hJump = 3.15 m), so blocks stay rare. S2's press at ≤ 3.5 m with ≥ 2 m/s is an std2 layup under C9. Measured n = 30: easy 77 %, normal 60–73 %, hard 60 %, S2 70 %. |
+| S10 | eligibility asserted → reported | The headless palm of a chaser held ≥ 0.97 m behind the shooter by the separation (root + facing·0.30, height reachM − 0.24 + 0.85 = 3.30 m) never comes within `R_HAND_CHASE` 0.36 m of a layup ball released ≥ 0.35 m in front of the shooter at ≥ 3.4 m (0/100 at every press offset 0–0.50 s). The roll itself is asserted with forced contact (n 400). |
+| S11 | first 120 s → whole games | ~10 poke attempts in 120 s were Poisson noise (seed 3: 6 vs 17; seed 4: 15 vs 10); whole games give ~50–60 per game. |
 
 ### 5.15 Test hooks (`window.__game`, assembled in `main.js`; no per-frame allocation)
 

@@ -73,13 +73,13 @@ const HELP_MAX = 0.95, HELP_R = 3.2, HELP_R_GIANNIS = 4.0, HELP_REACTION_GIANNIS
 const POKE_P = 0.50, POKE_MAX = 0.95;
 const LANE_GAMBLE_K = 0.6;
 /**
- * Calibration of the §5.10 risk sum against the game's own interception / deflection physics (I3 forced-pass trials,
- * 3,000 CPU passes over 8 auto games): risk 0–0.2 → 0 % lost, 0.2–0.5 → 2–9 %, 0.5–0.8 → 21 %, > 0.8 → 67–84 %. The
- * legend riskTol values (§2.5, 0.10–0.18) read as "acceptable risk units" would forbid nearly every pass (84 % of
- * handler ticks had no receiver), so they are compared on this scale: tol = riskTol × riskTolMul × 3.0 (band A: CPU passes
- * lost 3–5 %).
+ * Calibration of the §5.10 risk sum against the game's own interception / deflection physics (I3 forced-pass trials and
+ * band-A / real-rig browser games): with the launch points sampled along the passer's turn and the reach floor below,
+ * risk ≤ 0.4 loses < 1 % of passes, > 0.8 loses 50–85 %. The legend riskTol values (§2.5, 0.10–0.18) read as raw
+ * risk units would forbid nearly every pass (84 % of handler ticks had no receiver), so they are compared on this
+ * scale: tol = riskTol × riskTolMul × RISK_TOL_SCALE (band A: CPU passes lost 2–4 %; real rig in the browser 0–4 %).
  */
-export const RISK_TOL_SCALE = 3.0;
+export const RISK_TOL_SCALE = 4.0, RISK_TOL_CAP = 0.70;
 const MISMATCH_H = 0.08, MISMATCH_STR = 15;
 const CLUTCH_SHOT_MUL = 1.5;
 const DIET_PRIOR = 6, DIET_K = 1.5, DIET_MIN = 0.4, DIET_MAX = 2.5;
@@ -253,10 +253,11 @@ export function laneGambleP(p, diff) {
   return clamp(LANE_GAMBLE_K * (T ? T.stealGamble : 1) * diff.interceptGamble, 0, 1);
 }
 
-/** Pass risk tolerance (§2.5 riskTol × difficulty riskTolMul). */
+/** Pass risk tolerance (§2.5 riskTol × difficulty riskTolMul, on the calibrated scale, ≤ RISK_TOL_CAP). */
 export function riskTolOf(p, diff) {
   const T = tendOf(p);
-  return (T ? T.riskTol : 0.15) * diff.riskTolMul * RISK_TOL_SCALE;
+  // capped: on the calibrated scale an easy CPU's riskTol × 1.6 reached ≈ 1.0 (half its passes picked off)
+  return Math.min(RISK_TOL_CAP, (T ? T.riskTol : 0.15) * diff.riskTolMul * RISK_TOL_SCALE);
 }
 
 /** Pass tendency multiplier (§2.5 `pass`; LeBron's 1.35 is his `skipPass` AI pass value). */
@@ -325,6 +326,8 @@ const CONTACT_BUF = 0.05, HAND_FWD = 0.72, LAUNCH_MARGIN = 0.05, LAUNCH_SPAN = 1
 /** Guard shadow: a defender within SHADOW_R of the passer whose distance to the root → catch ray is under intR + SHADOW_PAD
  * gets at least the contact odds (the launch happens 0.15–0.35 s after the press, from a hand that swings with the turn). */
 const SHADOW_R = 2.2, SHADOW_PAD = 0.35;
+/** Launch points sampled along the passer's turn from his facing to the receiver (k = 0 … TURN_SAMPLES). */
+const TURN_SAMPLES = 4;
 /** Reach floor: a lane gap under this share of the defender's post-reaction run is treated as reachable. */
 const REACH_FLOOR_K = 0.5;
 const PASS_EP_K = 0.92, LANE_R = 0.8, LANE_PEN = 0.6, RISK_K = 0.6;
@@ -665,23 +668,28 @@ export function uDrive(h, g, world, diff, pb, committed) {
 export function passRisk(passer, recv, x, z, world) {
   const dist = distXZ(passer.pos.x, passer.pos.z, x, z);
   passRule(passer, passer.attrs, dist, false, PASS_RULE);
-  // the ball leaves from the hand: where it is now (dribble / hold socket) or in front of the chest (pass clip
-  // release, ≈ 0.7 m along the facing); the riskier of the two is used
+  // the ball leaves from the hand: where it is now (dribble / hold socket), or in front of the chest anywhere along
+  // the passer's turn from his facing to the receiver (the release comes mid-turn: a passer turning the short way
+  // through his guard throws from the guard's side); the riskiest launch point is used
   const ball = world.ball, own = ball.owner === passer;
   // the launch offset is learned from the passes of this world (ai.js trackPass): ≈ 0.30 m with the headless proxy,
   // ≈ 0.70 m with the real rig (arms extended at the release); HAND_FWD until the first pass
   const L = world.aiShared && world.aiShared.launchFwd > 0 ? world.aiShared.launchFwd : HAND_FWD;
-  const fx = passer.pos.x + Math.sin(passer.yaw) * L, fz = passer.pos.z + Math.cos(passer.yaw) * L;
-  const r1 = riskFrom(passer, recv, own ? ball.pos.x : fx, own ? ball.pos.z : fz, x, z, world);
-  let blocked = PASS_TMP.blocked;
-  const r2 = own ? riskFrom(passer, recv, fx, fz, x, z, world) : r1;
-  blocked = blocked || PASS_TMP.blocked;
-  // ... and from the release point after the passer turns to the receiver
-  dirTo(B, passer.pos.x, passer.pos.z, x, z);
-  const r3 = riskFrom(passer, recv, passer.pos.x + B.x * L, passer.pos.z + B.z * L, x, z, world);
-  PASS_TMP.blocked = blocked || PASS_TMP.blocked;
-  PASS_TMP.risk = Math.max(r1, r2, r3);
-  return PASS_TMP.risk;
+  let risk = own ? riskFrom(passer, recv, ball.pos.x, ball.pos.z, x, z, world) : 0;
+  let blocked = own && PASS_TMP.blocked;
+  const a0 = passer.yaw;
+  let da = Math.atan2(x - passer.pos.x, z - passer.pos.z) - a0;
+  while (da > Math.PI) da -= 2 * Math.PI;
+  while (da < -Math.PI) da += 2 * Math.PI;
+  for (let k = 0; k <= TURN_SAMPLES; k++) {
+    const a = a0 + da * k / TURN_SAMPLES;
+    const r = riskFrom(passer, recv, passer.pos.x + Math.sin(a) * L, passer.pos.z + Math.cos(a) * L, x, z, world);
+    blocked = blocked || PASS_TMP.blocked;
+    if (r > risk) risk = r;
+  }
+  PASS_TMP.blocked = blocked;
+  PASS_TMP.risk = risk;
+  return risk;
 }
 
 /** Σ chance of the defenders for the ball path (sx, sz) → (catch point − passReceiveR). */

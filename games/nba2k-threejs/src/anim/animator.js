@@ -14,7 +14,7 @@
  *   exitVz}  owner (the Player: {pos:{x,z}, yaw, vel:{x,z}, jumpY, stamina?})  time
  * Render API: evaluate(alpha, frameDt), renderSocket(s, out), capture(f32, off) → 233, applyBlend(f32, offA, offB, alpha),
  *   external (bool: replay drives the bones), freeze(clipId, t, mirror), setYawOverride(yaw|null), walkTo(x, z, yaw,
- *   speed), setFace(name, w), setLookTarget(x, y, z, w) / clearLookTarget(), setLookPoint(name, x, y, z),
+ *   speed), setFace(name, w, dur?), setLookTarget(x, y, z, w) / clearLookTarget(), setLookPoint(name, x, y, z),
  *   setAim(angleRad), contact(x, y, z, kind), setCatch(x, y, z, tArrive), setSlamPoint(x, y, z), crossfade(s),
  *   deepBreath(), setDetail(flags), resetPose(), footLocks(), stats.
  * Context written by gameplay each step (no allocation): animator.ctx = { onDefence, stance ('auto' | 'stand' |
@@ -66,12 +66,15 @@ export const FACE_AR = Object.freeze([
 /** Pop guard limits (popGuard): at most 22° per shown update, or 660°/s over longer frames. */
 const GUARD_MIN = 22 * Math.PI / 180, GUARD_RATE = 660 * Math.PI / 180;
 /**
- * Bones the pop guard limits: legs (foot-lock re-plants and reach limits of the foot IK) and fingers (hand-preset
- * switches at 30 Hz). Arms, spine and head stay free: hand IK contacts (rim grab, ball contact) must land exactly.
+ * Bones the pop guard limits: 1 = always (pelvis, spine and legs: heading flips of the gait's hip / trunk yaw, foot-lock re-plants and
+ * reach limits of the foot IK; fingers: hand
+ * preset switches), 2 = arms only while the hands need no exact contact (no ball, no action clip, no dunk reach: rim
+ * grabs and ball contacts must land exactly). Neck and head stay free (look-at has its own rate limits).
  */
 const GUARDED = new Uint8Array(BONE_COUNT);
-for (const n of ['thigh_l', 'calf_l', 'foot_l', 'ball_l', 'thigh_r', 'calf_r', 'foot_r', 'ball_r']) GUARDED[BONE[n]] = 1;
+for (const n of ['pelvis', 'spine_01', 'spine_02', 'spine_03', 'thigh_l', 'calf_l', 'foot_l', 'ball_l', 'thigh_r', 'calf_r', 'foot_r', 'ball_r']) GUARDED[BONE[n]] = 1;
 for (let b = 0; b < BONE_COUNT; b++) if (/^(thumb|index|middle|ring|pinky)_/.test(BONE_NAMES[b])) GUARDED[b] = 1;
+for (const n of ['clavicle_l', 'upperarm_l', 'lowerarm_l', 'hand_l', 'clavicle_r', 'upperarm_r', 'lowerarm_r', 'hand_r']) GUARDED[BONE[n]] = 2;   // 2 = only off the ball (popGuard)
 /** Detail flags per quality tier (spec §4.14; the integrator also decides which players run at 30 Hz). */
 export const DETAIL_TIERS = Object.freeze({
   high: Object.freeze({ fingers: true, footIK: true, handIK: true, look: true, eyes: true, breathing: true, expressions: true, halfRate: false }),
@@ -202,6 +205,7 @@ export class Animator {
     this.lookPts[LOOK.rim * 4] = RIM_POS.x; this.lookPts[LOOK.rim * 4 + 1] = RIM_POS.y; this.lookPts[LOOK.rim * 4 + 2] = RIM_POS.z; this.lookPts[LOOK.rim * 4 + 3] = 1;
     // face
     this.face = new Float32Array(9); this.faceSet = new Float32Array(9); this.faceRule = new Float32Array(9);
+    this.faceDur = new Float32Array(9);   // seconds left of a timed setFace (0 = held until changed)
     this.faceClip = new Float32Array(9);
     this.blinkNext = 3.0; this.blinkT = -1;
     this.ruleUntil = new Float64Array(9);
@@ -921,10 +925,12 @@ export class Animator {
     const dt = this.guardDt; this.guardDt = 0;
     if (!this.guardOn || culled) { G.set(L); this.guardOn = true; return; }
     const maxA = Math.max(GUARD_MIN, GUARD_RATE * dt);
+    // arms too while nothing needs an exact hand contact (no ball in hand, no action clip, no dunk reach)
+    const arms = this.ballMode === BM.FREE && this.slots[0].state === 0 && this.slots[1].state === 0 && this.dunkW === 0 ? 2 : 1;
     let changed = false;
     for (let b = 0; b < BONE_COUNT; b++) {
       const o = b * 4;
-      if (!GUARDED[b]) { G[o] = L[o]; G[o + 1] = L[o + 1]; G[o + 2] = L[o + 2]; G[o + 3] = L[o + 3]; continue; }
+      if (GUARDED[b] < 1 || GUARDED[b] > arms) { G[o] = L[o]; G[o + 1] = L[o + 1]; G[o + 2] = L[o + 2]; G[o + 3] = L[o + 3]; continue; }
       const d = L[o] * G[o] + L[o + 1] * G[o + 1] + L[o + 2] * G[o + 2] + L[o + 3] * G[o + 3];
       const ad = d < 0 ? -d : d;
       const ang = 2 * Math.acos(ad > 1 ? 1 : ad);
@@ -1422,6 +1428,7 @@ export class Animator {
     const t = this.time;
     const act = this.slots[0].w;
     for (let k = 0; k < 9; k++) {
+      if (this.faceDur[k] > 0 && (this.faceDur[k] -= h) <= 0) { this.faceDur[k] = 0; this.faceSet[k] = 0; }
       let tgt = this.faceSet[k];
       if (this.faceRule[k] > tgt) tgt = this.faceRule[k];
       if (P.exprK[k] > 0 && P.expr[k] > tgt) tgt = P.expr[k];
@@ -1495,7 +1502,7 @@ export class Animator {
   }
 
   /** Gameplay face target: expression name → weight (held until changed; 0 clears). */
-  setFace(name, w) { const k = EXPR[name]; if (k !== undefined) this.faceSet[k] = clamp(w, 0, 1); }
+  setFace(name, w, dur = 0) { const k = EXPR[name]; if (k !== undefined) { this.faceSet[k] = clamp(w, 0, 1); this.faceDur[k] = dur > 0 ? dur : 0; } }
 
   /** Look-at target (world point) with weight (default 1). */
   setLookTarget(x, y, z, w = 1) { this.lookTx = x; this.lookTy = y; this.lookTz = z; this.lookW = w; this.lookOn = true; }

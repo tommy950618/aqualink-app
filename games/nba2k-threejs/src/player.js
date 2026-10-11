@@ -53,6 +53,7 @@ const HISTORY = 30;                       // 0.5 s of positions at 60 Hz (AI rea
 const MOVE_MIN_SPEED = 0.3;               // state 'move' above this horizontal speed (v1)
 const STICK_DEAD = 0.05;                  // stick magnitude treated as zero
 const SHOT_STOP_DECEL = 18;               // [ANIM §5.1-9] jump-shot entry 'stop': 18 m/s² until takeoff
+const CEL_FACE_S = 1.5;                   // face-only celebration reaction length (s; §4.11 face timelines run 1.2–1.5 s)
 const ACTION_STOP_DECEL = 16;             // other grounded actions without root motion (v1 DECEL)
 const SLIDE_ANGLE_COS = Math.cos(Math.PI / 4);   // §5.2 slideMul: move ⟂ facing > 45°
 const POST_SPEED = 1.0;                   // backdown walking speed cap in the post (m/s)
@@ -432,7 +433,7 @@ export class Player {
   /** Celebration clip / face from a selectCelebration result (deferred to the landing when airborne). */
   celebrate(sel) {
     if (!sel || !sel.celebrate) return false;
-    if (sel.face && typeof this.animator.setFace === 'function') this.animator.setFace(sel.face, sel.faceW);
+    if (sel.face && typeof this.animator.setFace === 'function') this.animator.setFace(sel.face, sel.faceW, CEL_FACE_S);
     if (sel.clipIdx < 0) return true;
     if (this.isJumping || this.state === 'dunk') { this.celebrateOnLand = true; this.celebrateClip = sel.clipIdx; this.celebrateMirror = sel.mirror; return true; }
     this.startCelebration(sel.clipIdx, sel.mirror);

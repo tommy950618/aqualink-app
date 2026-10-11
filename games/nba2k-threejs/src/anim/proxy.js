@@ -49,11 +49,11 @@ const m = (o) => Object.freeze(o);
  * likeness re-bake moved shoulders / arms by up to 19 mm), so the headless proxy keeps matching the real rig (B57).
  */
 export const PROXY_METRICS = Object.freeze({
-  kobe: m({ height: 1.96, hipH: 1.081, thigh: 0.488, calf: 0.511, sLeg: 1.004, shoulderY: 1.579, armLen: 0.600, handLen: 0.232, ankleY: 0.085, reach0: 2.318, reachAug: 2.438, reachM: 2.64, eyeY: 1.848, footLen: 0.305, ankleX: 0.226 }),
-  jordan: m({ height: 1.96, hipH: 1.073, thigh: 0.484, calf: 0.515, sLeg: 0.997, shoulderY: 1.568, armLen: 0.584, handLen: 0.245, ankleY: 0.083, reach0: 2.299, reachAug: 2.419, reachM: 2.65, eyeY: 1.837, footLen: 0.300, ankleX: 0.224 }),
+  kobe: m({ height: 1.96, hipH: 1.080, thigh: 0.488, calf: 0.511, sLeg: 1.004, shoulderY: 1.578, armLen: 0.599, handLen: 0.232, ankleY: 0.085, reach0: 2.316, reachAug: 2.436, reachM: 2.64, eyeY: 1.847, footLen: 0.305, ankleX: 0.226 }),
+  jordan: m({ height: 1.96, hipH: 1.073, thigh: 0.484, calf: 0.515, sLeg: 0.998, shoulderY: 1.569, armLen: 0.584, handLen: 0.245, ankleY: 0.084, reach0: 2.300, reachAug: 2.420, reachM: 2.65, eyeY: 1.838, footLen: 0.300, ankleX: 0.224 }),
   lebron: m({ height: 2.03, hipH: 1.109, thigh: 0.513, calf: 0.516, sLeg: 1.030, shoulderY: 1.646, armLen: 0.564, handLen: 0.238, ankleY: 0.087, reach0: 2.353, reachAug: 2.473, reachM: 2.69, eyeY: 1.907, footLen: 0.316, ankleX: 0.229 }),
-  giannis: m({ height: 2.09, hipH: 1.188, thigh: 0.546, calf: 0.561, sLeg: 1.104, shoulderY: 1.690, armLen: 0.607, handLen: 0.258, ankleY: 0.094, reach0: 2.451, reachAug: 2.571, reachM: 2.81, eyeY: 1.975, footLen: 0.335, ankleX: 0.242 }),
-  yao: m({ height: 2.27, hipH: 1.262, thigh: 0.651, calf: 0.519, sLeg: 1.177, shoulderY: 1.850, armLen: 0.617, handLen: 0.262, ankleY: 0.093, reach0: 2.624, reachAug: 2.744, reachM: 2.95, eyeY: 2.154, footLen: 0.336, ankleX: 0.234 }),
+  giannis: m({ height: 2.09, hipH: 1.188, thigh: 0.546, calf: 0.561, sLeg: 1.103, shoulderY: 1.688, armLen: 0.607, handLen: 0.258, ankleY: 0.094, reach0: 2.450, reachAug: 2.570, reachM: 2.81, eyeY: 1.980, footLen: 0.335, ankleX: 0.242 }),
+  yao: m({ height: 2.27, hipH: 1.262, thigh: 0.651, calf: 0.519, sLeg: 1.177, shoulderY: 1.850, armLen: 0.607, handLen: 0.262, ankleY: 0.093, reach0: 2.614, reachAug: 2.734, reachM: 2.95, eyeY: 2.154, footLen: 0.336, ankleX: 0.234 }),
   kyrie: m({ height: 1.87, hipH: 1.014, thigh: 0.463, calf: 0.477, sLeg: 0.941, shoulderY: 1.502, armLen: 0.544, handLen: 0.212, ankleY: 0.081, reach0: 2.173, reachAug: 2.293, reachM: 2.515, eyeY: 1.756, footLen: 0.290, ankleX: 0.215 }),
 });
 

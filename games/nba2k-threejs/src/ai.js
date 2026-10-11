@@ -38,6 +38,10 @@
  * started drive past its guard is committed (the lane gate only governs starting one); receivers v-cut / lift when
  * the handler's lane to them is unsafe and prefer spots the handler can reach; a shot-diet factor keeps each
  * legend near his profile mix; no AI lob passes; lane jumps start a reaction after the release.
+ * I3 (integration balance, spec §5.10 "I3 integration changes"): patience also gates drives (openness < 5 m), ball
+ * movement (swing passes), pass risk sampled along the passer's turn with a learned launch offset and a calibrated
+ * tolerance, urgent quick drives, help switches and digs, the triple-threat jab series and the gathered fadeaway
+ * (Kobe, Jordan), runway sprints for the long finishes, JUMP_LEAD 0.11 s, iso moves capped by tend.isoMoves.
  */
 import { RIM, FIXED_DT, SHOT_V2, TRIGGERS, JAB, INTERCEPT, LINES, BLOCK, isThree } from './constants.js';
 import { clamp, lerp } from './math.js';
@@ -116,11 +120,12 @@ const STEAL_RANGE_HAWK = 0.15, POKE_CATCH = 0.5, POKE_LIVE = 0.8, POKE_MAX_V = 3
 const ARRIVE_R = 1.0, STOP_R = 0.06, SPRINT_MIN_D = 1.0, SPRINT_MIN_STAMINA = 0.15;
 const UPUNDER_P = 0.6, PUMP_FAKE_UPUNDER = 0.6, PUMP_TAP = 0.05, PUMP_REDECIDE = 0.15, PUMP_UPUNDER_D = 3.0, UPUNDER_AFTER = 0.15;
 const LOB_HOLD = 0.34, REL_MIN = 0.125;
-const LAUNCH_INIT = 0.72, LAUNCH_EMA = 0.3, LAUNCH_MIN = 0.2, LAUNCH_MAX = 1.0;   // learned pass launch offset (m)
+const LAUNCH_INIT = 0.72, LAUNCH_EMA_UP = 0.5, LAUNCH_EMA_DOWN = 0.05, LAUNCH_MIN = 0.2, LAUNCH_MAX = 1.0;   // learned pass launch offset (m)
 const RIP_P = 0.5;
 const TRIPLE_JAB = 0.4, TRIPLE_FADE = 0.5, TRIPLE_T = 2.2, TRIPLE_D = 7.6;   // the triple-threat jab series (Kobe, Jordan)
 const MAX_YAO_BOUNCES = 2;
-const YAO_KICK_CLOCK = 1.0;                // Yao beyond the arc under 3 s: kick out while ≥ 1.0 s remains
+const YAO_KICK_CLOCK = 1.0;
+const GATE_MARGIN = 0.6;                   // three gate at the press: openness − 0.6 m must still pass                // Yao beyond the arc under 3 s: kick out while ≥ 1.0 s remains
 
 // ------------------------------------------------------------------------------------------------ scratch (H10)
 const B = { x: 0, z: 0 }, G = { x: 0, z: 0 };
@@ -634,7 +639,8 @@ function shoot(p, ai, world, ms, urgentNow) {
     return;
   }
   // the three gate is re-checked at the press (a closeout since the decision: Giannis no longer open → re-decide)
-  if (!urgent && isThree(p.pos.x, p.pos.z) && !threeGateOK(p, openness(p, world), sc)) { ai.action = 'probe'; ai.holdCd = 0; ai.plan = ''; return; }
+  // (with a margin: the shot is confirmed ≈ 0.12 s after the press, time enough for a closeout to cut 0.5 m)
+  if (!urgent && isThree(p.pos.x, p.pos.z) && !threeGateOK(p, openness(p, world) - GATE_MARGIN, sc)) { ai.action = 'probe'; ai.holdCd = 0; ai.plan = ''; return; }
   stopMove(it);
   it.plain = true;
   if (ai.plan === 'fade' || ai.plan === 'stepback') stickRim(p, -1, 1);
@@ -1142,7 +1148,9 @@ function trackPass(S, world) {
   // learn where the ball leaves the passer (launch point = ball − vel × age): the pass-risk launch offset
   const age = Math.max(0, world.time - pi.releaseTime);
   const off = distXZ(b.pos.x - b.vel.x * age, b.pos.z - b.vel.z * age, from.pos.x, from.pos.z);
-  S.launchFwd += LAUNCH_EMA * (clamp(off, LAUNCH_MIN, LAUNCH_MAX) - S.launchFwd);
+  // an upper-envelope average: a far launch is taken at once (it is the dangerous one), a near one slowly
+  const lo = clamp(off, LAUNCH_MIN, LAUNCH_MAX);
+  S.launchFwd += (lo > S.launchFwd ? LAUNCH_EMA_UP : LAUNCH_EMA_DOWN) * (lo - S.launchFwd);
   const land = predictLanding(b, PASS_Y, LAND_TMP);
   S.catchX = land ? clamp(land.x, -CLAMP_X, CLAMP_X) : r.pos.x; S.catchZ = land ? clamp(land.z, CLAMP_Z_MIN, CLAMP_Z_MAX) : r.pos.z;
   const tFlight = land ? land.t : pi.flightT;

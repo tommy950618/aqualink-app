@@ -9,7 +9,7 @@ import vm from 'node:vm';
 import { Game } from '../src/game.js';
 import * as AI from '../src/ai.js';
 import {
-  tendOf, threeGateOK, onBallGap, riskTolOf, RISK_TOL_SCALE, dietFactor, probeBand, closeGapOf, isMismatch, pokeProb, laneGambleP,
+  tendOf, threeGateOK, onBallGap, riskTolOf, RISK_TOL_SCALE, RISK_TOL_CAP, dietFactor, probeBand, closeGapOf, isMismatch, pokeProb, laneGambleP,
 } from '../src/ai-tend.js';
 import { TestBot, BOT_MODES } from '../src/testbot.js';
 import { matchupCost } from '../src/physics.js';
@@ -180,9 +180,9 @@ check('passRisk: grows as a defender nears the line; 0 with nobody around; bestP
   assert.ok(out.risk <= riskTolOf(h, DIFFICULTY.normal) + 1e-12);
   assert.ok(Number.isFinite(out.ep) && out.ep > 0);
   // riskTol × riskTolMul (§2.5, §5.11) on the calibrated risk scale (I3: × RISK_TOL_SCALE)
-  near(riskTolOf(h, DIFFICULTY.normal), tendOf(h).riskTol * RISK_TOL_SCALE, 1e-12);
-  near(riskTolOf(h, DIFFICULTY.easy), tendOf(h).riskTol * 1.6 * RISK_TOL_SCALE, 1e-12);
-  near(riskTolOf(h, DIFFICULTY.hard), tendOf(h).riskTol * 0.7 * RISK_TOL_SCALE, 1e-12);
+  near(riskTolOf(h, DIFFICULTY.normal), Math.min(RISK_TOL_CAP, tendOf(h).riskTol * RISK_TOL_SCALE), 1e-12);
+  near(riskTolOf(h, DIFFICULTY.easy), Math.min(RISK_TOL_CAP, tendOf(h).riskTol * 1.6 * RISK_TOL_SCALE), 1e-12);
+  near(riskTolOf(h, DIFFICULTY.hard), Math.min(RISK_TOL_CAP, tendOf(h).riskTol * 0.7 * RISK_TOL_SCALE), 1e-12);
 });
 
 check('bestPassTarget over random live states: the chosen pass is never above the passer\'s riskTol', () => {
