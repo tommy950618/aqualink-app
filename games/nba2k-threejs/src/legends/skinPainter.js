@@ -23,7 +23,9 @@
  *   c = mix(c, hair, scalpDarken·hair); c = mix(c, beard, beardSkinDarken·beard); c = mix(c, hair, browDarken·brow)
  *   c = mix(c, desat(c, 0.3)·0.82, tattooK·tattoo)        desat(c, k) = mix(c, luma(c), k), Rec.709 luma
  *   c = mix(c, hair, 0.25·max(hair·stubbleHair, beard)·step(0.62, h)),  h = texel hash (seeded by player index)
- *   rough = skinRoughness − 0.10·hl − 0.15·lips + 0.15·beard + 0.10·palms; rough = mix(rough, 0.25, nails);
+ *   rough = skinRoughness − 0.10·hl − lipRoughK·lips + 0.15·beard + 0.10·palms; rough = mix(rough, 0.25, nails);
+ *   (lipRoughK = look.lipRoughK, default 0.15; polish round 2: 0 for Kobe / Giannis / Kyrie, whose lower lips read as
+ *   glossy pale pouts at 0.15 below the skin)
  *   rough = mix(rough, scalpRoughness, gloss); alpha = round(255·clamp(rough, 0.2, 0.9))  (alpha 255 on low)
  * The texel loop has no function calls, closures, Math.* or allocation; sparse terms are skipped on zero bytes.
  */
@@ -188,7 +190,7 @@ export class SkinPaintJob {
     const bR = K.beard[0], bG = K.beard[1], bB = K.beard[2];
     const kMot = 0.12 / 255, kMot0 = 1 - 0.06;
     const kAo = 0.30 / 255, kCav = L.cavityK * 0.45 / 255, kRed = L.warmK / 255, kHl = L.hlK / 255;
-    const kLip = 0.85 / 255, kPalm = 0.90 / 255, kNail = 0.80 / 255;
+    const kLip = 0.85 / 255, kPalm = 0.90 / 255, kNail = 0.80 / 255, kLipR = (L.lipRoughK ?? 0.15) / 255;
     const kScalp = L.scalpDarken / 255, kBeard = L.beardSkinDarken / 255, kBrow = L.browDarken / 255;
     const kTat = L.tattooK / 255, stubH = L.stubbleHair, kStub = 0.25 / 255;
     const rough0 = L.skinRoughness, scalpR = L.scalpRoughness;
@@ -215,7 +217,7 @@ export class SkinPaintJob {
           const hl = aHl[oHl + x];
           if (hl) { const k = kHl * hl; r += (1 - r) * k; g += (1 - g) * k; b += (1 - b) * k; rough -= 0.10 / 255 * hl; }
           const lp = aLips[oLips + x];
-          if (lp) { const k = kLip * lp; r += (lR - r) * k; g += (lG - g) * k; b += (lB - b) * k; rough -= 0.15 / 255 * lp; }
+          if (lp) { const k = kLip * lp; r += (lR - r) * k; g += (lG - g) * k; b += (lB - b) * k; rough -= kLipR * lp; }
           const pm = aPalm[oPalm + x];
           if (pm) { const k = kPalm * pm; r += (pR - r) * k; g += (pG - g) * k; b += (pB - b) * k; rough += 0.10 / 255 * pm; }
           const nl = aNail[oNail + x];

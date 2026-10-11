@@ -290,6 +290,8 @@ export function playerFields(f, ap, j, earPts, seed, tattooQuantiles) {
   const tat = ap.tattoos || [];
   const tatNoise = (p) => 0.6 * tn(p[0] / 0.04, p[1] / 0.04, p[2] / 0.04) + 0.4 * tn(p[0] / 0.02 + 31.7, p[1] / 0.02 + 7.3, p[2] / 0.02 + 19.1);
   const letters = valueNoise3(777 + seed);
+  const fs = ap.faceShade || null;
+  const clamp01 = (q) => Math.max(0, Math.min(1, q));
 
   const groom = (p, n, a, out) => {
     v.set(p, n, a);
@@ -311,10 +313,7 @@ export function playerFields(f, ap, j, earPts, seed, tattooQuantiles) {
       }
       out[1] = g;
     }
-    if (br) {
-      const fr = br.region(v);
-      if (fr > -0.001) out[2] = br.density(v) * smooth(0, 0.0005, fr) * br.fade(v);
-    }
+    if (br) out[2] = br.mask(v);
   };
 
   const extraF = (p, n, a, out) => {
@@ -370,6 +369,31 @@ export function playerFields(f, ap, j, earPts, seed, tattooQuantiles) {
         }
       }
     }
+    // face shading (polish round 2): `appearance.faceShade` {cheekHollow, lidCrease} = darkening fractions painted into
+    // this channel (the painter's tattoo term darkens by 18 % at 1.0, so value = k / 0.18; the look needs tattooK 1)
+    if (fs && v.w('head') > 0.5 && v.ear < 0.5) {
+      const ax = Math.abs(x);
+      if (fs.cheekHollow && n[2] > -0.2) {
+        // 8 mm band under the zygomatic arch, from below ZY forward-down to ~2 cm lateral of the mouth corner
+        const ZY = f.L.ZY_l, CH = f.L.CH_l;
+        const A = [Math.abs(ZY[0]) * 0.86, ZY[1] - 0.014], B = [Math.abs(CH[0]) + 0.016, CH[1] + 0.014];
+        const bx = B[0] - A[0], by = B[1] - A[1], tt = clamp01(((ax - A[0]) * bx + (y - A[1]) * by) / (bx * bx + by * by));
+        const d = Math.hypot(ax - A[0] - bx * tt, y - A[1] - by * tt);
+        const ends = smooth(0, 0.25, tt) * (1 - smooth(0.75, 1, tt));
+        t = Math.max(t, Math.min(1, fs.cheekHollow / 0.18) * Math.exp(-((d / 0.0045) ** 2)) * ends);
+      }
+      if (fs.lidCrease && n[2] > 0.2) {
+        // upper-lid shadow: an arc from the inner to the outer canthus peaking ~4.5 mm above the upper-lid margin
+        const EN = f.L.EN_l, EX = f.L.EX_l, PS = f.L.PS_l;
+        const x0 = Math.abs(EN[0]), x1 = Math.abs(EX[0]), tt = (ax - x0) / (x1 - x0);
+        if (tt > -0.1 && tt < 1.15 && z > PS[2] - 0.014) {
+          const tc = clamp01(tt), base = EN[1] + (EX[1] - EN[1]) * tc;
+          const yc = base + (PS[1] - (EN[1] + EX[1]) / 2 + 0.0035) * Math.sin(Math.PI * Math.min(1, tc * 1.05));
+          const ends = smooth(-0.1, 0.12, tt) * (1 - smooth(0.95, 1.15, tt));
+          t = Math.max(t, Math.min(1, fs.lidCrease / 0.18) * Math.exp(-(((y - yc) / 0.0022) ** 2)) * ends);
+        }
+      }
+    }
     out[0] = t;
     // G scalp gloss (Jordan: above Gy + 0.06, 2 cm fade; others: the scalp under the hair)
     if (bald) out[1] = bald.gloss(v);
@@ -384,7 +408,10 @@ export function playerFields(f, ap, j, earPts, seed, tattooQuantiles) {
     }
     if (v.w('neck_01') > 0.3 && n[2] > 0.2 && y < f.L.ME[1]) sw = Math.max(sw, smooth(0.2, 0.5, n[2]));
     if (v.w('spine_03', 'clavicle_l', 'clavicle_r') > 0.3 && n[2] > 0.3 && y > j.neckHoleY && Math.abs(x) < 0.09) sw = Math.max(sw, smooth(j.neckHoleY, j.neckHoleY + 0.01, y));
-    out[2] = sw;
+    // polish round 2 (Jordan): with a non-zero look.glossBase the high-tier clearcoat is glossBase × max(gloss, sweat)
+    // at all times, so the sweat zones (forehead, upper lip, neck, chest) rendered permanently wet ("wet vinyl" neck and
+    // chest hotspots, a vertical forehead streak). A glossy-scalp look keeps its clearcoat on the scalp gloss only.
+    out[2] = ap.glossBase > 0 ? 0 : sw;
   };
   return { groom, extra: extraF, tatNoise };
 }

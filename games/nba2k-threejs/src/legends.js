@@ -52,10 +52,10 @@ const RAW = {
     },
     spots: { rightElbow: 0.30, rightWing: 0.30, rightBlock: 0.15, leftWing: 0.15, rightBaseline: 0.10 },
     look: {
-      skin: '#8B5A3C', lips: '#6a4030', palms: '#b48466', skinRoughness: 0.52, warmK: 0.10, cavityK: 0.45, hlK: 0.10,
-      tattooK: 0, stubbleHair: 1, hair: '#1a1311', beard: '#151010', scalpDarken: 0.65, scalpRoughness: 0.72,
-      beardSkinDarken: 0.70, beardSkinMaskK: 1, browDarken: 0.60, glossBase: 0, clearcoatRoughness: 0.30,
-      sheenColor: '#5e5650', skinSheen: { color: '#6a5c56', k: 0.10 }, iris: '#2A1A12',
+      skin: '#8B5A3C', lips: '#553022', palms: '#b48466', skinRoughness: 0.52, warmK: 0.10, cavityK: 0.30, hlK: 0.10,
+      tattooK: 0, stubbleHair: 1, hair: '#1a1311', beard: '#1c120d', scalpDarken: 0.70, scalpRoughness: 0.72,
+      beardSkinDarken: 0.65, beardSkinMaskK: 1, browDarken: 0.80, glossBase: 0, clearcoatRoughness: 0.30,
+      sheenColor: '#3a3430', skinSheen: { color: '#6a5c56', k: 0.10 }, iris: '#2A1A12', lipRoughK: 0,
       idleFace: { channel: 'scowl', base: 0.35, chewAmp: 0, chewHz: 0 },
     },
     kit: {
@@ -99,10 +99,10 @@ const RAW = {
     },
     spots: { leftElbow: 0.25, rightElbow: 0.25, rightWing: 0.25, leftBlock: 0.125, rightBlock: 0.125 },
     look: {
-      skin: '#4E3122', lips: '#3A221B', palms: '#A9785E', skinRoughness: 0.62, warmK: 0.0, cavityK: 0.55, hlK: 0.05,
-      tattooK: 0, stubbleHair: 0, hair: '#0E0A09', beard: '#0E0A09', scalpDarken: 0, scalpRoughness: 0.25,
-      beardSkinDarken: 0.80, beardSkinMaskK: 1, browDarken: 0.75, glossBase: 0.55, clearcoatRoughness: 0.22,
-      sheenColor: '#6a5a50', skinSheen: { color: '#5c5656', k: 0.12 }, iris: '#2A1A12',
+      skin: '#4E3122', lips: '#3A221B', palms: '#A9785E', skinRoughness: 0.68, warmK: 0.0, cavityK: 0.55, hlK: 0.02,
+      tattooK: 1, stubbleHair: 0, hair: '#080605', beard: '#0b0706', scalpDarken: 0, scalpRoughness: 0.32,
+      beardSkinDarken: 0.92, beardSkinMaskK: 1, browDarken: 0.75, glossBase: 0.55, clearcoatRoughness: 0.22,
+      sheenColor: '#3a3430', skinSheen: { color: '#5c5656', k: 0.12 }, iris: '#2A1A12',
       // gum chew: jawOpen = 0.06 + 0.06·max(0, sin(2π·1.5t)) (§2.6, ANIM §2.8)
       idleFace: { channel: 'jawOpen', base: 0.06, chewAmp: 0.06, chewHz: 1.5 },
     },
@@ -155,8 +155,8 @@ const RAW = {
     spots: { top: 0.35, leftWing: 0.30, rightWing: 0.20, leftBlock: 0.15 },
     look: {
       skin: '#6A4530', lips: '#4a2e22', palms: '#A47A5E', skinRoughness: 0.55, warmK: 0.0, cavityK: 0.7, hlK: 0.06,
-      tattooK: 1.0, stubbleHair: 0.5, hair: '#141010', beard: '#18120e', scalpDarken: 0.70, scalpRoughness: 0.70,
-      beardSkinDarken: 0.75, beardSkinMaskK: 1, browDarken: 0.65, glossBase: 0, clearcoatRoughness: 0.50,
+      tattooK: 1.0, stubbleHair: 0.5, hair: '#241a15', beard: '#1c1612', scalpDarken: 0.80, scalpRoughness: 0.70,
+      beardSkinDarken: 0.70, beardSkinMaskK: 1, browDarken: 0.80, glossBase: 0, clearcoatRoughness: 0.50,
       sheenColor: '#6a5a50', skinSheen: { color: '#4e4644', k: 0.06 }, iris: '#2A1A12',
       idleFace: { channel: null, base: 0, chewAmp: 0, chewHz: 0 },
     },
@@ -202,10 +202,10 @@ const RAW = {
     },
     spots: { top: 0.25, rightWing: 0.20, leftDunker: 0.25, rightDunker: 0.30 },
     look: {
-      skin: '#50352b', lips: '#3e261c', palms: '#9c705a', skinRoughness: 0.62, warmK: 0.0, cavityK: 0.7, hlK: 0.03,
-      tattooK: 0, stubbleHair: 0, hair: '#1a1512', beard: '#141110', scalpDarken: 1.0, scalpRoughness: 0.75,
-      beardSkinDarken: 0.80, beardSkinMaskK: 1, browDarken: 0.60, glossBase: 0, clearcoatRoughness: 0.45,
-      sheenColor: '#5e5650', skinSheen: { color: '#5a4e48', k: 0.04 }, iris: '#2A1A12',
+      skin: '#54352a', lips: '#3a2219', palms: '#9c705a', skinRoughness: 0.62, warmK: 0.0, cavityK: 0.6, hlK: 0.03,
+      tattooK: 1, stubbleHair: 0, hair: '#120e0c', beard: '#0e0a08', scalpDarken: 1.0, scalpRoughness: 0.75,
+      beardSkinDarken: 0.60, beardSkinMaskK: 1, browDarken: 0.60, glossBase: 0, clearcoatRoughness: 0.45,
+      sheenColor: '#3a3430', skinSheen: { color: '#5e4a3e', k: 0.04 }, iris: '#2A1A12', lipRoughK: 0,
       idleFace: { channel: null, base: 0, chewAmp: 0, chewHz: 0 },
     },
     kit: {
@@ -245,9 +245,9 @@ const RAW = {
     },
     spots: { leftBlock: 0.40, rightBlock: 0.25, leftElbow: 0.15, rightElbow: 0.20 },
     look: {
-      skin: '#D8A985', lips: '#a87462', palms: '#e4bea0', skinRoughness: 0.52, warmK: 0.15, cavityK: 0.20, hlK: 0.05,
-      tattooK: 0, stubbleHair: 0, hair: '#121010', beard: '#2a2420', scalpDarken: 0.90, scalpRoughness: 0.70,
-      beardSkinDarken: 1.0, beardSkinMaskK: 0.07, browDarken: 0.60, glossBase: 0, clearcoatRoughness: 0.30,
+      skin: '#D6A587', lips: '#a87462', palms: '#e4bea0', skinRoughness: 0.52, warmK: 0.25, cavityK: 0.30, hlK: 0.05,
+      tattooK: 0, stubbleHair: 0, hair: '#121010', beard: '#2a2420', scalpDarken: 1.0, scalpRoughness: 0.70,
+      beardSkinDarken: 1.0, beardSkinMaskK: 0.07, browDarken: 0.25, glossBase: 0, clearcoatRoughness: 0.30,
       sheenColor: '#8090a0', skinSheen: { color: '#7a6e68', k: 0.06 }, iris: '#2A1A12',
       idleFace: { channel: null, base: 0, chewAmp: 0, chewHz: 0 },
     },
@@ -288,10 +288,10 @@ const RAW = {
     },
     spots: { top: 0.30, rightWing: 0.30, leftCorner: 0.15, rightCorner: 0.15, leftWing: 0.10 },
     look: {
-      skin: '#8A5A3B', lips: '#5a3628', palms: '#b88a6c', skinRoughness: 0.56, warmK: 0.0, cavityK: 0.70, hlK: 0.06,
-      tattooK: 1.0, stubbleHair: 0, hair: '#1c1714', beard: '#1a1411', scalpDarken: 1.0, scalpRoughness: 0.75,
-      beardSkinDarken: 0.65, beardSkinMaskK: 1, browDarken: 0.80, glossBase: 0, clearcoatRoughness: 0.45,
-      sheenColor: '#5e5650', skinSheen: { color: '#6a5c56', k: 0.10 }, iris: '#2A1A12',
+      skin: '#8A5A3B', lips: '#5a3628', palms: '#b88a6c', skinRoughness: 0.60, warmK: 0.0, cavityK: 0.70, hlK: 0.03,
+      tattooK: 1.0, stubbleHair: 0, hair: '#171210', beard: '#150f0c', scalpDarken: 1.0, scalpRoughness: 0.75,
+      beardSkinDarken: 0.80, beardSkinMaskK: 1, browDarken: 0.80, glossBase: 0, clearcoatRoughness: 0.45,
+      sheenColor: '#5e5650', skinSheen: { color: '#6a5c56', k: 0.10 }, iris: '#2A1A12', lipRoughK: 0,
       idleFace: { channel: null, base: 0, chewAmp: 0, chewHz: 0 },
     },
     kit: {

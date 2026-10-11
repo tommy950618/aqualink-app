@@ -58,6 +58,10 @@ export const BALL = Object.freeze({
   R: 0.12,
   REST_FLOOR: 0.75,
   FRICTION_FLOOR: 0.85,
+  // First floor contact of a shot that touched nothing (air ball / clean miss): the shot's backspin grips the floor and
+  // checks it up (hollow sphere: v' = (v − ⅔·ωR) / (5/3) ≈ 0.40·v for the usual ωR ≈ 0.6·v) instead of skidding on at
+  // 0.85·v; an air ball otherwise landed under the rim and bounced on out of bounds behind the baseline (R#30, B12)
+  BACKSPIN_FLOOR: 0.40,
   REST_RIM: 0.55,          // v1; v2 → RIM_PHYS.REST_RIM
   REST_BOARD: 0.60,        // v1; v2 → RIM_PHYS.REST_BOARD
   G: 9.81,

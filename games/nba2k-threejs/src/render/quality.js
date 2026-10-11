@@ -79,7 +79,7 @@ export const TIERS = freezeDeep({
     // ---- shadows ----
     shadows: { map: false, mapSize: 0, radius: 0, bias: 0, normalBias: 0, intensity: 0, blobPlayer: 0.45, blobBallNear: 0.5, blobBallFar: 0.15, proxies: false },
     // ---- lights / environment ----
-    lights: { hemi: 1.10, key: 2.40, rim: 0.90, spot: false },
+    lights: { hemi: 1.10, key: 2.40, rim: 0.90, fill: 1.70, spot: false },
     env: { size: 0 },
     // ---- floor / decal / reflection ----
     floor: { material: 'lambert', markings: [1024, 816], wood: 512, wear: false, anisotropy: 4, reflection: false },
@@ -110,7 +110,7 @@ export const TIERS = freezeDeep({
     },
     animation: { budgetMs: 1.2, fullRate: 'ownerAndAction', othersHz: 30 },
     shadows: { map: true, mapSize: 1024, radius: 2.0, bias: -0.0005, normalBias: 0.025, intensity: 0.78, blobPlayer: 0.25, blobBallNear: 0.20, blobBallFar: 0.20, proxies: true },
-    lights: { hemi: 0.35, key: 2.85, rim: 1.30, spot: true },
+    lights: { hemi: 0.35, key: 2.85, rim: 1.30, fill: 1.40, spot: true },
     env: { size: 128 },
     floor: { material: 'standard', markings: [2048, 1632], wood: 512, wear: true, anisotropy: 8, reflection: false },
     decal: { size: 512, material: 'standard' },
@@ -136,7 +136,7 @@ export const TIERS = freezeDeep({
     },
     animation: { budgetMs: 0.9, fullRate: 'all', othersHz: 60 },
     shadows: { map: true, mapSize: 2048, radius: 2.5, bias: -0.0004, normalBias: 0.020, intensity: 0.80, blobPlayer: 0.25, blobBallNear: 0.20, blobBallFar: 0.20, proxies: true },
-    lights: { hemi: 0.30, key: 2.85, rim: 1.30, spot: true },
+    lights: { hemi: 0.30, key: 2.85, rim: 1.30, fill: 1.40, spot: true },
     env: { size: 256 },
     floor: { material: 'standard', markings: [2048, 1632], wood: 1024, wear: true, anisotropy: 8, reflection: true },
     decal: { size: 1024, material: 'standard' },

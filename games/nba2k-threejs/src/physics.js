@@ -95,7 +95,8 @@ export function nearRim(pos) {
 // ---------------------------------------------------------------- collisions
 
 /**
- * Floor (v1 §5.2). Returns the post-bounce |v.y| when the ball bounced, else 0. A landing slower than
+ * Floor (v1 §5.2). Returns the post-bounce |v.y| when the ball bounced, else 0. Horizontal friction 0.85, or
+ * BALL.BACKSPIN_FLOOR 0.40 at the first bounce of a shot that still carries its backspin (`ball.backspin`, cleared). A landing slower than
  * SETTLE_IMPACT is a rolling ball pulled down by one gravity step: it is snapped back to the floor without friction
  * or a bounce event. Rolling decay (v.xz ×= 1 − 2.5·dt) and resting (|v| < 0.3) use dt.
  */
@@ -108,8 +109,11 @@ export function collideFloor(ball, dt = FIXED_DT) {
       const vIn = -v.y;
       if (vIn > SETTLE_IMPACT) {
         v.y = vIn * BALL.REST_FLOOR;
-        v.x *= BALL.FRICTION_FLOOR;
-        v.z *= BALL.FRICTION_FLOOR;
+        // a shot's backspin (untouched since the release) checks the ball up at its first bounce
+        const fr = ball.backspin ? BALL.BACKSPIN_FLOOR : BALL.FRICTION_FLOOR;
+        ball.backspin = false;
+        v.x *= fr;
+        v.z *= fr;
         impact = v.y;
         if (v.y < BALL.SETTLE_VY) v.y = 0;
       } else {

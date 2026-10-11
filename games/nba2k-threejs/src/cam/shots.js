@@ -34,7 +34,9 @@ export const SHOTS = Object.freeze({
   HALFTIME: Object.freeze({ pos: [0, 14, 12], look: [0, 0, -8], fov: 46, panFrom: -3, panTo: 3, panS: 6, halfW: 6.0, fovMax: 70 }),
   GAMEOVER: Object.freeze({ hold: 1.0, r: 3.2, y: 1.5, degPerS: 12, fov: 32, chest: 0.72, lensPortrait: 0.30,
     // portrait: the MVP stands in the top 38 % of the screen above the box score (NDC [0.30, 0.94]) at fov 60
-    fovPortrait: 60, bandLo: 0.30, bandHi: 0.94, headPad: 0.15 }),
+    fovPortrait: 60, bandLo: 0.30, bandHi: 0.94, headPad: 0.15,
+    // landscape: the whole MVP (feet − 0.05 … head + 0.15) inside NDC [−0.80, 0.86] at fov 32 (r 3.2 cut him at the knees)
+    footPad: 0.05, bandLoL: -0.80, bandHiL: 0.86 }),
   TURNTABLE: Object.freeze({ idleDegPerS: 20, degPerPx: 0.5, decay: 4, resumeS: 3, rampS: 0.5 }),
 });
 
@@ -248,10 +250,13 @@ export function halftimeShot(t, aspect, out) {
 }
 
 /**
- * Game-over orbit (§6.4.5) after the 1.0 s broadcast hold (the Director applies the hold): orbit the MVP at r 3.2 m,
- * height 1.5 m, 12°/s, fov 32, look at the chest (0.72·h); portrait lens 0.30. The orbit starts in front of him
- * (azimuth = his yaw) so the first frame shows his face. `t` = seconds since the orbit started.
- * @param {{x:number, z:number, yaw?:number, h?:number}} subject
+ * Game-over orbit (§6.4.5) after the 1.0 s broadcast hold (the Director applies the hold): orbit the MVP at height
+ * 1.5 m, 12°/s, fov 32; portrait lens 0.30. The orbit starts in front of him (azimuth = his yaw) so the first frame
+ * shows his face. `t` = seconds since the orbit started. Landscape: the §6.4.5 r 3.2 m / chest look cut the MVP at
+ * the knees, so radius and look height come from a band fit of the whole body (feet − 0.05 … head + 0.15 inside NDC
+ * [−0.80, 0.86]); `subject.sx` (NDC x, default 0) moves him sideways into the space the box-score panel leaves free
+ * and `subject.lo` (NDC y, default −0.80) raises the feet above an overlay below him (the MVP card).
+ * @param {{x:number, z:number, yaw?:number, h?:number, sx?:number, lo?:number}} subject
  */
 export function gameoverShot(t, subject, aspect, out) {
   const G = SHOTS.GAMEOVER;
@@ -264,7 +269,13 @@ export function gameoverShot(t, subject, aspect, out) {
     const b = bandFit(G.y, 0, h + G.headPad, G.bandLo, G.bandHi, G.lensPortrait, G.fovPortrait);
     return setPose(out, sx + b.D * Math.sin(a), G.y, sz + b.D * Math.cos(a), sx, b.ly, sz, G.fovPortrait, G.lensPortrait);
   }
-  return setPose(out, sx + G.r * Math.sin(a), G.y, sz + G.r * Math.cos(a), sx, G.chest * h, sz, G.fov, 0);
+  const lo = subject && typeof subject.lo === 'number' && subject.lo > G.bandLoL && subject.lo < 0.2 ? subject.lo : G.bandLoL;
+  const b = bandFit(G.y, -G.footPad, h + G.headPad, lo, G.bandHiL, 0, G.fov);
+  const px = sx + b.D * Math.sin(a), pz = sz + b.D * Math.cos(a);
+  // look sideways (along the camera's right vector (cos a, −sin a)) so the MVP projects at NDC x = subject.sx
+  const ndcX = subject && typeof subject.sx === 'number' ? subject.sx : 0;
+  const off = -ndcX * b.D * Math.tan(G.fov * DEG * 0.5) * (aspect > 0 ? aspect : 16 / 9);
+  return setPose(out, px, G.y, pz, sx + off * Math.cos(a), b.ly, sz - off * Math.sin(a), G.fov, 0);
 }
 
 // ------------------------------------------------------------------------------------------------------------ intro

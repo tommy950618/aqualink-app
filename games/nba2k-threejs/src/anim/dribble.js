@@ -84,6 +84,8 @@ export class Dribble {
     // trajectory constants latched at release
     this.yr = 0.83; this.yc = 0.89; this.w = 3.8; this.u = 4.65; this.T = 1 / 1.9;
     this.r0x = 0; this.r0z = 0; this.bpx = 0; this.bpz = 0; this.hcx = 0; this.hcz = 0;
+    // root and velocity at the release (and its phase): the root the free-flight path was predicted for
+    this.relX = 0; this.relZ = 0; this.relVx = 0; this.relVz = 0; this.relPsi = 0;
     // contact entry blend (the ball arrives at a predicted hand point; the live hand point takes over)
     this.cEnterX = 0; this.cEnterY = 0; this.cEnterZ = 0;
     // root state of the last step
@@ -149,6 +151,7 @@ export class Dribble {
     this.yr = py;
     this.w = (this.yr - R_BALL - 0.5 * G * k.td * k.td) / k.td;
     this.r0x = px; this.r0z = pz;
+    this.relX = this.x; this.relZ = this.z; this.relVx = this.vx; this.relVz = this.vz; this.relPsi = this.psi < C_CATCH ? this.psi : 0;
     const tb = (A_BOUNCE - (this.psi < A_BOUNCE ? this.psi : 0)) * this.T;
     this.predictPoint(tb, this.side * this.bx, this.bz, 0);
     this.bpx = _pp[0]; this.bpz = _pp[1];
@@ -246,18 +249,25 @@ export class Dribble {
    */
   ballAt(psi, rx, rz, ryaw, out, o) {
     const T = this.T;
-    if (psi < A_BOUNCE) {
-      const tau = psi * T;
-      out[o + 1] = this.yr - this.w * tau - 0.5 * G * tau * tau;
-      const k = psi / A_BOUNCE;
-      out[o] = this.r0x + (this.bpx - this.r0x) * k; out[o + 2] = this.r0z + (this.bpz - this.r0z) * k;
-      return out;
-    }
     if (psi < C_CATCH) {
+      // The bounce point was placed for the root predicted at the release (root + v·t). When the root leaves that
+      // prediction (a stop, a cut, root motion of a move clip, a separation push), the ball's path moves with the
+      // deviation, so it stays at its designed offset from the player instead of drifting up to metres away; at
+      // constant velocity the deviation is 0 and the path is the world-anchored one. The deviation is 0 at the
+      // release (continuity) and fades out over the rise, where the catch point is re-predicted from the live root.
+      const tp = (psi - this.relPsi) * T;
+      const dx = rx - (this.relX + this.relVx * tp), dz = rz - (this.relZ + this.relVz * tp);
+      if (psi < A_BOUNCE) {
+        const tau = psi * T;
+        out[o + 1] = this.yr - this.w * tau - 0.5 * G * tau * tau;
+        const k = psi / A_BOUNCE;
+        out[o] = this.r0x + (this.bpx - this.r0x) * k + dx; out[o + 2] = this.r0z + (this.bpz - this.r0z) * k + dz;
+        return out;
+      }
       const tau = (psi - A_BOUNCE) * T;
       out[o + 1] = R_BALL + this.u * tau - 0.5 * G * tau * tau;
       const k = (psi - A_BOUNCE) / (C_CATCH - A_BOUNCE);
-      out[o] = this.bpx + (this.hcx - this.bpx) * k; out[o + 2] = this.bpz + (this.hcz - this.bpz) * k;
+      out[o] = this.bpx + (this.hcx - this.bpx) * k + dx * (1 - k); out[o + 2] = this.bpz + (this.hcz - this.bpz) * k + dz * (1 - k);
       return out;
     }
     // contact: y follows yc → yTop (ease-out, 0.70 → 0.82) → yr (ease-in, 0.82 → 1.00)

@@ -45,7 +45,7 @@
  */
 import { RIM, FIXED_DT, SHOT_V2, TRIGGERS, JAB, INTERCEPT, LINES, BLOCK, isThree } from './constants.js';
 import { clamp, lerp } from './math.js';
-import { predictLanding, matchupCost, PERMS, shakeChance } from './physics.js';
+import { predictLanding, matchupCost, PERMS, shakeChance, bumpOutcome } from './physics.js';
 import { cpuReleaseError } from './shot.js';
 import { has, eligible, postEntryD, headingCos, pathClear } from './abilities.js';
 import { dunkAllowed } from './context.js';
@@ -57,7 +57,7 @@ import {
   riskTolOf, clutchShotMul, isMismatch, postAlways, driveSideRoll, dietFactor, distXZ, rimD, dirTo,
   clampCourt, segClosest, aiDiff, userControls, guardOf, onBallDefender, nearestOpp, openness, guardBeaten,
   laneClear, laneGateFree, frontDefenderOf, POST_DIST_ZONE, doubled, inPaint, abilityCtx, estMake, predictKind, epAt, theta,
-  finishEst, uDrive, passRisk, bestPassTarget, postEst, rimProtectorHome, rimKind, spotHeld, CATCH_GATE, LEAD_V,
+  finishEst, uDrive, passRisk, bestPassTarget, postEst, rimProtectorHome, rimKind, spotHeld, rotationDue, CATCH_GATE, LEAD_V,
   PBEAT_BEATEN, OPEN_MAX, POST_DEPTH, POST_DEPTH_YAO, CLAMP_X, CLAMP_Z_MIN, CLAMP_Z_MAX,
 } from './ai-tend.js';
 
@@ -113,6 +113,7 @@ const SPOT_TAKEN_PAD = 0.15, SHOT_SIDE = 0.75, SHOT_SIDE_FWD = 0.25;   // shot s
 const CONTEST_R = 1.6, LATE_JUMP = 0.20, JUMP_LEAD = 0.11, CONTEST_V = 2.0, CLOSE_IN_R = 1.0, SHOT_FRONT = 0.70;
 const RIM_PROTECT = { yao: TRIGGERS.YAO_ANCHOR.AI_HAND_BALL, giannis: 0.45, lebron: TRIGGERS.CHASE.AI_HAND_BALL };
 const HELP_LOOK = 0.4, HELP_LOOK_PROTECTOR = 0.8, HELP_DRIVE_V = 3.0, HELP_T = 1.5, HELP_FRONT = 1.0, HELP_SPRINT_D = 2.5;
+const HELP_FRONT_SOFT = 0.45;              // the help spot against a driver who would win the bump stun (I3)
 const DOUBLE_HELP_R = 3.5, DOUBLE_HELP_K = 0.5, DIG_K = 0.6;   // DIG_K: a helper's swipe = DIG_K × the on-ball poke odds
 const PROTECT_D = 2.2, PROTECT_W = 0.5, OFF_TOWARD_BALL = 0.6, GAP_RIM_MARGIN = 0.3, YAO_DROP_R = 4.5, YAO_POST_R = 5.5;
 const CROWD_R = 0.8, CROWD_T = 1.0, YAO_ARC_COST = 2.0, PERCEIVE_DT = 0.1, PERCEIVE_MAX = 1.5, PURSUIT_TAU = 0.25;
@@ -124,8 +125,9 @@ const LAUNCH_INIT = 0.72, LAUNCH_EMA_UP = 0.5, LAUNCH_EMA_DOWN = 0.05, LAUNCH_MI
 const RIP_P = 0.5;
 const TRIPLE_JAB = 0.4, TRIPLE_FADE = 0.5, TRIPLE_T = 2.2, TRIPLE_D = 7.6;   // the triple-threat jab series (Kobe, Jordan)
 const MAX_YAO_BOUNCES = 2;
-const YAO_KICK_CLOCK = 1.0;
-const GATE_MARGIN = 0.6;                   // three gate at the press: openness − 0.6 m must still pass                // Yao beyond the arc under 3 s: kick out while ≥ 1.0 s remains
+const YAO_KICK_CLOCK = 1.0;                // Yao beyond the arc under 3 s: kick out while ≥ 1.0 s remains
+const GATE_MARGIN = 0.6;                   // three gate at the press: openness − 0.6 m must still pass
+const ROT_T = 0.8;                         // rotation onto a loose handler (I3): commitment, refreshed while he stays loose
 
 // ------------------------------------------------------------------------------------------------ scratch (H10)
 const B = { x: 0, z: 0 }, G = { x: 0, z: 0 };
@@ -151,7 +153,7 @@ function makeAiState() {
     // countdowns (R#35)
     setupCd: 0, catchCd: 0, passGateCd: 0, stealCd: 0, probeFlipCd: 0, cutCd: 0, cutT: 0, helpCd: 0, contestCd: 0,
     passHoldCd: 0, pokeCd: 0, releaseCd: 0, releaseOn: false, jumpCd: 0, jumpOn: false, setFeetCd: 0, laneCd: 0, closeCd: 0,
-    closeDelayCd: 0, rebCd: 0, postT: 0,
+    closeDelayCd: 0, rebCd: 0, postT: 0, rotCd: 0,
     postAbandonCd: 0, doubleT: 0, spotCd: 0, pumpCd: 0, pumpOn: false, ripWant: false,
     // plans
     holdT: 0, pressTs: 0, jumpShotT: -1, jumpShooter: null, seenPress: -1, crash: false, crashShot: -1,
@@ -342,13 +344,13 @@ function countdowns(ai, dt) {
   ai.holdCd -= dt; ai.setupCd -= dt; ai.catchCd -= dt; ai.passGateCd -= dt; ai.stealCd -= dt; ai.probeFlipCd -= dt;
   ai.cutCd -= dt; ai.cutT -= dt; ai.helpCd -= dt; ai.contestCd -= dt; ai.passHoldCd -= dt; ai.setFeetCd -= dt;
   ai.laneCd -= dt; ai.closeCd -= dt; ai.pokeCd -= dt; ai.closeDelayCd -= dt; ai.rebCd -= dt; ai.postAbandonCd -= dt; ai.spotCd -= dt;
-  ai.releaseCd -= dt; ai.jumpCd -= dt; ai.pumpCd -= dt; ai.openCd -= dt; ai.laneDelayCd -= dt;
+  ai.releaseCd -= dt; ai.jumpCd -= dt; ai.pumpCd -= dt; ai.openCd -= dt; ai.laneDelayCd -= dt; ai.rotCd -= dt;
 }
 
 function newPossession(p, world) {
   const ai = p.ai || (p.ai = makeAiState());
   ai.action = 'probe'; ai.holdCd = 0; ai.setupCd = SETUP_T; ai.helpCd = 0; ai.jumpOn = false; ai.jumpShooter = null; ai.seenPress = -1;
-  ai.closeCd = 0; ai.laneCd = 0; ai.cutT = 0; ai.cutCd = world.rng.range(CUT_MIN, CUT_MAX); ai.spot = null; ai.spotCd = 0;
+  ai.closeCd = 0; ai.laneCd = 0; ai.rotCd = 0; ai.cutT = 0; ai.cutCd = world.rng.range(CUT_MIN, CUT_MAX); ai.spot = null; ai.spotCd = 0;
   ai.crash = false; ai.crashShot = -1; ai.probeDir = 0; ai.doubleT = 0; ai.doubleRolled = false; ai.backdoor = false;
   p.cutting = false; p.slot = -1;
 }
@@ -467,12 +469,15 @@ function decide(p, ai, world, urgent) {
       const pf = estMake(p, world, 'fade', null, p.pos.x, p.pos.z, 0, 0, true);
       if (pf * e.pts > ep0) ep0 = pf * e.pts;
     }
-    let uShoot = ep0 * zoneTend(p, e.zone) * clutchShotMul(p, world) * dietFactor(p, world, e.zone);
+    const uBase = ep0 * zoneTend(p, e.zone) * clutchShotMul(p, world);
+    let uShoot = uBase * dietFactor(p, world, e.zone);
     sc0.shoot = uShoot;
     const gateOK = !catchG && (!three || threeGateOK(p, open, sc));
     const th = theta(sc) + (patienceG ? PATIENCE_ADD : 0);
     const isoOK = !isoG || ep0 >= theta(sc) + ISO_EXTRA;
-    if (gateOK && isoOK && uShoot >= th) { const u = uShoot + rng.range(0, NOISE); if (u > bestU) { bestU = u; best = 'shoot'; } }
+    // (I3) patience judges the look itself: the shot diet reorders the options but never hurries a set possession
+    const patientOK = !patienceG || uBase >= th;
+    if (gateOK && isoOK && patientOK && uShoot >= th) { const u = uShoot + rng.range(0, NOISE); if (u > bestU) { bestU = u; best = 'shoot'; } }
     // drive
     let uDr = 0;
     // a started drive that is inside 6 m or past its guard is committed: it attacks the help (finish / floater /
@@ -1204,7 +1209,10 @@ function defence(p, ai, world, tick, ms, S) {
   if (tick && h && h !== man && ai.helpCd <= 0) maybeHelp(p, ai, world, h, diff);
   if (ai.helpCd > 0 && h) {
     dirTo(G, h.pos.x, h.pos.z, RIM.x, RIM.z);
-    if (h.state === 'post') { A.x = h.pos.x + G.x * 0.9 - G.z * 0.5; A.z = h.pos.z + G.z * 0.9 + G.x * 0.5; } else { A.x = RIM.x - G.x * HELP_FRONT; A.z = RIM.z - G.z * HELP_FRONT; }
+    // against a driver who would run him over (the bump stun, §5.6: LeBron's powerDrive, strDiff ≥ 20) the helper
+    // stays vertical under the rim instead of stepping into the runway (I3)
+    const front = bumpOutcome(h, p, h.speed).stun ? HELP_FRONT_SOFT : HELP_FRONT;
+    if (h.state === 'post') { A.x = h.pos.x + G.x * 0.9 - G.z * 0.5; A.z = h.pos.z + G.z * 0.9 + G.x * 0.5; } else { A.x = RIM.x - G.x * front; A.z = RIM.z - G.z * front; }
     steerTo(p, A.x, A.z, distXZ(p.pos.x, p.pos.z, A.x, A.z) > HELP_SPRINT_D);
     // the dig: a helper (post double, drive help) who ends up within reach of a dribbling handler swipes at the ball
     // with the same attempt interval and gamble as an on-ball poke, scaled by DIG_K (I3)
@@ -1214,6 +1222,19 @@ function defence(p, ai, world, tick, ms, S) {
     }
     return;
   }
+  // rotation (I3): the handler is loose in range, his guard a human who has stopped defending → the nearest helper
+  // closes out on him (help and recover: his own man is the next pass, which trackPass closes out on)
+  if (h && h !== man) {
+    if (tick && rotationDue(p, h, world)) { if (ai.rotCd > 0 || world.rng.next() < helpProb(p, diff)) ai.rotCd = ROT_T; }
+    if (ai.rotCd > 0) {
+      const cs = closeoutSpeed(p), cg = closeGapOf(p);
+      dirTo(G, h.pos.x, h.pos.z, RIM.x, RIM.z);
+      A.x = h.pos.x + G.x * cg; A.z = h.pos.z + G.z * cg;
+      clampCourt(A);
+      steerTo(p, A.x, A.z, cs.sprint && distXZ(p.pos.x, p.pos.z, A.x, A.z) > ARRIVE_R, cs.mag);
+      return;
+    }
+  } else ai.rotCd = 0;
   if (man === h) onBall(p, ai, world, man, diff, tick, ms);
   else offBallDef(p, ai, world, man, diff, h);
 }

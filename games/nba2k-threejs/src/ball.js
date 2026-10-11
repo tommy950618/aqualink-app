@@ -85,6 +85,7 @@ export class Ball {
     this.exclude1 = null;                   // players who may not catch this free ball before releaseAge 0.3 s
     this.exclude2 = null;                   //   (the blocker and the shooter of a swatted shot, a poked handler)
     this.spinMode = null;
+    this.backspin = false;                  // a released shot's backspin, until its first rim / board / floor contact
     this.visible = true;
     this.events = [];
     this.pool = new Array(EVENT_POOL);
@@ -123,6 +124,7 @@ export class Ball {
     this.contacted = false;
     this.ctx = 'none';
     this.spinMode = null;
+    this.backspin = false;
     this.placeOnOwner();
     this.prevPos.copy(this.pos);
   }
@@ -152,6 +154,7 @@ export class Ball {
     this.state = state === 'pass' || state === 'loose' || state === 'scored' ? state : 'flight';
     this.releaseAge = 0;
     this.looseT = 0;
+    this.backspin = false;                  // launchShot sets it for shots
     this.rimContacts = 0;
     this.rimEnabled = this.state !== 'scored';
     this.boardEnabled = this.state !== 'scored';
@@ -255,6 +258,7 @@ export class Ball {
       this.releaseAge += dt;
       if (this.state === 'loose') this.looseT += dt;
       stepFreeBall(this, dt, this.rng, STEP_OUT);
+      if (STEP_OUT.rim > 0 || STEP_OUT.board > 0) this.backspin = false;   // rim / board contact scrubs the spin
       if (STEP_OUT.rim > 0) { this.emit(events, 'rim', STEP_OUT.rim, this.lastToucher); this.contacted = true; this.shot.touched = this.shot.touched || this.ctx === 'shot'; }
       if (STEP_OUT.board > 0) { this.emit(events, 'board', STEP_OUT.board, this.lastToucher); this.contacted = true; this.shot.touched = this.shot.touched || this.ctx === 'shot'; }
       if (STEP_OUT.floor > 0) { this.bounce(events, 'floor', STEP_OUT.floor); this.contacted = true; }

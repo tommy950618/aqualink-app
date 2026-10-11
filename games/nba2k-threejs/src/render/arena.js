@@ -369,6 +369,15 @@ export class LedBoards {
 }
 
 // Fit `text` centred at (x, y) into maxW × maxH: font size from the height, then shrink / squeeze to the width.
+/** True when a '#rgb' / '#rrggbb' colour is light (Rec. 709 luma of the encoded bytes > 0.6): dark text goes on it. */
+function isLightHex(hex) {
+  if (typeof hex !== 'string' || hex[0] !== '#') return false;
+  const h = hex.length === 4 ? hex[1] + hex[1] + hex[2] + hex[2] + hex[3] + hex[3] : hex.slice(1, 7);
+  const v = parseInt(h, 16);
+  if (!(v >= 0)) return false;
+  return (0.2126 * ((v >> 16) & 255) + 0.7152 * ((v >> 8) & 255) + 0.0722 * (v & 255)) / 255 > 0.6;
+}
+
 function fitText(ctx, text, x, y, maxW, maxH, weight) {
   let px = Math.max(6, Math.floor(maxH));
   ctx.font = weight + ' ' + px + 'px ' + FONT;
@@ -400,7 +409,7 @@ function fitText(ctx, text, x, y, maxW, maxH, weight) {
  *              leaders:[{short, pts}, {short, pts}] }   (pass the same object every frame; it is compared field by field)
  *   event    { kind:'dunk'|'three'|'block'|'winner', name, number, colour }
  *   replay   { name }
- *   intro    { number, nameZh, nameEn, ovr, height, colour }
+ *   intro    { number, nameZh, nameEn, ovr, height, colour, fg (number colour on the colour panel) }
  *   gameover { a:{abbr, score}, b:{abbr, score}, mvp:string }
  */
 export class Jumbotron {
@@ -644,16 +653,22 @@ export class Jumbotron {
     const zh = d.nameZh || '', en = d.nameEn || '';
     const lang = getLang();
     if (ctx) {
-      ctx.fillStyle = d.colour || '#1d2b4f';
+      const panel = d.colour || '#1d2b4f';
+      // a white (light) kit panel read as a blank glaring block wherever the camera crops the board: light kits get a
+      // dark panel edged in the kit colour, the number in the kit's number colour
+      const light = isLightHex(panel);
+      ctx.fillStyle = light ? '#15171e' : panel;
       ctx.fillRect(0, 0, W * 0.30, H);
-      ctx.fillStyle = '#ffffff';
-      fitText(ctx, d.number !== undefined ? String(d.number) : '', W * 0.15, H * 0.45, W * 0.26, H * 0.5, '900');
+      if (light) { ctx.fillStyle = panel; ctx.fillRect(W * 0.30 - H * 0.035, 0, H * 0.035, H); }
+      ctx.fillStyle = d.fg || (light ? GOLD : '#ffffff');
+      fitText(ctx, d.number !== undefined && d.number !== null ? String(d.number) : '', W * 0.15, H * 0.45, W * 0.26, H * 0.5, '900');
       ctx.fillStyle = '#ffffff';
       fitText(ctx, lang === 'zh' ? zh : en, W * 0.64, H * 0.30, W * 0.62, H * 0.20, '900');
       ctx.fillStyle = 'rgba(244,242,236,0.75)';
       fitText(ctx, lang === 'zh' ? en : zh, W * 0.64, H * 0.50, W * 0.62, H * 0.11, '700');
       ctx.fillStyle = GOLD;
-      const line = (d.ovr !== undefined ? 'OVR ' + d.ovr : '') + (d.height !== undefined ? '   ' + Number(d.height).toFixed(2) + ' m' : '');
+      const hm = Number(d.height);
+      const line = (d.ovr !== undefined && d.ovr !== null ? 'OVR ' + d.ovr : '') + (hm > 0 ? '   ' + hm.toFixed(2) + ' m' : '');
       fitText(ctx, line, W * 0.64, H * 0.70, W * 0.62, H * 0.12, '800');
     }
     return lang === 'zh' ? zh : en;

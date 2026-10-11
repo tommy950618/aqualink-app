@@ -23,7 +23,9 @@
  *              drags to director.turntable.drag(dxPx) / release(vxPxPerS) and applies director.turntable.yaw to the
  *              focused character each frame)
  *   title      —            pause —            halftime —
- *   gameover   { subject: Object3D|{x,z,yaw}, h, hold = 1.0 }   (holds the broadcast framing for `hold` s, then cuts)
+ *   gameover   { subject: Object3D|{x,z,yaw}, h, hold = 1.0, screenX = 0, screenLo = −0.80 }   (holds the broadcast framing for `hold` s,
+ *              then cuts; screenX = landscape NDC x of the MVP, e.g. the centre of the space left of the box score;
+ *              screenLo = landscape NDC y of his feet, above an overlay under him, default −0.80)
  *   showcase   { pos: {x,y,z}, look: {x,y,z}, fov, lens? }
  * Zero allocation per update (H10).
  */
@@ -40,7 +42,7 @@ export const MODES = Object.freeze(['broadcast', 'intro', 'replay', 'lineup', 't
 export const DIRECTOR = Object.freeze({ NEAR: 0.3, FAR: 160, EASE_S: 0.6, SETTINGS_EASE_S: 0.4, FOCUS_EASE_S: 0.5 });
 
 const V = new THREE.Vector3();
-const SUBJ = { x: 0, z: 0, yaw: 0, h: 2 };
+const SUBJ = { x: 0, z: 0, yaw: 0, h: 2, sx: 0, lo: -0.80 };
 const CTX = { aspect: 16 / 9, portrait: false, width: 1, height: 1 };
 
 /** Reads {x, z, yaw} of an Object3D (position / rotation.y) or of a plain {x, z, yaw} / {pos: {x, z}} into SUBJ. */
@@ -69,7 +71,7 @@ export class Director {
     this.turntable = new Turntable();
     this.mode = 'broadcast';
     this.modeTime = 0;
-    this.params = { source: null, focus: null, h: 2, focusId: null, subject: null, hold: 1.0, fixed: makePose() };
+    this.params = { source: null, focus: null, h: 2, focusId: null, subject: null, hold: 1.0, screenX: 0, screenLo: -0.80, fixed: makePose() };
     this.pose = makePose();          // last composed pose (before shake)
     this._tgt = makePose();
     this._from = makePose();
@@ -124,6 +126,8 @@ export class Director {
       this.turntable.reset(typeof o.yawDeg === 'number' ? o.yawDeg : 0);
     } else if (name === 'gameover') {
       p.subject = o.subject || null; p.h = o.h > 0 ? o.h : 2; p.hold = typeof o.hold === 'number' ? o.hold : 1.0;
+      p.screenX = typeof o.screenX === 'number' ? o.screenX : 0;
+      p.screenLo = typeof o.screenLo === 'number' ? o.screenLo : -0.80;
       this._gameoverCut = false;
     } else if (name === 'showcase') {
       const f = p.fixed;
@@ -219,7 +223,7 @@ export class Director {
         } else {
           if (!this._gameoverCut) { this._gameoverCut = true; this.trans.active = false; }
           readSubject(p.subject, SUBJ);
-          SUBJ.h = p.h;
+          SUBJ.h = p.h; SUBJ.sx = p.screenX || 0; SUBJ.lo = typeof p.screenLo === 'number' ? p.screenLo : -0.80;
           gameoverShot(this.modeTime - p.hold, SUBJ, aspect, tgt);
         }
         break;

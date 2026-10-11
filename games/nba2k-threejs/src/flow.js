@@ -45,6 +45,8 @@ const SHOWCASE_CLIP = {
 const PLAY_STATES = { CHECK: 1, LIVE: 1, DEAD: 1 };
 /** Above this speed (m/s) an off-ball player keeps the full animation rate on low / medium (§4.14 30 Hz players). */
 const HALF_RATE_MAX_SPEED = 2.5;
+/** Landscape game-over framing of the MVP beside the box score (Flow.gameoverScreen). */
+const GO_SCREEN = { x: 0, lo: -0.80 };
 /** Game-over stand-off spots of the five non-MVP legends (≥ 4.5 m from the MVP at (0, −5.6)). */
 const GAMEOVER_SPOTS = [[-5.0, -8.6], [-2.6, -10.6], [2.6, -10.6], [5.0, -8.6], [0, -11.6]];
 
@@ -376,8 +378,9 @@ export class Flow {
       const id = shot.id, L = LEGENDS[id];
       a.lights.setSpotTarget(shot.spot.x, shot.chestY, shot.spot.z);
       a.present.lowerThird(id, shot.first);
+      const kc = a.match.kitColours(id);
       a.arena.jumbo.setMode('intro', { number: L.number, nameZh: L.name.zh, nameEn: L.name.en, ovr: L.ratings.overall,
-        height: L.stats.heightM, colour: a.match.kitColours(id).bg });
+        height: L.stats.heightM, colour: kc.bg, fg: kc.fg });
       a.audio.boom();
       const ci = clipIndex(SHOWCASE_CLIP[id] || '');
       const p = this.players[this.index[id]];
@@ -705,12 +708,41 @@ export class Flow {
       const s = GAMEOVER_SPOTS[k++];
       this.place(q.id, s[0], s[1], Math.atan2(-s[0], -5.6 - s[1]));
     }
-    a.director.setMode('gameover', { subject: c ? c.object : { x: p.pos.x, z: p.pos.z, yaw: p.yaw }, h, hold: 0, transition: 'cut' });
+    a.director.setMode('gameover', { subject: c ? c.object : { x: p.pos.x, z: p.pos.z, yaw: p.yaw }, h, hold: 0, transition: 'cut',
+      screenX: this.gameoverScreen().x, screenLo: GO_SCREEN.lo });
     a.lights.setPreset('gameover', 0.6);
     a.lights.setSpotTarget(p.pos.x, 0.72 * h, p.pos.z);
     const ld = this.liveData;
     a.arena.jumbo.setMode('gameover', { a: { abbr: ld.a.abbr, score: d.score[0] }, b: { abbr: ld.b.abbr, score: d.score[1] }, mvp: this.shortOf(id) });
     a.hoop.setShotClock(null);
+  }
+
+  /**
+   * Where the landscape game-over orbit puts the MVP (written into GO_SCREEN): x = the centre of the space left of the
+   * box-score panel (#menuOver sits on the right in landscape), lo = his feet just above the MVP card when the card
+   * sits under him. Portrait (the panel is below him) → centred, default band.
+   */
+  gameoverScreen() {
+    GO_SCREEN.x = 0; GO_SCREEN.lo = -0.80;
+    if (typeof document === 'undefined') return GO_SCREEN;
+    const el = document.getElementById('menuOver');
+    const W = window.innerWidth, H = window.innerHeight;
+    if (!el || !(W > H)) return GO_SCREEN;
+    const r = el.getBoundingClientRect();
+    if (!(r.width > 0) || r.left < W * 0.25) return GO_SCREEN;
+    GO_SCREEN.x = clamp(r.left / W - 1, -0.7, 0);
+    const card = document.getElementById('mvpCard');
+    const c = card ? card.getBoundingClientRect() : null;
+    // the MVP's column (± 0.25 NDC around x) overlaps the card → feet 0.05 above the card's top edge
+    if (c && c.width > 0 && (c.right / W) * 2 - 1 > GO_SCREEN.x - 0.25) GO_SCREEN.lo = clamp(1 - (c.top / H) * 2 + 0.05, -0.80, 0);
+    return GO_SCREEN;
+  }
+
+  /** Viewport change while the game-over panel is up: re-place the MVP beside the panel. */
+  onResize() {
+    if (this.screenMode !== 'gameover' || this.app.director.mode !== 'gameover') return;
+    const s = this.gameoverScreen(), p = this.app.director.params;
+    p.screenX = s.x; p.screenLo = s.lo;
   }
 
   // ================================================================================================ fixed step (non-sim states)

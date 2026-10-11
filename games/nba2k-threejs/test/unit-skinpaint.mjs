@@ -50,7 +50,7 @@ function reference(L, m, x, y, seed, alpha) {
   c = mix(c, des, L.tattooK * m.tattoo);
   const h = ((((x * 73856093) ^ (y * 19349663) ^ ((seed * 83492791) | 0)) & 255) > 158) ? 1 : 0;
   c = mix(c, hair, 0.25 * Math.max(m.hair * L.stubbleHair, m.beard) * h);
-  let rough = L.skinRoughness - 0.10 * m.highlight - 0.15 * m.lips + 0.15 * m.beard + 0.10 * m.palms;
+  let rough = L.skinRoughness - 0.10 * m.highlight - (L.lipRoughK ?? 0.15) * m.lips + 0.15 * m.beard + 0.10 * m.palms;
   rough = rough + (0.25 - rough) * m.nails;
   rough = rough + (L.scalpRoughness - rough) * m.gloss;
   const a = alpha ? Math.round(255 * Math.min(0.9, Math.max(0.2, rough))) : 255;
@@ -90,7 +90,7 @@ check('8×8: base texel, lip texel, nail roughness 0.25, low-tier alpha', () => 
     const want = Math.round(255 * (skin[k] * mot + (lips[k] - skin[k] * mot) * 0.85));
     assert.ok(Math.abs(out[o1 + k] - want) <= 1, `lip channel ${k}: ${out[o1 + k]} vs ${want}`);
   }
-  assert.equal(out[o1 + 3], Math.round(255 * (L.skinRoughness - 0.15)), 'lip roughness');
+  assert.equal(out[o1 + 3], Math.round(255 * (L.skinRoughness - (L.lipRoughK ?? 0.15))), 'lip roughness');
   assert.equal(out[(2 * 8 + 2) * 4 + 3], Math.round(255 * 0.25), 'nail roughness 0.25');
   assert.equal(out[(3 * 8 + 3) * 4 + 3], Math.round(255 * (L.skinRoughness + 0.10)), 'palm roughness');
   assert.equal(out[(4 * 8 + 4) * 4 + 3], Math.round(255 * L.scalpRoughness), 'gloss → scalp roughness');

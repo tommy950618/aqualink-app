@@ -519,6 +519,26 @@ GROUPS.push(['dribble', () => {
     ok(low, 'lowWindow (ball centre < 0.45 m) occurs every cycle');
     ok(palmErr < 0.02, `contact window: the palm rides on the ball top (max ${(palmErr * 1000).toFixed(1)} mm)`);
   }
+  // abrupt velocity changes (sprint → dead stop, reversals, hard cuts, every 0.37 s): the released ball keeps its designed
+  // offset from the player (no farther from the root than in a steady 6 m/s speed dribble, whose bounce point is pushed
+  // ≈ 1.3 m ahead, + 0.2 m) instead of flying on toward the bounce point predicted before the change
+  {
+    const run = (vel) => {
+      const o = makeOwner(), a = makeAnimator('lebron', o);
+      tick(a, o); a.setBallMode('drib', 'R');
+      let worst = 0;
+      for (let i = 0; i < 60 * 9; i++) {
+        const v = vel(i); o.vel.x = v[0]; o.vel.z = v[1];
+        tick(a, o);
+        if (i > 90) worst = Math.max(worst, Math.hypot(a.drib.pos[0] - o.pos.x, a.drib.pos[2] - o.pos.z));
+      }
+      return worst;
+    };
+    const steady = run(() => [0, 6]);
+    const V = [[0, 6], [0, 0], [0, -5], [5, 0], [0, 0], [-6, 0], [0, 6], [4, -4], [0, 0]];
+    const worst = run((i) => V[Math.floor(i / 22) % V.length]);
+    ok(worst < steady + 0.2, `abrupt velocity changes: dribbled ball ≤ ${(steady + 0.2).toFixed(2)} m from the root (max ${worst.toFixed(2)} m)`);
+  }
   // jog: release phase-locked to the foot strikes (one bounce per step), PLL converges
   for (const id of ['yao', 'kyrie']) {
     const o = makeOwner(), a = makeAnimator(id, o);

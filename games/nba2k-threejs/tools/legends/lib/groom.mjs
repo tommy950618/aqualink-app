@@ -91,11 +91,16 @@ export function hairFields(f, hair, beard, ear) {
   const phiK = phiC - 0.35, yK = yM(phiK), yTemple = ETy + earGap;
   const templeW = (t) => (hl.temple === 'square' ? Math.min(1, smooth(0, 0.18, t) * 0.85 + t * 0.15) : smooth(0, 1, t));
   const yFront = (phi) => (phi <= phiK ? yM(phi) : yK + (yTemple - yK) * templeW(Math.min(1, (phi - phiK) / (phiC - phiK))));
+  // polish round 2 (Kobe temple edge): the vertical distance to a hairline that descends steeply (round temple, nape
+  // ramp) under-reports the true surface distance, which squeezed the 8 mm shell fade and the 16 mm mask feather to
+  // 2–5 mm there. Dividing by the line's metric slope hypot(1, dy/(r·dφ)) makes fTop / fBack a distance-like value
+  // on every part of the line (same zero crossing, so the hairline itself does not move).
+  const slopeN = (fn, phi, r) => { const h = 0.004; return Math.hypot(1, (fn(phi + h) - fn(phi - h)) / (2 * h * Math.max(r, 0.02))); };
   const region = (v) => {
     const phi = f.phi(v.x, v.z), r = f.r(v.x, v.z);
-    const fTop = v.y - yFront(phi);
+    const fTop = (v.y - yFront(phi)) / slopeN(yFront, phi, r);
     const fSb = Math.min((phi - phiC) * r, v.y - ySB);
-    const fBack = Math.min((phi - (f.phiT - 0.02)) * r, v.y - yBack(phi));
+    const fBack = Math.min((phi - (f.phiT - 0.02)) * r, (v.y - yBack(phi)) / slopeN(yBack, phi, r));
     // the sideburn → over-the-ear step is rounded (5 mm) so the line wraps the ear instead of a square notch
     const fU = smax(smax(fTop, fSb, kCorner), fBack, 0.005);
     const fW = (v.w('head', 'neck_01') - 0.5) * 0.05;
@@ -112,7 +117,13 @@ export function hairFields(f, hair, beard, ear) {
     // (a nape line at or above the lobe has no taper band: the reversed smoothstep would thin the whole head)
     let d = taper && napeY < ELy - 0.002 ? base * mix(0.45, 1, smooth(napeY, ELy, v.y)) : base;
     const sd = layer && layer.sideDensity != null ? layer.sideDensity : null;
-    if (sd != null) d *= mix(sd, 1, smooth(ETy + 0.01, ETy + 0.045, v.y));
+    if (sd != null) {
+      let w = smooth(ETy + 0.01, ETy + 0.045, v.y);
+      // `hairline.sideburnKeep` (polish round 2, Giannis): the pre-tragus sideburn strip (in front of φT) keeps the full
+      // density, so the sideburn connects the fade to the beard instead of leaving bare skin in front of the ear
+      if (hl.sideburnKeep) w = Math.max(w, 1 - smooth(f.phiT - 0.07, f.phiT - 0.015, f.phi(v.x, v.z)));
+      d *= mix(sd, 1, w);
+    }
     return d;
   };
   return {
@@ -204,7 +215,10 @@ export function beardFields(f, beard) {
     const yA = landmarkY(C.F.yA, L), yB = landmarkY(C.F.yB, L);
     const phiA = f.phiT - C.F.dA / f.rT, phiB = f.phiCH + C.F.dB / f.rCH;
     const dN = C.F.dN, gap = (C.F.moustacheGapMm ?? 0.5) / 1000;
-    const yCheek = (phi) => (phi <= phiB ? yB : phi >= phiA ? yA : mix(yB, yA, (phi - phiB) / (phiA - phiB)));
+    // `cheekPow` (polish round 2, LeBron; default 1 = straight): yCheek = mix(yB, yA, t^cheekPow); < 1 lifts the cheek
+    // line early so it runs high and level from the moustache corner to the sideburn instead of a diagonal
+    const cp = C.F.cheekPow ?? 1;
+    const yCheek = (phi) => (phi <= phiB ? yB : phi >= phiA ? yA : mix(yB, yA, ((phi - phiB) / (phiA - phiB)) ** cp));
     // neckline: lowest under the chin, rising to the ear lobe; `neckCurve` [φ0, φ1] (default [0.35, 1.45]) sets where it
     // rises (an earlier start gives a flatter U that follows the jaw instead of a centre tail)
     const nc = C.F.neckCurve || [0.35, 1.45];
@@ -348,16 +362,26 @@ export function browFields(f, b) {
     return Math.min(fb, (v.w('head') - 0.5) * 0.05, v.z - (ECz - 0.01));
   };
   const density = (v) => { const t = clamp01(tOf(v.x)); return b.density * (0.75 + 0.25 * smooth(0, 0.2, t)) * (1 - 0.5 * smooth(0.8, 1, t)); };
+  // `fadeMm` (polish round 1, Yao and others): soft brow edges. The strand coverage ramps in over fadeMm from every
+  // border (instead of 0.5 mm along the top / bottom and 0.8 mm at the ends) and the painted skin underlay (`mask`)
+  // is feathered from 0.4·fadeMm outside to 0.6·fadeMm inside the brow, so no rounded box / sticker edge shows.
+  const fe = (b.fadeMm || 0) / 1000;
   const fade = (v) => {
     const t = tOf(v.x), tc = clamp01(t);
     const edge = h(tc) - Math.abs(v.y - yc(tc));
     const ends = t < 0 ? b.hIn - Math.hypot(Math.abs(v.x) - x0, v.y - yc(0)) : Math.min((1 - t) * len, t * len + b.hIn);
-    return smooth(0, 0.0005, edge) * smooth(0, 0.0008, ends);
+    return smooth(0, Math.max(0.0005, fe), edge) * smooth(0, Math.max(0.0008, fe), ends);
+  };
+  /** painted brow underlay (masks.mjs groom.B) */
+  const mask = (v) => {
+    const fr = region(v);
+    if (fe <= 0) return fr > -0.001 ? density(v) * smooth(0, 0.0005, fr) * fade(v) : 0;
+    return fr > -0.4 * fe ? density(v) * smooth(-0.4 * fe, 0.6 * fe, fr) : 0;
   };
   const uv = (x, y) => {
     const t = clamp01(tOf(x));
     const s = Math.max(-1, Math.min(1, (y - yc(t)) / h(t)));
     return [(s + 1) / 2 * 0.2, t * (len / 0.05)];
   };
-  return { region, density, fade, uv, yc, h, x0, x1, len, L };
+  return { region, density, fade, mask, uv, yc, h, x0, x1, len, L };
 }

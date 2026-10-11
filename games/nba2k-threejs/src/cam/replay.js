@@ -423,6 +423,36 @@ export class ReplayTriggers {
 // ========================================================================================================== player
 
 const BR = { a: 0, b: 0, ka: 0, kb: 0, alpha: 0 };
+/** Dunk orbit candidates for occlusion avoidance: [start angle off the approach axis (deg), preference cost]. */
+const DUNK_PATHS = Object.freeze([60, 0, 45, 0.10, 80, 0.10, 30, 0.25, 100, 0.25, 125, 0.45, 15, 0.45]);
+const OCC_SAMPLES = 12;
+/** Head centre above the pelvis as a fraction of the barefoot height; body sample points of an occluder (same unit). */
+const HEAD_ABOVE_PELVIS = 0.40;
+const OCC_BODY = Object.freeze([-0.24, 0.14, 0.12, 0.19, 0.25, 0.22, 0.40, 0.13]);   // [dy/h, radius m] knee, belly, chest, head
+
+/**
+ * How much the other recorded players block the sight line camera (cx, cy, cz) → target (tx, ty, tz) in frame fo:
+ * Σ over body sample points between them (5–97 % along the line) of the overlap (radius − distance) / radius.
+ */
+function sightBlock(rec, fo, skip, cx, cy, cz, tx, ty, tz, heights) {
+  const lx = tx - cx, ly = ty - cy, lz = tz - cz;
+  const L2 = lx * lx + ly * ly + lz * lz;
+  if (L2 < 1e-6) return 0;
+  let occ = 0;
+  for (let i = 0; i < REPLAY.PLAYERS; i++) {
+    if (i === skip || !rec.pelvisAt(fo, i, P1)) continue;
+    const h = heights[i];
+    for (let k = 0; k < OCC_BODY.length; k += 2) {
+      const px = P1.x, py = P1.y + OCC_BODY[k] * h, pz = P1.z, rad = OCC_BODY[k + 1];
+      const s = ((px - cx) * lx + (py - cy) * ly + (pz - cz) * lz) / L2;
+      if (s < 0.05 || s > 0.97) continue;
+      const qx = cx + lx * s - px, qy = cy + ly * s - py, qz = cz + lz * s - pz;
+      const d = Math.sqrt(qx * qx + qy * qy + qz * qz);
+      if (d < rad) occ += (rad - d) / rad;
+    }
+  }
+  return occ;
+}
 const P0 = { x: 0, y: 0, z: 0 };
 const P1 = { x: 0, y: 0, z: 0 };
 
@@ -742,6 +772,7 @@ export class ReplayPlayer {
       const zPlus = Math.cos(thR + REPLAY.DUNK.startDeg * DEG), zMinus = Math.cos(thR - REPLAY.DUNK.startDeg * DEG);
       this.sweepSign = zPlus >= zMinus ? 1 : -1;
       this.startAz = thR + this.sweepSign * REPLAY.DUNK.startDeg * DEG;
+      this._clearDunkPath(thR, f);
     } else if (this.kind === 'jumper') {
       this.shooterSide = P0.x >= 0 ? -1 : 1;     // the rim cam sits on the side away from the shooter
     } else {
@@ -766,7 +797,71 @@ export class ReplayPlayer {
       let nx = -dz, nz = dx;
       if (nz < -1e-3 || (Math.abs(nz) <= 1e-3 && nx < 0)) { nx = -nx; nz = -nz; }
       this.sideX = nx; this.sideZ = nz;
+      // occlusion avoidance: the far side when a body blocks the broadcast side's view of the play (and not the other)
+      if (this._sideBlock(f, -1) + 0.5 < this._sideBlock(f, 1)) { this.sideX = -nx; this.sideZ = -nz; }
     }
+  }
+
+  /**
+   * Occlusion avoidance for the dunk orbit: the spec path (start 60° off the approach on the broadcast side, sweep 50°
+   * back) is kept when nothing stands between the camera and the dunker; otherwise the orbit (side, start angle) with
+   * the clearest line of sight to the dunker's head and the ball over the recorded window is used. Sampled once at
+   * playback start from the recorded frames (no allocation): DUNK_PATHS candidates × OCC_SAMPLES frames.
+   */
+  _clearDunkPath(thR, f) {
+    const rec = this.recorder, D = REPLAY.DUNK, b = rec.buf;
+    let bestCost = Infinity, bestAz = this.startAz, bestSign = this.sweepSign;
+    for (let c = 0; c < DUNK_PATHS.length; c += 2) {
+      for (let side = 0; side < 2; side++) {
+        const sign = side === 0 ? this.sweepSign : -this.sweepSign;
+        const az0 = thR + sign * DUNK_PATHS[c] * DEG;
+        let occ = 0;
+        for (let k = 0; k < OCC_SAMPLES; k++) {
+          const u = (k + 0.5) / OCC_SAMPLES;
+          const t = this.t0 + (this.t1 - this.t0) * u;
+          if (!rec.bracket(t, BR)) continue;
+          rec.pelvisAt(BR.a, f, P0);
+          const th = az0 - sign * D.sweepDeg * DEG * u;
+          const cx = P0.x + D.r * Math.sin(th), cy = D.y0 + (D.y1 - D.y0) * u;
+          let cz = P0.z + D.r * Math.cos(th);
+          if (cz < REPLAY.MIN_Z) cz = REPLAY.MIN_Z;
+          // targets: the dunker's head and the ball (weights 1 and 0.6)
+          const hf = this.heights[f];
+          occ += sightBlock(rec, BR.a, f, cx, cy, cz, P0.x, P0.y + HEAD_ABOVE_PELVIS * hf, P0.z, this.heights);
+          const bo = BR.a + BALL_OFF;
+          if (b[bo + 7] > 0.5) occ += 0.6 * sightBlock(rec, BR.a, f, cx, cy, cz, b[bo], b[bo + 1], b[bo + 2], this.heights);
+          // the 0.9 m pelvis constraint would shove the camera: count a near body as a blocked view too
+          for (let i = 0; i < REPLAY.PLAYERS; i++) {
+            if (i === f || !rec.pelvisAt(BR.a, i, P1)) continue;
+            const dx = cx - P1.x, dz = cz - P1.z;
+            if (dx * dx + dz * dz < 1.0) occ += 0.5;
+          }
+        }
+        // preference for the spec path: the broadcast side first, then the 60° start
+        const cost = occ + DUNK_PATHS[c + 1] + (side === 0 ? 0 : 0.15);
+        if (cost < bestCost - 1e-9) { bestCost = cost; bestAz = az0; bestSign = sign; }
+      }
+    }
+    this.startAz = bestAz; this.sweepSign = bestSign;
+  }
+
+  /** Sight-line blockage of the block / ankle side camera (side ±1 of the current sideX/Z) over the window. */
+  _sideBlock(f, sgn) {
+    const rec = this.recorder, B = REPLAY.BLOCK, b = rec.buf;
+    let occ = 0;
+    for (let k = 0; k < OCC_SAMPLES; k++) {
+      const t = this.t0 + (this.t1 - this.t0) * (k + 0.5) / OCC_SAMPLES;
+      if (!rec.bracket(t, BR)) continue;
+      const bo = BR.a + BALL_OFF, bx = b[bo], by = b[bo + 1], bz = b[bo + 2];
+      const proj = (bx - this.lineX) * this.lineDx + (bz - this.lineZ) * this.lineDz;
+      const cx = this.lineX + this.lineDx * proj + sgn * this.sideX * B.dist;
+      let cz = this.lineZ + this.lineDz * proj + sgn * this.sideZ * B.dist;
+      if (cz < REPLAY.MIN_Z) cz = REPLAY.MIN_Z;
+      rec.pelvisAt(BR.a, f, P0);
+      occ += sightBlock(rec, BR.a, f, cx, B.y, cz, P0.x, P0.y + HEAD_ABOVE_PELVIS * this.heights[f], P0.z, this.heights);
+      if (b[bo + 7] > 0.5) occ += 0.6 * sightBlock(rec, BR.a, f, cx, B.y, cz, bx, by, bz, this.heights);
+    }
+    return occ;
   }
 
   /** z ≥ −12.0, y ≥ 0.8, ≥ 0.9 m from every visible recorded pelvis (two relaxation passes). */

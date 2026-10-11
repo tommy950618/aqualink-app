@@ -330,6 +330,7 @@ const SHADOW_R = 2.2, SHADOW_PAD = 0.35;
 const TURN_SAMPLES = 4;
 /** Reach floor: a lane gap under this share of the defender's post-reaction run is treated as reachable. */
 const REACH_FLOOR_K = 0.5;
+const GAMBLE_REF = 0.48, GAMBLE_W_MIN = 0.5, GAMBLE_W_MAX = 1.5;   // lane-gamble weight of the linear risk term (I3)
 const PASS_EP_K = 0.92, LANE_R = 0.8, LANE_PEN = 0.6, RISK_K = 0.6;
 /** Drive: laneClear segment (0.90 m × next 3 m), guardBeaten lateral offset, pBeat terms (§5.10). */
 const DRIVE_LANE_R = 0.90, DRIVE_LANE_LEN = 3.0, GUARD_LAT = 0.90, LANE_SHUT_MUL = 0.6;
@@ -347,6 +348,7 @@ const FRONT_DOT = SHOT_V2.FRONT_DOT, FRONT_NEAR = SHOT_V2.FRONT_NEAR;
 export const POST_DEPTH = 2.6, POST_DEPTH_YAO = 2.3;
 /** A beaten defender trails instead of recovering when a teammate already holds the rim-side spot within 1.5 m. */
 const RECOVER_HELD = 1.5;
+const ROT_OPEN = 2.2, ROT_GUARD_D = 2.4, ROT_RANGE = 7.8, YAO_ROT_R = 5.5, ROT_MAX_V = 3.0, ROT_BEHIND_D = 1.5, ROT_IDLE_STICK = 0.15;   // rotation onto a loose handler (I3)
 /** Court clamp for steering targets (half court, inside the lines). */
 export const CLAMP_X = 7.2, CLAMP_Z_MIN = -14.0, CLAMP_Z_MAX = -0.5;
 const CMAX = SHOT_V2.CMAX;
@@ -720,7 +722,10 @@ function riskFrom(passer, recv, sx, sz, x, z, world) {
     if (down >= tb + LAUNCH_DELAY) continue;
     const intR = d.attrs.catchR + INTERCEPT.R_ADD + (has(d, 'jordan.hawk') ? 0.20 : 0);
     const reachR = intR + d.attrs.run * Math.max(0, tb - Math.max(react, down));
-    let c = dl < reachR ? RISK_K * (1 - dl / reachR) : 0;
+    // (I3) weighted by how often this defender jumps lanes (his laneGambleP over the league reference): passers read
+    // a hawk's lane as riskier than a stay-home big's
+    const gw = clamp(laneGambleP(d, aiDiff(world, d)) / GAMBLE_REF, GAMBLE_W_MIN, GAMBLE_W_MAX);
+    let c = dl < reachR ? RISK_K * (1 - dl / reachR) * gw : 0;
     // a defender who only has to lean into the lane (the gap to his intercept radius is well inside what he covers
     // after his reaction) gets there whenever he gambles: lane-jump odds × the game's contact odds (I3; the spec's
     // linear term gave 0.33 to a hawk 0.14 m short of the lane, which caught 100 % of those passes)
@@ -850,6 +855,36 @@ export function spotHeld(p, world, x, z) {
     if (q !== p && q.team === p.team && distXZ(q.pos.x, q.pos.z, x, z) < RECOVER_HELD) return true;
   }
   return false;
+}
+
+/**
+ * Rotation onto a loose handler (I3), not on a drive (< ROT_MAX_V: the help rule takes those): his guard is a human
+ * with an idle stick who is ≥ ROT_GUARD_D away, unable to act or behind him by ≥ ROT_BEHIND_D; no other defender is in
+ * front of him within ROT_OPEN; he is within ROT_RANGE of the rim; and `p` is the nearest other CPU defender able to
+ * act (Yao only inside YAO_ROT_R: he keeps the paint). Without it a standing human's man shot uncontested every trip
+ * (§5.14 B).
+ */
+export function rotationDue(p, h, world) {
+  if (!p.canAct || h.speed >= ROT_MAX_V || rimD(h) > ROT_RANGE || (p.id === 'yao' && rimD(h) > YAO_ROT_R)) return false;
+  const g = guardOf(h, world);
+  // only a human who has stopped defending is covered for (stick idle, the auto-switch test; a human working back and
+  // CPU guards recover by themselves, the drive help rule backs them up), and only when he is out of the play: far,
+  // unable to act or behind the handler by ≥ ROT_BEHIND_D
+  if (!g || g.disabled || !userControls(world, g) || !g.intent || g.intent.move.mag >= ROT_IDLE_STICK) return false;
+  dirTo(G, h.pos.x, h.pos.z, RIM.x, RIM.z);
+  const gd = distXZ(g.pos.x, g.pos.z, h.pos.x, h.pos.z);
+  if (gd < ROT_GUARD_D && g.canAct && (gd < ROT_BEHIND_D || (g.pos.x - h.pos.x) * G.x + (g.pos.z - h.pos.z) * G.z >= 0)) return false;
+  const myD = distXZ(p.pos.x, p.pos.z, h.pos.x, h.pos.z);
+  const ps = world.players;
+  for (let i = 0; i < ps.length; i++) {
+    const q = ps[i];
+    if (q === g || q.team !== p.team || q.disabled) continue;
+    const dx = q.pos.x - h.pos.x, dz = q.pos.z - h.pos.z, d = Math.sqrt(dx * dx + dz * dz);
+    // another defender already contests the handler (in front within ROT_OPEN): no rotation
+    if (q !== p && d < ROT_OPEN && (d <= FRONT_NEAR || (d > 1e-6 && (dx * G.x + dz * G.z) / d >= FRONT_DOT))) return false;
+    if (q !== p && q.canAct && !userControls(world, q) && d < myD) return false;
+  }
+  return true;
 }
 
 /**

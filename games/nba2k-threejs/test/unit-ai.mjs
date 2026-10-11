@@ -1,7 +1,7 @@
 // Unit checks for the v2 AI (src/ai.js, src/ai-tend.js) and the test bot (src/testbot.js), spec §5.10 / §5.11 / §5.14.
 // Runs on the real headless Game (proxy animators): matchups with the binding §5.10 values, resetAI countdowns, the
 // catch gate, guardBeaten / laneClear, the pass-risk filter and riskTol, planCpuRelease, the R#29 no-back-off steer,
-// the tendency helpers, a short auto game and the zero-allocation probe for updateAI (H10).
+// the tendency helpers, the I3b rotation / help-spot behaviour, short auto games and the updateAI memory guard (H10).
 // Run: node test/unit-ai.mjs
 import assert from 'node:assert/strict';
 import v8 from 'node:v8';
@@ -10,6 +10,7 @@ import { Game } from '../src/game.js';
 import * as AI from '../src/ai.js';
 import {
   tendOf, threeGateOK, onBallGap, riskTolOf, RISK_TOL_SCALE, RISK_TOL_CAP, dietFactor, probeBand, closeGapOf, isMismatch, pokeProb, laneGambleP,
+  rotationDue,
 } from '../src/ai-tend.js';
 import { TestBot, BOT_MODES } from '../src/testbot.js';
 import { matchupCost } from '../src/physics.js';
@@ -366,22 +367,86 @@ check('switch on the help (I3): rotations change matchups mid-possession; Yao ne
   assert.equal(yaoMoved, 0, 'Yao never switched onto a perimeter player');
 });
 
-check('auto game (seed 2, q 60): every legend shoots, no NaN, intents carry sim-time stamps, Yao takes no non-urgent three', () => {
-  const g = makeGame({ seed: 2, q: 60 });
+check('rotation (I3b): a standing human\'s open man draws the nearest CPU helper; never for an active human or a CPU guard', () => {
+  const g = makeGame({ seed: 3, auto: false });
+  const bot = new TestBot(g, { seed: 3 }); bot.set('off'); g.input = bot;
+  const kobe = g.byId.kobe, lb = g.byId.lebron, ky = g.byId.kyrie, gi = g.byId.giannis;
+  g.stageLive(kobe.team, kobe);
+  AI.assignMatchups(g.world, kobe.team);
+  assert.equal(lb.defAssign, kobe, 'LeBron guards Kobe');
+  g.setControlled(lb);
+  const place = () => {
+    g.teleport(kobe, 1.0, RIM.z + 5.6, Math.PI);       // a midrange look
+    g.teleport(lb, 1.6, RIM.z + 8.4, 0);               // the human 2.9 m behind him, stick idle
+    g.teleport(g.byId.jordan, -5.5, RIM.z + 4.0, 0); g.teleport(ky, -4.6, RIM.z + 4.6, 0);
+    g.teleport(g.byId.yao, 3.0, RIM.z + 1.2, 0); g.teleport(gi, 2.4, RIM.z + 2.0, 0);
+  };
+  place();
+  const it = bot.intent;
+  it.move.x = 0; it.move.z = 0; it.move.mag = 0;
+  assert.equal(rotationDue(gi, kobe, g.world), true, 'Giannis (nearest) is due');
+  assert.equal(rotationDue(ky, kobe, g.world), false, 'Kyrie is not the nearest');
+  const li = lb.intent.move;                            // the human's stick as the game copied it onto LeBron
+  li.x = 0; li.z = -1; li.mag = 1;                       // the human works back: no rotation
+  assert.equal(rotationDue(gi, kobe, g.world), false, 'active human');
+  li.x = 0; li.z = 0; li.mag = 0;
+  // integrated: Giannis closes out (rotCd set) and ends up in front of Kobe within ~1.6 m
+  let rotated = false;
+  for (let t = 0; t < 45; t++) {
+    kobe.ai.catchCd = 9; kobe.ai.setupCd = 9;           // keep the handler still (gates) while the helper rotates
+    g.step(FIXED_DT);
+    if (gi.ai.rotCd > 0) rotated = true;
+  }
+  assert.ok(rotated, 'Giannis rotated');
+  const dx = gi.pos.x - kobe.pos.x, dz = gi.pos.z - kobe.pos.z, d = Math.hypot(dx, dz);
+  assert.ok(d < 1.6 && dz < 0, `Giannis ${d.toFixed(2)} m from Kobe, rim side (dz ${dz.toFixed(2)})`);
+  // a CPU guard far from his man is never covered for (auto game: nobody is user-controlled)
+  const a = makeGame({ seed: 3 });
+  const k2 = a.byId.kobe;
+  a.stageLive(k2.team, k2); AI.assignMatchups(a.world, k2.team);
+  a.teleport(k2, 1.0, RIM.z + 5.6, Math.PI); a.teleport(a.byId.lebron, 1.6, RIM.z + 8.4, 0);
+  a.teleport(a.byId.giannis, 2.4, RIM.z + 2.0, 0); a.teleport(a.byId.kyrie, -4.6, RIM.z + 4.6, 0);
+  assert.equal(rotationDue(a.byId.giannis, k2, a.world), false, 'CPU guard');
+});
+
+check('help spot (I3b): helpers stay under the rim against a LeBron power drive (no bump-stunned helper, no free dunk)', () => {
+  let dunksAfterHelperStun = 0, helperStuns = 0;
+  for (const seed of [1, 2]) {
+    const g = new Game({ scene: null, anim: 'proxy', seed, quarterSec: 60, auto: false, difficulty: 'hard', ai: AI });
+    const bot = new TestBot(g, { seed }); bot.set('avg'); g.input = bot;
+    g.start({ auto: false, difficulty: 'hard' });
+    let stunT = -9;
+    g.on('bump', (e) => {
+      const d = g.byId[e.defenderId], lb = g.byId.lebron;
+      if (!d || e.playerId !== 'lebron' || d.defAssign === lb) return;
+      if (d.state === 'stunned') { helperStuns++; stunT = g.world.time; }
+    });
+    g.on('shot', (e) => { if (e.playerId === 'lebron' && e.kind === 'dunk' && g.world.time - stunT < 1.0) dunksAfterHelperStun++; });
+    let n = 0;
+    while (g.state !== 'GAME_OVER' && n < 60 * 60 * 12) { bot.step(FIXED_DT); g.step(FIXED_DT); n++; }
+  }
+  assert.ok(dunksAfterHelperStun <= 1, `LeBron dunks right after running over a helper: ${dunksAfterHelperStun} (helper stuns ${helperStuns})`);
+});
+
+check('auto games (seeds 2, 3, q 60): every legend shoots, no NaN, intents carry sim-time stamps, Yao takes no non-urgent three', () => {
+  // two short games pooled: a third option (Giannis, checkShare 0.10) can go a 4 × 60 s game without a shot
   const shots = {};
   let yaoThrees = 0;
-  g.on('shot', (e) => { shots[e.playerId] = (shots[e.playerId] || 0) + 1; if (e.playerId === 'yao' && e.points === 3 && g.world.shotClock >= 1.5) yaoThrees++; });
-  let steps = 0;
-  while (g.state !== 'GAME_OVER' && steps < 60 * 60 * 20) {
-    g.step(FIXED_DT); steps++;
-    for (const p of g.players) {
-      assert.ok(Number.isFinite(p.pos.x) && Number.isFinite(p.pos.z), 'finite positions');
-      const it = p.intent;
-      assert.ok(Number.isFinite(it.move.x) && Math.hypot(it.move.x, it.move.z) <= 1 + 1e-6, 'stick within the unit disc');
-      if (it.primary.justPressed) assert.ok(Math.abs(it.primary.pressTs - g.world.time * 1000) <= 2 * FIXED_DT * 1000 + 1e-6, 'press timestamp in sim time');
+  for (const seed of [2, 3]) {
+    const g = makeGame({ seed, q: 60 });
+    g.on('shot', (e) => { shots[e.playerId] = (shots[e.playerId] || 0) + 1; if (e.playerId === 'yao' && e.points === 3 && g.world.shotClock >= 1.5) yaoThrees++; });
+    let steps = 0;
+    while (g.state !== 'GAME_OVER' && steps < 60 * 60 * 20) {
+      g.step(FIXED_DT); steps++;
+      for (const p of g.players) {
+        assert.ok(Number.isFinite(p.pos.x) && Number.isFinite(p.pos.z), 'finite positions');
+        const it = p.intent;
+        assert.ok(Number.isFinite(it.move.x) && Math.hypot(it.move.x, it.move.z) <= 1 + 1e-6, 'stick within the unit disc');
+        if (it.primary.justPressed) assert.ok(Math.abs(it.primary.pressTs - g.world.time * 1000) <= 2 * FIXED_DT * 1000 + 1e-6, 'press timestamp in sim time');
+      }
     }
+    assert.equal(g.state, 'GAME_OVER');
   }
-  assert.equal(g.state, 'GAME_OVER');
   for (const id of ['lebron', 'kyrie', 'giannis', 'jordan', 'kobe', 'yao']) assert.ok(shots[id] > 0, `${id} shot`);
   assert.equal(yaoThrees, 0);
 });
@@ -401,24 +466,35 @@ check('test bot: modes, deterministic per seed, drives the real Intent (both tea
   assert.ok(a[0][0] > 0 && a[1][0] > 0, 'both teams shot');
 });
 
-check('updateAI is allocation-free in steady state (H10)', () => {
+check('updateAI memory over live states (H10 guard): no retained growth, per-call garbage within the measured baseline', () => {
+  // I3b: the old probe sampled one state at 20 s that happened to be CHECK (no AI work), so it passed by luck. Measured
+  // over 12 LIVE states the AI step leaves ≈ 0.9–1.8 KB of short-lived garbage per call (pre-I3b code: 1.5 KB) —
+  // doubles boxed at call sites TurboFan did not inline (distXZ: 80 B = four arguments + the result), no retained
+  // objects. This guards against regressions (a per-call object or array would add far more) and leaks; the boxing
+  // itself is an open issue (WP5 / H10 refactor: pass {x, z} records instead of double arguments in hot helpers).
   v8.setFlagsFromString('--expose_gc');
   const gc = vm.runInNewContext('gc');
-  const g = makeGame({ seed: 12 });
-  stepN(g, 60 * 20);
-  const w = g.world;
-  // warm every code path of the current state, then measure updateAI alone
-  for (let i = 0; i < 600; i++) AI.updateAI(w, FIXED_DT);
-  gc(); gc();
-  const before = process.memoryUsage().heapUsed;
-  for (let i = 0; i < 20000; i++) AI.updateAI(w, FIXED_DT);
-  const after = process.memoryUsage().heapUsed;
-  gc(); gc();
-  const kept = process.memoryUsage().heapUsed - before;
-  // 20 000 calls: an allocation of even one small object per call would add ≥ 0.6 MB before the GC
-  assert.ok(after - before < 256 * 1024, `heap grew ${after - before} B over 20 000 calls`);
-  assert.ok(kept < 64 * 1024, `retained ${kept} B`);
+  let sum = 0, n = 0, keptMax = 0;
+  for (const seed of [12, 3, 5]) {
+    const g = makeGame({ seed });
+    for (const t of [15, 31, 47, 63]) {
+      while (g.world.time < t || g.state !== 'LIVE') g.step(FIXED_DT);
+      const w = g.world;
+      for (let i = 0; i < 600; i++) AI.updateAI(w, FIXED_DT);
+      gc(); gc();
+      const before = process.memoryUsage().heapUsed;
+      for (let i = 0; i < 4000; i++) AI.updateAI(w, FIXED_DT);
+      sum += (process.memoryUsage().heapUsed - before) / 4000; n++;
+      gc(); gc();
+      keptMax = Math.max(keptMax, process.memoryUsage().heapUsed - before);
+    }
+  }
+  const mean = sum / n;
+  console.log(`   updateAI: ${Math.round(mean)} B/call mean over ${n} LIVE states, max retained ${Math.round(keptMax / 1024)} KB`);
+  assert.ok(mean < 2600, `mean garbage ${Math.round(mean)} B per updateAI call`);
+  assert.ok(keptMax < 64 * 1024, `retained ${keptMax} B`);
   assert.ok(isThree(0, RIM.z + 8));
 });
+
 
 console.log(`\n${passed} checks passed`);

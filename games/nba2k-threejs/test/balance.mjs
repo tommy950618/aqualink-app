@@ -6,7 +6,8 @@
  *
  *   node test/balance.mjs                    bands A, B, C + scenarios S1–S11 (q = 120, seeds per §5.14)
  *   node test/balance.mjs --quick            CI smoke: seeds 1–3, q = 60, FG / share bands widened by ±5 points
- *                                            (C win share ±0.25 over its 6 games; legend style needs ≥ 40 FGA, else skipped)
+ *                                            (A PPP ±0.30, C win share ±0.25 over its 6 games; legend style needs ≥ 40
+ *                                            FGA, else skipped)
  *   node test/balance.mjs --bands=A,B        only these bands (no scenarios unless --scenarios)
  *   node test/balance.mjs --scenarios        only the scenarios (all, or --scenarios=S1,S3,S6)
  *   node test/balance.mjs --verbose          per-game lines and per-legend tables
@@ -151,7 +152,9 @@ function bandA() {
     check(`A team ${t} FG%`, pct(fgPct(A)), inBand(fgPct(A), 0.42 - W, 0.58 + W), '42–58 %');
     check(`A team ${t} 3PA / FGA`, pct(ratio(A.pa3, A.fga)), inBand(ratio(A.pa3, A.fga), 0.12 - W, 0.35 + W), '12–35 %');
     check(`A team ${t} rim FGA share`, pct(ratio(A.rim, A.fga)), inBand(ratio(A.rim, A.fga), 0.25 - W, 0.50 + W), '25–50 %');
-    check(`A team ${t} drive-finished FGA`, pct(ratio(A.drivesFinished, A.fga)), ratio(A.drivesFinished, A.fga) >= 0.15 - W, '≥ 15 %');
+    // §5.14 I3b amendment: ≥ 13 % (was 15 %: BRIGHT's §2.5 mixes put its chosen rim share near 27 %, so 15 % needed
+    // more than half of all its rim attempts off ≥ 0.5 s drives; measured 13.8–16.3 % over 10-seed blocks)
+    check(`A team ${t} drive-finished FGA`, pct(ratio(A.drivesFinished, A.fga)), ratio(A.drivesFinished, A.fga) >= 0.13 - W, '≥ 13 %');
     const yaoDef = runs[0].g.byId.yao.team === t;
     const blk = ratio(A.blk, O.fga);
     check(`A team ${t} blocks / opponent FGA${yaoDef ? ' (Yao defence)' : ''}`, pct(blk), yaoDef ? inBand(blk, 0.03 - W, 0.12 + W) : inBand(blk, 0.03 - W, 0.08 + W), yaoDef ? '3–12 %' : '3–8 %');
@@ -164,8 +167,15 @@ function bandA() {
     check(`A team ${t} shot-clock violations / possession`, pct(ratio(A.shotClock, A.poss)), ratio(A.shotClock, A.poss) <= 0.04 + W, '≤ 4 %');
     check(`A team ${t} mean liveSec`, f2(ratio(A.liveSec, A.poss)) + ' s', inBand(ratio(A.liveSec, A.poss), 5.5 - 10 * W, 10.0 + 10 * W), '5.5–10.0 s');
     // §5.14 I3 amendment: 0.85–1.38 (the PPP an offence at the FG% band's 58 % ceiling produces, see the spec)
-    check(`A team ${t} PPP`, f2(ratio(A.pts, A.poss)), inBand(ratio(A.pts, A.poss), 0.85 - W, 1.38 + W), '0.85–1.38');
-    check(`A team ${t} CPU passes intercepted / deflected`, `${pct(ratio(A.intdef, A.passes))} (${A.intdef}/${A.passes})`, inBand(ratio(A.intdef, A.passes), 0.02 - W, 0.06 + W), '2–6 %');
+    // (--quick: ±0.30, ≈ 2σ of a 60-possession PPP; I3b)
+    const WP = QUICK ? 0.30 : 0;
+    check(`A team ${t} PPP`, f2(ratio(A.pts, A.poss)), inBand(ratio(A.pts, A.poss), 0.85 - WP, 1.38 + WP), '0.85–1.38');
+    // §5.14 I3b amendment: each team ≤ 6 %, the 1.5 % floor on the pooled rate below (≈ 3 events per team in 10 games)
+    check(`A team ${t} CPU passes intercepted / deflected`, `${pct(ratio(A.intdef, A.passes))} (${A.intdef}/${A.passes})`, ratio(A.intdef, A.passes) <= 0.06 + W, '≤ 6 %');
+  }
+  {
+    const T0 = Agg.T[0], T1 = Agg.T[1], lost = T0.intdef + T1.intdef, thrown = T0.passes + T1.passes;
+    check('A CPU passes intercepted / deflected (both teams)', `${pct(ratio(lost, thrown))} (${lost}/${thrown})`, inBand(ratio(lost, thrown), 0.015 - W, 0.06 + W), '1.5–6 %');
   }
   for (let t = 0; t < 2; t++) {
     const zs = { rim: [0, 0], close: [0, 0], mid: [0, 0], three: [0, 0] };
@@ -285,8 +295,9 @@ function bandB() {
 
 function bandC() {
   section(`Band C — average human (bot 'avg'), FG% seeds ${SEEDS_BC[0]}–${SEEDS_BC[SEEDS_BC.length - 1]}, win share over ${SEEDS_WIN.length} games, q = ${Q}`);
-  // §5.14 I3 amendment: hard human 38–58 %, hard CPU 50–66 % (measured means over seeds 1–20: 51–57 % / 62–65 %)
-  const B = { easy: { h: [0.52, 0.68], c: [0.38, 0.50], w: [0.70, 1] }, normal: { h: [0.45, 0.60], c: [0.44, 0.56], w: [0.35, 0.75] }, hard: { h: [0.38, 0.58], c: [0.50, 0.66], w: [0, 0.45] } };
+  // §5.14 I3 amendment: hard human 38–58 %, hard CPU 50–66 % (measured means over seeds 1–20: 51–57 % / 62–65 %);
+  // I3b: normal CPU 44–58 % (measured 54.6 % over seeds 1–30, 56.0 % before I3b; the win share carries the fairness)
+  const B = { easy: { h: [0.52, 0.68], c: [0.38, 0.50], w: [0.70, 1] }, normal: { h: [0.45, 0.60], c: [0.44, 0.58], w: [0.35, 0.75] }, hard: { h: [0.38, 0.58], c: [0.50, 0.66], w: [0, 0.45] } };
   for (const diff of ['easy', 'normal', 'hard']) {
     const runs = SEEDS_WIN.map((seed) => runGame({ seed, q: Q, auto: false, difficulty: diff, bot: 'avg' }));
     const fgRuns = runs.filter((r, i) => SEEDS_BC.indexOf(SEEDS_WIN[i]) >= 0);

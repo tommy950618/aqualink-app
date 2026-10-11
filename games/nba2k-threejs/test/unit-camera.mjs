@@ -8,7 +8,7 @@ import { FRAMING, baseFov, BroadcastCamera, framingRow, BROADCAST, CAMERA_MODES 
 import { Director, MODES } from '../src/cam/director.js';
 import {
   introShots, IntroTimeline, Turntable, INTRO, INTRO_SPOTS, MATCHUP_SPOTS, TITLE_SPOTS, LINEUP_SPOTS, lineupShot,
-  titleShot, pauseShot, pauseRenderHz, halftimeShot, gameoverShot, makePose, fitWidth, easeInOutCubic, legendHeight, SHOTS,
+  titleShot, pauseShot, pauseRenderHz, halftimeShot, gameoverShot, makePose, fitWidth, bandFit, easeInOutCubic, legendHeight, SHOTS,
 } from '../src/cam/shots.js';
 import { RIM, COURT } from '../src/constants.js';
 import { LEGENDS, DEFAULT_LINEUP } from '../src/legends.js';
@@ -411,8 +411,18 @@ check('title orbit ±12° ping-pong at 3°/s, pause drift + render rate, halftim
   halftimeShot(6, 16 / 9, p); near(p.px, 3, 1e-9);
   const subj = { x: 1, z: -6, yaw: 0, h: 2.0 };
   gameoverShot(0, subj, 16 / 9, p);
-  near(Math.hypot(p.px - 1, p.pz + 6), 3.2, 1e-9); near(p.py, 1.5, 1e-9); near(p.ly, 0.72 * 2, 1e-9); assert.equal(p.fov, 32);
-  near(p.pz, -6 + 3.2, 1e-9);                       // starts in front of him
+  // landscape: whole body (feet − 0.05 … head + 0.15) in NDC [−0.80, 0.86] at fov 32 (r 3.2 cut him at the knees)
+  const gb = bandFit(1.5, -0.05, 2.15, -0.80, 0.86, 0, 32);
+  near(Math.hypot(p.px - 1, p.pz + 6), gb.D, 1e-9); assert.ok(gb.D > 3.2); near(p.py, 1.5, 1e-9); near(p.ly, gb.ly, 1e-9); assert.equal(p.fov, 32);
+  near(p.px, 1, 1e-9); near(p.pz, -6 + gb.D, 1e-9);   // starts in front of him
+  {
+    const dl = new Director({ width: 844, height: 390 });
+    dl.setMode('gameover', { subject: { position: { x: 1, z: -6 }, rotation: { y: 0.3 } }, h: 2.0, hold: 0, screenX: -0.38 });
+    dl.update(0.5, null);
+    const o = {};
+    near(dl.ndc(o, 1, 2.15, -6).y, 0.86, 0.05, 'mvp head (landscape)'); near(dl.ndc(o, 1, -0.05, -6).y, -0.80, 0.05, 'mvp feet (landscape)');  // the sideways look tilts the band by a few %
+    near(dl.ndc(o, 1, 1.0, -6).x, -0.38, 0.03, 'mvp beside the box score');
+  }
   gameoverShot(1, subj, 390 / 844, p);
   near(Math.atan2(p.px - 1, p.pz + 6) * 180 / Math.PI, 12, 1e-6); assert.equal(p.lens, 0.30);
   // portrait: the MVP stands in the top 38 % (NDC 0.30 … 0.94) above the box score
@@ -429,7 +439,7 @@ check('title orbit ±12° ping-pong at 3°/s, pause drift + render rate, halftim
   d.update(0.5, w);
   near(d.pose.py, 6.5, 0.01);
   d.update(0.6, w);
-  near(Math.hypot(d.pose.px - 1, d.pose.pz + 6), 3.2, 1e-6);
+  near(Math.hypot(d.pose.px - 1, d.pose.pz + 6), gb.D, 1e-6);
   d.setMode('pause', { transition: 'ease', seconds: 0.6 });
   for (let i = 0; i < 9 * 60; i++) d.update(1 / 60, w);
   assert.equal(d.renderHz, 0);

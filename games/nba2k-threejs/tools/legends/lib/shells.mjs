@@ -28,6 +28,8 @@ export const L = Object.freeze({
 });
 
 const AND = Math.min;
+/** LeBron's high headband: bottom / top edge above the glabella at the front (base metres). */
+const HB_LO = 0.024, HB_HI = 0.058;
 
 /** Sock shell heights above the ankle landmark (base metres). */
 // likeness round 4: crew 0.13 → 0.17 (LeBron / Yao / Kyrie showed only ≈ 4 cm of sock above the shoe), mid 0.19 → 0.23
@@ -139,16 +141,19 @@ export const REGIONS = {
     // Round 4: the band stays level across the forehead and both temples (φ < 0.40π) and the whole drop happens behind
     // the ears (smooth 0.40π → 0.85π); the (1 − cos φ)/2 tilt curved the bottom edge down at the temples like a hairline.
     // (smooth(0.40π, 0.85π, φ) is the shared groom.mjs smoothstep)
+    // Polish round 1: Gy + 0.034 … 0.076 → Gy + 0.024 … 0.058 (HB_LO / HB_HI). The top edge at 82 % of the glabella →
+    // vertex height left only ≈ 1.7 cm of foreshortened dome above the band, so from the front the band ran into the
+    // silhouette and read as a flat-top cap; ≈ 3.5 cm of buzz now shows above it from the front (band 3.4 cm tall).
     f(v) {
       const phi = Math.atan2(Math.abs(v.x), v.z - L.headCZ);
       const tilt = -0.040 * smooth(0.40 * Math.PI, 0.85 * Math.PI, phi);
-      return AND((v.w('head') - 0.8) * 0.05, v.y - (L.Gy + 0.034 + tilt), (L.Gy + 0.076 + tilt) - v.y);
+      return AND((v.w('head') - 0.8) * 0.05, v.y - (L.Gy + HB_LO + tilt), (L.Gy + HB_HI + tilt) - v.y);
     },
     // rolled terry edges: the offset tapers to 0.5 within 6 mm of the top and bottom edges (no brim ledge)
     g(v) {
       const phi = Math.atan2(Math.abs(v.x), v.z - L.headCZ);
       const tilt = -0.040 * smooth(0.40 * Math.PI, 0.85 * Math.PI, phi);
-      const d = Math.min(v.y - (L.Gy + 0.034 + tilt), (L.Gy + 0.076 + tilt) - v.y);
+      const d = Math.min(v.y - (L.Gy + HB_LO + tilt), (L.Gy + HB_HI + tilt) - v.y);
       return 0.5 + 0.5 * smooth(0, 0.006, d);
     },
   },

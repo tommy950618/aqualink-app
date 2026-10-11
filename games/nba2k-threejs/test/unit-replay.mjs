@@ -61,9 +61,9 @@ const dunkPath = (t, r) => {
   return r;
 };
 
-function makeSix(firstPath) {
+function makeSix(firstPath, others) {
   const a = [new FakeAnimator(firstPath || dunkPath)];
-  const spots = [[-5.4, -7.6], [5.4, -7.6], [0.5, -10.5], [-3.5, -8.5], [3.0, -10.0]];
+  const spots = others || [[-5.4, -7.6], [5.4, -7.6], [0.5, -10.5], [-3.5, -8.5], [3.0, -10.0]];
   for (const [x, z] of spots) a.push(new FakeAnimator(standAt(x, z)));
   return a;
 }
@@ -236,7 +236,7 @@ check('triggers: clutch make that wins or ties in the last 3.0 s of Q4/OT, buzze
 /** Full dunk replay at 60 Hz; returns the per-frame log. */
 function runDunkReplay(opts = {}) {
   const rec = new ReplayRecorder();
-  const anims = makeSix();
+  const anims = makeSix(null, opts.spots);
   const world = { quarter: 2, gameClock: 90, score: [0, 0], players: [0, 1, 2, 3, 4, 5].map((i) => ({ id: 'p' + i })) };
   const trig = new ReplayTriggers({ recorder: rec, world });
   const player = new ReplayPlayer({ recorder: rec, animators: anims, ball, heights: [1.96, 1.96, 2.03, 2.09, 2.27, 1.87], tier: opts.tier || 'high' });
@@ -352,6 +352,36 @@ check('dunk camera: r 3.6 orbit starting 60° to the camera side, sweeping 50°,
     const d = Math.hypot(f.px - f.pelvis[i * 3], f.py - f.pelvis[i * 3 + 1], f.pz - f.pelvis[i * 3 + 2]);
     assert.equal(f.lod[i], d <= 7 ? 0 : 1);
   }
+});
+
+check('dunk camera occlusion avoidance: a defender on the default orbit\'s sight line → another orbit with a clear view', () => {
+  // where the default path's camera looks at the dunker's head mid-window: put a defender halfway along that line
+  const base = runDunkReplay().log.filter((f) => f.active);
+  const mid = base[Math.floor(base.length / 2)];
+  const hx = mid.pelvis[0], hz = mid.pelvis[2];
+  const dx = (mid.px + hx) / 2, dz = (mid.pz + hz) / 2;
+  const spots = [[dx, dz], [-5.4, -7.6], [0.5, -10.5], [-3.5, -8.5], [-6.0, -4.0]];
+  // sight-line clearance of the defender's chest (pelvis + 0.25 h) from the camera → dunker's head segment
+  const clearance = (log) => {
+    let worst = Infinity;
+    for (const f of log) {
+      const cx = f.px, cy = f.py, cz = f.pz, tx = f.pelvis[0], ty = f.pelvis[1] + 0.40 * 1.96, tz = f.pelvis[2];
+      const qx = f.pelvis[3], qy = f.pelvis[4] + 0.25 * 1.96, qz = f.pelvis[5];
+      const lx = tx - cx, ly = ty - cy, lz = tz - cz, L2 = lx * lx + ly * ly + lz * lz;
+      const s = Math.max(0, Math.min(1, ((qx - cx) * lx + (qy - cy) * ly + (qz - cz) * lz) / L2));
+      worst = Math.min(worst, Math.hypot(cx + lx * s - qx, cy + ly * s - qy, cz + lz * s - qz));
+    }
+    return worst;
+  };
+  // the same defender spot on the default path would block the view (sanity of the set-up)
+  const blocked = clearance(base.map((f) => ({ ...f, pelvis: [f.pelvis[0], f.pelvis[1], f.pelvis[2], dx, f.pelvis[1], dz] })));
+  assert.ok(blocked < 0.25, `set-up: the default path is blocked (${blocked.toFixed(2)} m)`);
+  const act = runDunkReplay({ spots }).log.filter((f) => f.active);
+  const clear = clearance(act);
+  assert.ok(clear > 0.3, `defender's chest ${clear.toFixed(2)} m from the camera → head line (> 0.3 m)`);
+  // still the dunk orbit: r 3.6 around the subject, height 1.2 → 2.2, fov 32
+  for (const f of act) { assert.equal(f.fov, 32); assert.ok(f.pz >= -12.0 - 1e-9); }
+  near(act[0].py, 1.2, 0.05); near(act[act.length - 1].py, 2.2, 0.05);
 });
 
 check('jumper camera: behind the shooter at 1.9 m over the shoulder, then the rim cam on the far side, fov 35 → 28', () => {

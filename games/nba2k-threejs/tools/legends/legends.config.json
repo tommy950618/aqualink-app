@@ -66,15 +66,15 @@
         "head/head-age-decr-incr": -0.35,
         "forehead/forehead-scale-vert-decr-incr": -0.54,
         "forehead/forehead-trans-backward-forward": -0.15,
-        "forehead/forehead-temple-decr-incr": 0.35,
-        "eyebrows/eyebrows-trans-down-up": -0.75,
+        "forehead/forehead-temple-decr-incr": 0.6,
+        "eyebrows/eyebrows-trans-down-up": -0.9,
         "eyebrows/eyebrows-angle-down-up": -0.15,
         "eyebrows/eyebrows-trans-backward-forward": 0.75,
         "eyes/eye-scale-decr-incr": -0.15,
         "eyes/eye-height2-decr-incr": -0.3,
         "eyes/eye-push1-in-out": -0.75,
         "eyes/eye-eyefold-down-up": -0.8,
-        "eyes/eye-corner2-down-up": 0.25,
+        "eyes/eye-corner2-down-up": 0.35,
         "eyes/eye-bag-decr-incr": 0,
         "nose/nose-scale-horiz-decr-incr": 0,
         "nose/nose-flaring-decr-incr": 0,
@@ -85,26 +85,26 @@
         "nose/nose-hump-decr-incr": -0.25,
         "nose/nose-volume-decr-incr": -0.1,
         "nose/nose-nostrils-angle-down-up": -0.05,
-        "mouth/mouth-scale-horiz-decr-incr": 0.55,
-        "mouth/mouth-lowerlip-volume-decr-incr": -0.2,
-        "mouth/mouth-upperlip-volume-decr-incr": 0,
-        "mouth/mouth-lowerlip-height-decr-incr": 0.1,
-        "mouth/mouth-trans-backward-forward": -0.5,
+        "mouth/mouth-scale-horiz-decr-incr": 1,
+        "mouth/mouth-lowerlip-volume-decr-incr": -0.55,
+        "mouth/mouth-upperlip-volume-decr-incr": -0.15,
+        "mouth/mouth-lowerlip-height-decr-incr": 0.25,
+        "mouth/mouth-trans-backward-forward": -0.4,
         "mouth/mouth-angles-down-up": 0,
-        "mouth/mouth-laugh-lines-in-out": -0.35,
+        "mouth/mouth-laugh-lines-in-out": -0.6,
         "mouth/mouth-philtrum-volume-decr-incr": -0.05,
         "chin/chin-prominent-decr-incr": 0.95,
         "chin/chin-prognathism-decr-incr": 0.85,
         "chin/chin-height-decr-incr": 0.65,
-        "chin/chin-bones-decr-incr": 0.7,
-        "chin/chin-width-decr-incr": 0.1,
+        "chin/chin-bones-decr-incr": 0.9,
+        "chin/chin-width-decr-incr": 0.3,
         "chin/chin-jaw-drop-decr-incr": 0.1,
         "cheek/cheek-bones-decr-incr": 1,
-        "cheek/cheek-volume-decr-incr": -0.6,
+        "cheek/cheek-volume-decr-incr": -0.5,
         "cheek/cheek-inner-decr-incr": -0.25,
         "cheek/cheek-trans-down-up": 0.5,
         "ears/ear-scale-decr-incr": 0.1,
-        "ears/ear-wing-decr-incr": 0.3,
+        "ears/ear-wing-decr-incr": 0.5,
         "ears/ear-shape-square-round": 0.2,
         "neck/measure-neck-height-decr-incr": 0.35,
         "neck/measure-neck-circ-decr-incr": -0.05,
@@ -141,9 +141,10 @@
         "feet/foot-scale-decr-incr": 0.22,
         "feet/measure-ankle-circ-decr-incr": -0.15,
         "nose/nose-point-down-up": 0.25,
-        "mouth/mouth-scale-depth-decr-incr": -0.25,
-        "mouth/mouth-upperlip-height-decr-incr": 0.15,
-        "eyes/eye-corner1-down-up": -0.1
+        "mouth/mouth-scale-depth-decr-incr": -0.3,
+        "mouth/mouth-upperlip-height-decr-incr": 0.3,
+        "eyes/eye-corner1-down-up": -0.1,
+        "mouth/mouth-lowerlip-ext-down-up": 0.15
       },
       "expressions": {
         "jawOpen": {"jaw": {"rotDeg": 18}},
@@ -153,9 +154,11 @@
             "chin/chin-prominent-decr-incr": 0.3,
             "mouth/mouth-angles-down-up": -0.6,
             "eyebrows/eyebrows-trans-down-up": -0.6,
-            "eyebrows/eyebrows-angle-down-up": -0.4
+            "eyebrows/eyebrows-angle-down-up": -0.4,
+            "mouth/mouth-lowerlip-ext-down-up": 0.3,
+            "mouth/mouth-trans-backward-forward": 0.3
           },
-          "jaw": {"rotDeg": 0, "translate": [0, 0.002, 0.012]}
+          "jaw": {"rotDeg": 0, "translate": [0, 0.002, 0.009]}
         },
         "scowl": {
           "modifiers": {
@@ -172,21 +175,21 @@
       },
       "appearance": {
         "skin": "#8B5A3C",
-        "lips": "#6a4030",
+        "lips": "#553022",
         "palms": "#b48466",
         "skinRoughness": 0.52,
         "warmK": 0.1,
-        "cavityK": 0.45,
+        "cavityK": 0.3,
         "hlK": 0.1,
         "tattooK": 0,
         "stubbleHair": 1,
-        "scalpDarken": 0.65,
+        "scalpDarken": 0.7,
         "scalpRoughness": 0.72,
-        "beardSkinDarken": 0.7,
-        "browDarken": 0.6,
+        "beardSkinDarken": 0.65,
+        "browDarken": 0.8,
         "glossBase": 0,
         "clearcoatRoughness": 0.3,
-        "sheenColor": "#5e5650",
+        "sheenColor": "#3a3430",
         "iris": "#2A1A12",
         "idleFace": {"scowl": 0.35},
         "hair": {
@@ -195,13 +198,13 @@
           "color": "#1a1311",
           "hairline": {
             "aboveCm": 6.8,
-            "frontCurveCm": 0.1,
-            "recCm": 0.8,
+            "frontCurveCm": 0.3,
+            "recCm": 1,
             "temple": "round",
             "sideburnBottom": "mid-ear",
             "sideburnWidthCm": 0.8,
-            "earGapMm": 8,
-            "napeBelowLobeCm": 0.5,
+            "earGapMm": 6,
+            "napeBelowLobeCm": 1.5,
             "nape": "taper"
           },
           "layers": [
@@ -209,35 +212,36 @@
               "name": "inner",
               "offsetMm": 0.6,
               "family": {"coil": 0.35, "stipple": 0.65},
-              "density": 1,
-              "fadeMm": 4,
+              "density": 0.85,
+              "fadeMm": 8,
               "sideDensity": 0.7
             }
           ],
-          "maskFadeMm": 7,
-          "maskExtendMm": 6
+          "maskFadeMm": 16,
+          "maskExtendMm": 3
         },
         "beard": {
           "style": "moustache-goatee",
-          "color": "#151010",
+          "color": "#1c120d",
           "components": {
-            "M": {"heightMm": 7, "gapMm": 0.5, "dropMm": 3, "density": 0.85, "centreScale": 0.85, "centreMm": 4},
-            "Gt": {"wCm": 2.8, "hCm": 2.2, "soulWCm": 1.5, "density": 0.7, "liftMm": 6},
-            "Lk": {"density": 0.45, "widthMm": 4},
-            "J": {"jaw": 0.35, "bandM": 0.025}
+            "M": {"heightMm": 9, "gapMm": 0.5, "dropMm": 1, "density": 0.9, "centreScale": 0.7, "centreMm": 4},
+            "Gt": {"wCm": 2.3, "hCm": 2.6, "soulWCm": 1.8, "density": 0.85, "liftMm": 15},
+            "Lk": {"density": 0.25, "widthMm": 6},
+            "J": {"jaw": 0.5, "bandM": 0.025}
           },
-          "layers": [{"name": "inner", "offsetMm": 1, "family": {"coil": 0.35, "stipple": 0.65}, "fadeMm": 1.5}]
+          "layers": [{"name": "inner", "offsetMm": 1, "family": {"coil": 0.35, "stipple": 0.65}, "fadeMm": 2.5}]
         },
         "eyebrows": {
           "gap": 0.021,
           "arch": 0.0008,
           "tail": -0.003,
-          "hIn": 0.0065,
+          "hIn": 0.006,
           "hOut": 0.0035,
-          "density": 1,
+          "density": 0.9,
           "shape": "straight-low",
-          "offsetMm": 1.5,
-          "color": "#151010"
+          "offsetMm": 1,
+          "color": "#151010",
+          "fadeMm": 1.2
         },
         "tattoos": [],
         "kit": {
@@ -276,7 +280,8 @@
             "shell": "tape_r_im",
             "colors": {"classic": "#f4f4f4", "allstarA": "#f4f4f4", "allstarB": "#111111"}
           }
-        ]
+        ],
+        "lipRoughK": 0
       }
     },
     {
@@ -313,49 +318,49 @@
         "head/head-scale-vert-decr-incr": 0.08,
         "head/head-scale-horiz-decr-incr": -0.7,
         "head/head-back-scale-depth-decr-incr": -0.05,
-        "head/head-fat-decr-incr": -0.3,
+        "head/head-fat-decr-incr": -0.55,
         "head/head-age-decr-incr": 0,
         "forehead/forehead-scale-vert-decr-incr": -0.86,
         "forehead/forehead-nubian-decr-incr": 0.45,
         "forehead/forehead-trans-backward-forward": 0.55,
-        "forehead/forehead-temple-decr-incr": 0.35,
+        "forehead/forehead-temple-decr-incr": 0.55,
         "ears/ear-scale-decr-incr": 0.55,
         "ears/ear-scale-vert-decr-incr": 0.2,
-        "ears/ear-wing-decr-incr": 0.95,
-        "ears/ear-flap-decr-incr": 0.45,
+        "ears/ear-wing-decr-incr": 1,
+        "ears/ear-flap-decr-incr": 0.6,
         "ears/ear-rot-backward-forward": 0.1,
         "ears/ear-lobe-decr-incr": 0.2,
         "ears/ear-shape-square-round": 0.3,
         "eyebrows/eyebrows-trans-down-up": -0.65,
-        "eyebrows/eyebrows-trans-backward-forward": 0.5,
+        "eyebrows/eyebrows-trans-backward-forward": 0.75,
         "eyebrows/eyebrows-angle-down-up": -0.2,
         "eyes/eye-scale-decr-incr": -0.15,
         "eyes/eye-height2-decr-incr": -0.25,
-        "eyes/eye-eyefold-down-up": -0.9,
+        "eyes/eye-eyefold-down-up": -1,
         "eyes/eye-corner2-down-up": 0.05,
         "eyes/eye-trans-in-out": 0.05,
         "eyes/eye-bag-decr-incr": 0.05,
         "nose/nose-scale-horiz-decr-incr": 0.3,
-        "nose/nose-flaring-decr-incr": 0.8,
-        "nose/nose-nostrils-width-decr-incr": 0.6,
-        "nose/nose-width3-decr-incr": 0.3,
+        "nose/nose-flaring-decr-incr": 0.95,
+        "nose/nose-nostrils-width-decr-incr": 0.75,
+        "nose/nose-width3-decr-incr": 0.1,
         "nose/nose-width1-decr-incr": -0.1,
-        "nose/nose-point-width-decr-incr": 0.35,
+        "nose/nose-point-width-decr-incr": 0.2,
         "nose/nose-scale-vert-decr-incr": -0.05,
         "nose/nose-scale-depth-decr-incr": 0.05,
         "nose/nose-hump-decr-incr": -0.2,
         "mouth/mouth-scale-horiz-decr-incr": 1,
-        "mouth/mouth-upperlip-volume-decr-incr": 0.35,
-        "mouth/mouth-lowerlip-volume-decr-incr": 0.4,
-        "mouth/mouth-trans-backward-forward": -0.15,
-        "mouth/mouth-angles-down-up": -0.1,
+        "mouth/mouth-upperlip-volume-decr-incr": 0.2,
+        "mouth/mouth-lowerlip-volume-decr-incr": 0.25,
+        "mouth/mouth-trans-backward-forward": -0.4,
+        "mouth/mouth-angles-down-up": 0.05,
         "chin/chin-height-decr-incr": 0.65,
-        "chin/chin-prominent-decr-incr": 0.6,
-        "chin/chin-width-decr-incr": -0.25,
+        "chin/chin-prominent-decr-incr": 0.65,
+        "chin/chin-width-decr-incr": -0.1,
         "chin/chin-jaw-drop-decr-incr": 0.1,
-        "chin/chin-bones-decr-incr": 0.45,
+        "chin/chin-bones-decr-incr": 0.65,
         "cheek/cheek-bones-decr-incr": 0.6,
-        "cheek/cheek-volume-decr-incr": -0.5,
+        "cheek/cheek-volume-decr-incr": -0.65,
         "cheek/cheek-inner-decr-incr": -0.4,
         "neck/measure-neck-height-decr-incr": 0.4,
         "neck/measure-neck-circ-decr-incr": 0.05,
@@ -387,18 +392,22 @@
         "legs/lowerleg-fat-decr-incr": -0.4,
         "feet/measure-ankle-circ-decr-incr": -0.2,
         "feet/foot-scale-decr-incr": 0.18,
-        "chin/chin-prognathism-decr-incr": 0.2,
-        "mouth/mouth-lowerlip-height-decr-incr": 0.5,
+        "chin/chin-prognathism-decr-incr": 0.25,
+        "mouth/mouth-lowerlip-height-decr-incr": 0.35,
         "nose/nose-point-down-up": 0.15,
-        "mouth/mouth-upperlip-height-decr-incr": 0.5,
+        "mouth/mouth-upperlip-height-decr-incr": 0.35,
         "eyes/eye-height1-decr-incr": 0.1,
         "head/head-invertedtriangular": 0.35,
         "neck/neck-double-decr-incr": -0.3,
-        "mouth/mouth-laugh-lines-in-out": -0.15
+        "mouth/mouth-laugh-lines-in-out": -0.15,
+        "mouth/mouth-scale-depth-decr-incr": -0.3,
+        "mouth/mouth-cupidsbow-decr-incr": -0.25,
+        "mouth/mouth-lowerlip-ext-down-up": 0.2,
+        "eyes/eye-push1-in-out": -0.2
       },
       "expressions": {
         "jawOpen": {"jaw": {"rotDeg": 18}},
-        "tongueOut": {"jaw": {"rotDeg": 12}, "tongue": {"translate": [0.018, -0.022, 0.048]}},
+        "tongueOut": {"jaw": {"rotDeg": 13}, "tongue": {"translate": [0.018, -0.028, 0.044]}},
         "smirk": {
           "modifiers": {"asym/asym-mouth-1-l-r": 0.4, "mouth/mouth-angles-down-up": 0.15, "cheek/cheek-trans-down-up": 0.15}
         },
@@ -410,7 +419,8 @@
             "eyes/eye-height2-decr-incr": -0.5,
             "eyes/eye-height3-decr-incr": -0.4,
             "eyes/eye-bag-decr-incr": 0.3,
-            "cheek/cheek-trans-down-up": 0.2
+            "cheek/cheek-trans-down-up": 0.2,
+            "eyebrows/eyebrows-trans-backward-forward": 0.3
           }
         },
         "blink": {"lids": true}
@@ -419,49 +429,50 @@
         "skin": "#4E3122",
         "lips": "#3A221B",
         "palms": "#A9785E",
-        "skinRoughness": 0.62,
+        "skinRoughness": 0.68,
         "warmK": 0,
         "cavityK": 0.55,
-        "hlK": 0.05,
-        "tattooK": 0,
+        "hlK": 0.02,
+        "tattooK": 1,
         "stubbleHair": 0,
         "scalpDarken": 0,
-        "scalpRoughness": 0.25,
-        "beardSkinDarken": 0.8,
+        "scalpRoughness": 0.32,
+        "beardSkinDarken": 0.92,
         "browDarken": 0.75,
         "glossBase": 0.55,
         "clearcoatRoughness": 0.22,
-        "sheenColor": "#6a5a50",
+        "sheenColor": "#3a3430",
         "iris": "#2A1A12",
         "idleFace": {"jawOpenGum": [0.06, 0.06, 1.5]},
         "hair": {
           "style": "bald",
-          "color": "#0E0A09",
+          "color": "#080605",
           "layers": [],
           "horseshoe": {"phiMin": 1, "top": "ET.y+0.04", "density": 0.12, "fadeMm": 4},
           "gloss": {"aboveGyM": 0.06, "fadeCm": 2}
         },
         "beard": {
           "style": "moustache-goatee",
-          "color": "#0E0A09",
+          "color": "#0b0706",
           "components": {
-            "M": {"heightMm": 10, "gapMm": 0, "dropMm": 0, "density": 1, "outerScale": 1, "outerMm": 15},
-            "Gt": {"wCm": 3, "hCm": 3, "soulWCm": 1.4, "density": 0.9, "liftMm": 10},
-            "Lk": {"density": 0.55, "widthMm": 4}
+            "M": {"heightMm": 7, "gapMm": 0, "dropMm": 0, "density": 1, "outerScale": 1, "outerMm": 15},
+            "Gt": {"wCm": 3.2, "hCm": 2.4, "soulWCm": 1.4, "density": 0.8, "liftMm": 10},
+            "Lk": {"density": 0.8, "widthMm": 5}
           },
-          "layers": [{"name": "inner", "offsetMm": 1.2, "family": {"coil": 0.6, "stipple": 0.4}, "fadeMm": 1.5}]
+          "layers": [{"name": "inner", "offsetMm": 1.2, "family": {"coil": 0.4, "stipple": 0.6}, "fadeMm": 2.5}]
         },
         "eyebrows": {
           "gap": 0.0225,
           "arch": 0.0015,
           "tail": -0.003,
           "hIn": 0.0045,
-          "hOut": 0.0022,
-          "density": 0.95,
+          "hOut": 0.0024,
+          "density": 0.9,
           "shape": "thin-low-straight",
           "offsetMm": 1,
           "color": "#0E0A09",
-          "archOuter": true
+          "archOuter": true,
+          "fadeMm": 0.8
         },
         "tattoos": [],
         "kit": {
@@ -509,7 +520,8 @@
             "shell": "wristband_l",
             "colors": {"classic": "#CE1141", "allstarA": "#FFFFFF", "allstarB": "#111111"}
           }
-        ]
+        ],
+        "faceShade": {"lidCrease": 0.15}
       }
     },
     {
@@ -554,13 +566,13 @@
         "forehead/forehead-temple-decr-incr": -0.1,
         "forehead/forehead-trans-backward-forward": 0.1,
         "eyebrows/eyebrows-trans-backward-forward": 1,
-        "eyebrows/eyebrows-trans-down-up": -0.45,
-        "eyebrows/eyebrows-angle-down-up": -0.15,
+        "eyebrows/eyebrows-trans-down-up": -0.65,
+        "eyebrows/eyebrows-angle-down-up": -0.3,
         "eyes/eye-scale-decr-incr": -0.25,
         "eyes/eye-height2-decr-incr": -0.9,
         "eyes/eye-eyefold-down-up": -0.9,
         "eyes/eye-push1-in-out": -0.75,
-        "eyes/eye-corner2-down-up": -0.3,
+        "eyes/eye-corner2-down-up": -0.15,
         "eyes/eye-bag-decr-incr": 0.2,
         "eyes/eye-epicanthus-in-out": -0.1,
         "nose/nose-scale-horiz-decr-incr": 0.6,
@@ -576,12 +588,12 @@
         "nose/nose-point-down-up": -0.3,
         "nose/nose-nostrils-angle-down-up": -0.1,
         "nose/nose-hump-decr-incr": -0.1,
-        "mouth/mouth-scale-horiz-decr-incr": 0.55,
+        "mouth/mouth-scale-horiz-decr-incr": 0.75,
         "mouth/mouth-upperlip-volume-decr-incr": 0.25,
-        "mouth/mouth-lowerlip-volume-decr-incr": 0.45,
+        "mouth/mouth-lowerlip-volume-decr-incr": 0.35,
         "mouth/mouth-lowerlip-height-decr-incr": 0.4,
         "mouth/mouth-upperlip-height-decr-incr": 0.25,
-        "mouth/mouth-trans-backward-forward": 0.15,
+        "mouth/mouth-trans-backward-forward": -0.05,
         "mouth/mouth-cupidsbow-decr-incr": -0.1,
         "mouth/mouth-laugh-lines-in-out": 0.15,
         "chin/chin-width-decr-incr": 0.75,
@@ -649,14 +661,15 @@
         "asym/asym-mouth-1-l-r": 0.05,
         "eyes/eye-height1-decr-incr": -0.3,
         "eyes/eye-height3-decr-incr": -0.3,
-        "eyes/eye-trans-in-out": -0.2
+        "eyes/eye-trans-in-out": -0.2,
+        "cheek/cheek-trans-down-up": 0.25
       },
       "expressions": {
         "jawOpen": {"jaw": {"rotDeg": 18}},
         "roar": {
           "modifiers": {
             "mouth/mouth-upperlip-ext-down-up": 1,
-            "nose/nose-flaring-decr-incr": 0.6,
+            "nose/nose-flaring-decr-incr": 0.9,
             "nose/nose-nostrils-width-decr-incr": 0.3,
             "mouth/mouth-scale-horiz-decr-incr": 0.85,
             "mouth/mouth-laugh-lines-in-out": 0.6,
@@ -665,7 +678,8 @@
             "eyes/eye-height2-decr-incr": -0.3,
             "mouth/mouth-lowerlip-ext-down-up": -1,
             "mouth/mouth-angles-down-up": -0.7,
-            "cheek/cheek-trans-down-up": 0.4
+            "cheek/cheek-trans-down-up": 0.4,
+            "mouth/mouth-upperlip-volume-decr-incr": -0.3
           },
           "jaw": {"rotDeg": 24}
         },
@@ -700,10 +714,10 @@
         "hlK": 0.06,
         "tattooK": 1,
         "stubbleHair": 0.5,
-        "scalpDarken": 0.7,
+        "scalpDarken": 0.8,
         "scalpRoughness": 0.7,
-        "beardSkinDarken": 0.75,
-        "browDarken": 0.65,
+        "beardSkinDarken": 0.7,
+        "browDarken": 0.8,
         "glossBase": 0,
         "clearcoatRoughness": 0.5,
         "sheenColor": "#6a5a50",
@@ -711,56 +725,58 @@
         "hair": {
           "style": "buzz-receded",
           "lengthMm": 4,
-          "color": "#141010",
+          "color": "#241a15",
           "hairline": {
-            "aboveCm": 7.5,
+            "aboveCm": 5,
             "frontCurveCm": 0.4,
-            "recCm": 4,
+            "recCm": 3.5,
             "temple": "round",
             "sideburnBottom": "beard",
             "sideburnWidthCm": 1.2,
             "earGapMm": 5,
-            "napeBelowLobeCm": 1.5,
-            "nape": "square"
+            "napeBelowLobeCm": 3,
+            "nape": "taper"
           },
-          "layers": [{"name": "inner", "offsetMm": 1.5, "family": {"coil": 0.7, "stipple": 0.3}, "density": 0.85, "fadeMm": 4}],
-          "maskFadeMm": 8
+          "layers": [{"name": "inner", "offsetMm": 2.5, "family": {"coil": 0.7, "stipple": 0.3}, "density": 0.75, "fadeMm": 6}],
+          "maskFadeMm": 12
         },
         "beard": {
           "style": "full",
-          "color": "#18120e",
+          "color": "#1c1612",
           "components": {
             "F": {
               "yA": "T.y-0.004",
-              "dA": 0.01,
-              "yB": "CH.y+0.004",
+              "dA": 0.008,
+              "yB": "SN.y-0.004",
               "dB": 0.02,
-              "dN": 0.025,
+              "dN": 0.02,
               "moustache": true,
               "moustacheGapMm": 0,
               "zones": {"all": 1},
-              "neckCurve": [0.45, 1.6],
+              "neckCurve": [0.35, 1.4],
               "neckEarDropM": 0.018,
               "backCut": "ramus",
-              "neckBackY": "GO.y-0.012",
-              "cornerRoundMm": 6
+              "neckBackY": "GO.y-0.006",
+              "cornerRoundMm": 12,
+              "cheekPow": 0.75
             }
           },
           "layers": [
-            {"name": "inner", "offsetMm": 1.5, "family": {"coil": 0.7, "stipple": 0.3}, "fadeMm": 0.8},
-            {"name": "outer", "chinMm": 11, "cheeksMm": 6, "density": 0.95, "insetMm": 1, "fadeMm": 2}
+            {"name": "inner", "offsetMm": 1.5, "family": {"coil": 0.9, "stipple": 0.1}, "fadeMm": 0.8},
+            {"name": "outer", "chinMm": 8, "cheeksMm": 3.5, "density": 0.95, "insetMm": 0.5, "fadeMm": 4}
           ]
         },
         "eyebrows": {
           "gap": 0.02,
-          "arch": 0.0005,
-          "tail": -0.0015,
+          "arch": 0,
+          "tail": 0,
           "hIn": 0.0085,
-          "hOut": 0.0055,
+          "hOut": 0.0065,
           "density": 0.95,
           "shape": "thick-low-straight",
           "offsetMm": 1,
-          "color": "#141010"
+          "color": "#141010",
+          "fadeMm": 0.8
         },
         "tattoos": [{"kind": "backArch", "dyM": 0}],
         "kit": {
@@ -792,7 +808,8 @@
             "shell": "headband_high",
             "colors": {"classic": "#111111", "allstarA": "#FFFFFF", "allstarB": "#111111"}
           }
-        ]
+        ],
+        "faceShade": {"cheekHollow": 0.1, "lidCrease": 0.15}
       }
     },
     {
@@ -836,7 +853,7 @@
         "forehead/forehead-trans-backward-forward": -0.1,
         "forehead/forehead-temple-decr-incr": -0.2,
         "eyebrows/eyebrows-trans-down-up": -0.45,
-        "eyebrows/eyebrows-trans-backward-forward": 1,
+        "eyebrows/eyebrows-trans-backward-forward": 0.8,
         "eyebrows/eyebrows-angle-down-up": -0.35,
         "eyes/eye-push1-in-out": -0.8,
         "eyes/eye-push2-in-out": -0.2,
@@ -866,10 +883,10 @@
         "mouth/mouth-trans-backward-forward": -0.1,
         "mouth/mouth-cupidsbow-decr-incr": 0.1,
         "mouth/mouth-philtrum-volume-decr-incr": 0.1,
-        "mouth/mouth-laugh-lines-in-out": 0.05,
+        "mouth/mouth-laugh-lines-in-out": 0,
         "chin/chin-height-decr-incr": 0.55,
         "chin/chin-prominent-decr-incr": 0.7,
-        "chin/chin-bones-decr-incr": 0.6,
+        "chin/chin-bones-decr-incr": 0.8,
         "chin/chin-jaw-drop-decr-incr": 0,
         "chin/chin-prognathism-decr-incr": 0.3,
         "chin/chin-triangle": 0,
@@ -954,15 +971,17 @@
             "mouth/mouth-scale-horiz-decr-incr": 1,
             "mouth/mouth-laugh-lines-in-out": 0.8,
             "cheek/cheek-trans-down-up": 1,
-            "cheek/cheek-volume-decr-incr": 0.3,
-            "mouth/mouth-dimples-in-out": 0.3,
-            "eyes/eye-height2-decr-incr": -0.8,
+            "cheek/cheek-volume-decr-incr": 0.6,
+            "mouth/mouth-dimples-in-out": 0.6,
+            "eyes/eye-height2-decr-incr": -0.4,
             "mouth/mouth-upperlip-ext-down-up": 1,
-            "mouth/mouth-lowerlip-ext-down-up": -0.8,
-            "eyes/eye-bag-decr-incr": 0.6
+            "mouth/mouth-lowerlip-ext-down-up": -0.5,
+            "eyes/eye-bag-decr-incr": 0.9,
+            "mouth/mouth-trans-backward-forward": -0.3,
+            "eyebrows/eyebrows-trans-down-up": 0.35
           },
-          "jaw": {"rotDeg": 8},
-          "lids": 0.35
+          "jaw": {"rotDeg": 5},
+          "lids": 0.1
         },
         "scowl": {
           "modifiers": {
@@ -978,78 +997,81 @@
         "blink": {"lids": true}
       },
       "appearance": {
-        "skin": "#50352b",
-        "lips": "#3e261c",
+        "skin": "#54352a",
+        "lips": "#3a2219",
         "palms": "#9c705a",
         "skinRoughness": 0.62,
         "warmK": 0,
-        "cavityK": 0.7,
+        "cavityK": 0.6,
         "hlK": 0.03,
-        "tattooK": 0,
+        "tattooK": 1,
         "stubbleHair": 0,
         "scalpDarken": 1,
         "scalpRoughness": 0.75,
-        "beardSkinDarken": 0.8,
+        "beardSkinDarken": 0.6,
         "browDarken": 0.6,
         "glossBase": 0,
         "clearcoatRoughness": 0.45,
-        "sheenColor": "#5e5650",
+        "sheenColor": "#3a3430",
         "iris": "#2A1A12",
         "hair": {
           "style": "short-coils-fade",
           "lengthMm": 10,
-          "color": "#1a1512",
+          "color": "#120e0c",
           "hairline": {
             "aboveCm": 5.8,
             "frontCurveCm": -0.3,
             "recCm": 0,
             "temple": "square",
             "sideburnBottom": "beard",
-            "sideburnWidthCm": 1.1,
+            "sideburnWidthCm": 1.4,
             "earGapMm": 6,
             "napeBelowLobeCm": 0.3,
-            "nape": "taper"
+            "nape": "taper",
+            "sideburnKeep": true
           },
           "layers": [
-            {"name": "inner", "offsetMm": 1.5, "family": {"coil": 1}, "density": 1, "fadeMm": 1.5, "sideDensity": 0.4},
+            {"name": "inner", "offsetMm": 1.5, "family": {"coil": 1}, "density": 1, "fadeMm": 1.2, "sideDensity": 0.55},
             {
               "name": "outer",
               "offsetMm": 6,
-              "sidesScale": 0.1,
+              "sidesScale": 0.15,
               "density": 0.95,
-              "insetMm": 1.5,
-              "fadeMm": 3,
-              "backScale": 0.3,
+              "insetMm": 2.5,
+              "fadeMm": 5,
+              "backScale": 0.15,
               "family": {"coil": 1},
-              "sideDensity": 0.4
+              "sideDensity": 0.3
             }
           ],
           "maskFadeMm": 10
         },
         "beard": {
           "style": "short-full",
-          "color": "#141110",
+          "color": "#0e0a08",
           "components": {
             "F": {
-              "yA": "EL.y+0.010",
+              "yA": "T.y+0.000",
               "dA": 0.01,
               "yB": "CH.y-0.006",
               "dB": 0.006,
-              "dN": 0.006,
+              "dN": 0.004,
               "moustache": false,
-              "zones": {"jaw": 1, "chin": 1, "cheeks": 0.4}
+              "zones": {"jaw": 1, "chin": 0.85, "cheeks": 0.15},
+              "backCut": "ramus",
+              "cornerRoundMm": 8
             },
-            "M": {"heightMm": 9, "gapMm": 2.5, "dropMm": 5, "density": 1, "centreScale": 1, "centreMm": 4}
+            "M": {"heightMm": 9, "gapMm": 2.5, "dropMm": 2, "density": 1, "centreScale": 1, "centreMm": 4}
           },
           "layers": [
-            {"name": "inner", "offsetMm": 1, "family": {"coil": 0.7, "stipple": 0.3}, "fadeMm": 1},
-            {"name": "outer", "chinMm": 3.5, "cheeksMm": 4, "density": 0.9, "insetMm": 1, "fadeMm": 3}
+            {"name": "inner", "offsetMm": 1, "family": {"coil": 0.9, "stipple": 0.1}, "fadeMm": 1},
+            {"name": "outer", "chinMm": 3.5, "cheeksMm": 2.5, "density": 0.7, "insetMm": 1.5, "fadeMm": 1.5}
           ]
         },
         "eyebrows": {
-          "gap": 0.02,
+          "gap": 0.024,
           "arch": 0,
-          "tail": -0.003,
+          "tail": -0.004,
           "hIn": 0.0075,
           "hOut": 0.0045,
           "density": 1,
@@ -1081,7 +1103,9 @@
           "away": ["#111111", "#00471B", "#EEE1C6"],
           "classic": "home"
         },
-        "accessories": []
+        "accessories": [],
+        "lipRoughK": 0,
+        "faceShade": {"cheekHollow": 0.1}
       }
     },
     {
@@ -1121,17 +1145,17 @@
         "head/head-fat-decr-incr": -0.45,
         "head/head-back-scale-depth-decr-incr": -0.15,
         "forehead/forehead-scale-vert-decr-incr": -0.45,
-        "forehead/forehead-temple-decr-incr": -0.1,
-        "eyebrows/eyebrows-trans-down-up": -0.85,
-        "eyebrows/eyebrows-angle-down-up": 0.1,
+        "forehead/forehead-temple-decr-incr": 0.1,
+        "eyebrows/eyebrows-trans-down-up": -1,
+        "eyebrows/eyebrows-angle-down-up": 0.25,
         "eyebrows/eyebrows-trans-backward-forward": 0.05,
-        "eyes/eye-scale-decr-incr": -0.7,
-        "eyes/eye-height2-decr-incr": -0.7,
+        "eyes/eye-scale-decr-incr": -0.3,
+        "eyes/eye-height2-decr-incr": -0.65,
         "eyes/eye-eyefold-down-up": -1,
-        "eyes/eye-epicanthus-in-out": 1,
+        "eyes/eye-epicanthus-in-out": 0.6,
         "eyes/eye-corner2-down-up": 0.1,
-        "eyes/eye-bag-decr-incr": 0.3,
-        "eyes/eye-trans-in-out": 0.05,
+        "eyes/eye-bag-decr-incr": 0.1,
+        "eyes/eye-trans-in-out": -0.2,
         "nose/nose-scale-vert-decr-incr": 0.6,
         "nose/nose-scale-depth-decr-incr": 0.4,
         "nose/nose-width1-decr-incr": 0.05,
@@ -1144,19 +1168,19 @@
         "nose/nose-point-down-up": -0.15,
         "mouth/mouth-scale-horiz-decr-incr": 1,
         "mouth/mouth-trans-down-up": -0.3,
-        "mouth/mouth-upperlip-volume-decr-incr": 0,
-        "mouth/mouth-lowerlip-volume-decr-incr": 0.35,
-        "mouth/mouth-angles-down-up": -0.05,
+        "mouth/mouth-upperlip-volume-decr-incr": 0.2,
+        "mouth/mouth-lowerlip-volume-decr-incr": 0.1,
+        "mouth/mouth-angles-down-up": 0,
         "mouth/mouth-laugh-lines-in-out": -0.5,
         "cheek/cheek-bones-decr-incr": 0.55,
         "cheek/cheek-volume-decr-incr": -0.3,
         "cheek/cheek-inner-decr-incr": -0.1,
         "chin/chin-height-decr-incr": 0.8,
-        "chin/chin-jaw-drop-decr-incr": 0.35,
+        "chin/chin-jaw-drop-decr-incr": 0.2,
         "chin/chin-bones-decr-incr": 0.55,
         "chin/chin-width-decr-incr": 0.15,
         "chin/chin-prominent-decr-incr": 0.75,
-        "chin/chin-prognathism-decr-incr": 0.3,
+        "chin/chin-prognathism-decr-incr": 0.5,
         "ears/ear-scale-decr-incr": 0.3,
         "ears/ear-flap-decr-incr": 0.4,
         "ears/ear-scale-vert-decr-incr": 0.2,
@@ -1186,11 +1210,12 @@
         "feet/foot-scale-decr-incr": -0.02,
         "torso/torso-scale-horiz-decr-incr": 1,
         "torso/measure-bust-circ-decr-incr": 0.5,
-        "eyes/eye-height1-decr-incr": -0.7,
-        "eyes/eye-height3-decr-incr": -0.7,
+        "eyes/eye-height1-decr-incr": -0.8,
+        "eyes/eye-height3-decr-incr": -0.8,
         "mouth/mouth-lowerlip-height-decr-incr": 0.2,
-        "neck/neck-double-decr-incr": -0.6,
-        "mouth/mouth-trans-backward-forward": -0.3
+        "neck/neck-double-decr-incr": -0.85,
+        "mouth/mouth-trans-backward-forward": -0.1,
+        "mouth/mouth-lowerlip-ext-down-up": 0.35
       },
       "expressions": {
         "jawOpen": {"jaw": {"rotDeg": 18}},
@@ -1209,19 +1234,20 @@
         "grin": {
           "modifiers": {
             "mouth/mouth-angles-down-up": 1,
-            "mouth/mouth-scale-horiz-decr-incr": 0.9,
-            "mouth/mouth-laugh-lines-in-out": 0.8,
+            "mouth/mouth-scale-horiz-decr-incr": 1,
+            "mouth/mouth-laugh-lines-in-out": 1,
             "cheek/cheek-trans-down-up": 1,
             "cheek/cheek-volume-decr-incr": 0.3,
             "mouth/mouth-dimples-in-out": 0.3,
-            "eyes/eye-height1-decr-incr": -0.4,
-            "eyes/eye-height2-decr-incr": -0.4,
-            "eyes/eye-height3-decr-incr": -0.4,
+            "eyes/eye-height1-decr-incr": -0.3,
+            "eyes/eye-height2-decr-incr": -0.3,
+            "eyes/eye-height3-decr-incr": -0.3,
             "mouth/mouth-upperlip-ext-down-up": 1,
-            "mouth/mouth-lowerlip-ext-down-up": -0.4
+            "mouth/mouth-lowerlip-ext-down-up": -0.4,
+            "cheek/cheek-bones-decr-incr": 0.3
           },
-          "jaw": {"rotDeg": 7},
-          "lids": 0.6
+          "jaw": {"rotDeg": 6},
+          "lids": 0.45
         },
         "scowl": {
           "modifiers": {
@@ -1245,19 +1271,19 @@
         "blink": {"lids": true}
       },
       "appearance": {
-        "skin": "#D8A985",
+        "skin": "#D6A587",
         "lips": "#a87462",
         "palms": "#e4bea0",
         "skinRoughness": 0.52,
-        "warmK": 0.15,
-        "cavityK": 0.2,
+        "warmK": 0.25,
+        "cavityK": 0.3,
         "hlK": 0.05,
         "tattooK": 0,
         "stubbleHair": 0,
-        "scalpDarken": 0.9,
+        "scalpDarken": 1,
         "scalpRoughness": 0.7,
         "beardSkinDarken": 1,
-        "browDarken": 0.6,
+        "browDarken": 0.25,
         "glossBase": 0,
         "clearcoatRoughness": 0.3,
         "sheenColor": "#8090a0",
@@ -1267,27 +1293,36 @@
           "lengthMm": 15,
           "color": "#121010",
           "hairline": {
-            "aboveCm": 6.6,
-            "frontCurveCm": 0.3,
+            "aboveCm": 7,
+            "frontCurveCm": 0.1,
             "recCm": 0.45,
-            "temple": "square",
-            "sideburnBottom": "ET.y-0.012",
-            "sideburnWidthCm": 1,
-            "earGapMm": 5,
-            "napeBelowLobeCm": 0.5,
+            "temple": "round",
+            "sideburnBottom": "mid-ear",
+            "sideburnWidthCm": 1.2,
+            "earGapMm": 4,
+            "napeBelowLobeCm": 1.5,
             "nape": "taper"
           },
           "layers": [
-            {"name": "inner", "offsetMm": 2, "family": {"straight": 0.7, "stipple": 0.3}, "density": 1, "fadeMm": 4},
+            {
+              "name": "inner",
+              "offsetMm": 2,
+              "family": {"straight": 0.7, "stipple": 0.3},
+              "density": 1,
+              "fadeMm": 4,
+              "sideDensity": 1
+            },
             {
               "name": "outer",
-              "offsetMm": 10,
-              "sidesScale": 0.22,
+              "offsetMm": 11,
+              "sidesScale": 0.12,
               "density": 0.6,
               "insetMm": 0,
-              "fadeMm": 8,
-              "fringe": {"depthCm": 1.5, "scale": 1.4},
-              "backScale": 0.3
+              "fadeMm": 10,
+              "fringe": {"depthCm": 1.5, "scale": 1.6},
+              "backScale": 0.2,
+              "sideDensity": 0.3,
+              "family": {"straight": 0.85, "stipple": 0.15}
             }
           ],
           "maskFadeMm": 10,
@@ -1295,15 +1330,16 @@
         },
         "beard": {"style": "none", "color": "#2a2420", "components": {"J": {"upperLip": 0.07, "chin": 0.07}}, "layers": []},
         "eyebrows": {
-          "gap": 0.021,
+          "gap": 0.018,
           "arch": 0,
-          "tail": 0.005,
-          "hIn": 0.0075,
+          "tail": 0.0045,
+          "hIn": 0.0068,
           "hOut": 0.0045,
           "density": 1,
-          "shape": "thick, outer ends up",
+          "shape": "natural straight, outer ends slightly up",
           "offsetMm": 1,
-          "color": "#121010"
+          "color": "#121010",
+          "fadeMm": 2
         },
         "tattoos": [],
         "kit": {
@@ -1370,14 +1406,14 @@
         "forehead/forehead-scale-vert-decr-incr": -0.73,
         "forehead/forehead-temple-decr-incr": -0.45,
         "forehead/forehead-trans-backward-forward": -0.1,
-        "eyebrows/eyebrows-trans-down-up": -0.4,
+        "eyebrows/eyebrows-trans-down-up": -0.55,
         "eyebrows/eyebrows-angle-down-up": -0.1,
         "eyebrows/eyebrows-trans-backward-forward": 0.25,
         "eyes/eye-height2-decr-incr": -0.5,
-        "eyes/eye-eyefold-down-up": -0.65,
-        "eyes/eye-corner2-down-up": 0.1,
-        "eyes/eye-scale-decr-incr": -0.05,
-        "eyes/eye-bag-decr-incr": 0.2,
+        "eyes/eye-eyefold-down-up": -0.8,
+        "eyes/eye-corner2-down-up": 0.2,
+        "eyes/eye-scale-decr-incr": 0.15,
+        "eyes/eye-bag-decr-incr": 0,
         "nose/nose-scale-horiz-decr-incr": 0.15,
         "nose/nose-flaring-decr-incr": 0.2,
         "nose/nose-nostrils-width-decr-incr": 0.2,
@@ -1386,17 +1422,17 @@
         "nose/nose-scale-depth-decr-incr": 0.1,
         "nose/nose-volume-decr-incr": 0.1,
         "nose/nose-hump-decr-incr": -0.1,
-        "mouth/mouth-scale-horiz-decr-incr": 0.15,
-        "mouth/mouth-upperlip-volume-decr-incr": 0.55,
+        "mouth/mouth-scale-horiz-decr-incr": 0.35,
+        "mouth/mouth-upperlip-volume-decr-incr": 0.7,
         "mouth/mouth-lowerlip-volume-decr-incr": 0.8,
-        "mouth/mouth-cupidsbow-decr-incr": 0.2,
+        "mouth/mouth-cupidsbow-decr-incr": 0.45,
         "mouth/mouth-angles-down-up": -0.05,
         "chin/chin-prominent-decr-incr": 0.4,
         "chin/chin-height-decr-incr": 0.3,
-        "chin/chin-bones-decr-incr": -0.15,
+        "chin/chin-bones-decr-incr": -0.4,
         "chin/chin-width-decr-incr": -0.6,
         "cheek/cheek-bones-decr-incr": 1,
-        "cheek/cheek-volume-decr-incr": -0.7,
+        "cheek/cheek-volume-decr-incr": -0.9,
         "cheek/cheek-inner-decr-incr": -0.65,
         "ears/ear-scale-decr-incr": -0.1,
         "ears/ear-flap-decr-incr": -0.35,
@@ -1428,17 +1464,19 @@
         "eyes/eye-height1-decr-incr": -0.15,
         "chin/chin-prognathism-decr-incr": 0.1,
         "nose/nose-scale-vert-decr-incr": 0.2,
-        "cheek/cheek-trans-down-up": 0.25
+        "cheek/cheek-trans-down-up": 0.25,
+        "head/head-invertedtriangular": 0.2
       },
       "expressions": {
         "jawOpen": {"jaw": {"rotDeg": 18}},
         "smirk": {
           "modifiers": {
             "asym/asym-mouth-1-l-r": 1,
-            "mouth/mouth-angles-down-up": 0.25,
-            "cheek/cheek-trans-down-up": 0.6,
+            "mouth/mouth-angles-down-up": 0,
+            "cheek/cheek-trans-down-up": 0.2,
             "eyebrows/eyebrows-angle-down-up": 0.3,
-            "eyes/eye-height2-decr-incr": -0.15
+            "eyes/eye-height2-decr-incr": -0.15,
+            "asym/asym-brown-1-l-r": 0.5
           }
         },
         "scowl": {
@@ -1458,15 +1496,15 @@
         "skin": "#8A5A3B",
         "lips": "#5a3628",
         "palms": "#b88a6c",
-        "skinRoughness": 0.56,
+        "skinRoughness": 0.6,
         "warmK": 0,
         "cavityK": 0.7,
-        "hlK": 0.06,
+        "hlK": 0.03,
         "tattooK": 1,
         "stubbleHair": 0,
         "scalpDarken": 1,
         "scalpRoughness": 0.75,
-        "beardSkinDarken": 0.65,
+        "beardSkinDarken": 0.8,
         "browDarken": 0.8,
         "glossBase": 0,
         "clearcoatRoughness": 0.45,
@@ -1475,16 +1513,16 @@
         "hair": {
           "style": "short-coils-taper",
           "lengthMm": 12,
-          "color": "#1c1714",
+          "color": "#171210",
           "hairline": {
-            "aboveCm": 5.5,
+            "aboveCm": 5,
             "frontCurveCm": 0,
             "recCm": 0,
             "temple": "square",
             "sideburnBottom": "beard",
-            "sideburnWidthCm": 1.2,
+            "sideburnWidthCm": 1.5,
             "earGapMm": 4,
-            "napeBelowLobeCm": 0,
+            "napeBelowLobeCm": 1,
             "nape": "taper"
           },
           "layers": [
@@ -1493,46 +1531,54 @@
               "offsetMm": 1.5,
               "family": {"coil": 0.8, "stipple": 0.2},
               "density": 1,
-              "fadeMm": 1.2,
-              "sideDensity": 0.7
+              "fadeMm": 2.5,
+              "sideDensity": 0.85
             },
             {
               "name": "outer",
-              "offsetMm": 7.5,
+              "offsetMm": 6,
               "sidesScale": 0,
-              "density": 0.8,
+              "density": 0.9,
               "insetMm": 0.5,
               "fadeMm": 2,
               "backScale": 0.25,
-              "sideDensity": 0.7,
+              "sideDensity": 0.85,
               "family": {"coil": 1}
             }
           ],
-          "maskFadeMm": 5
+          "maskFadeMm": 10
         },
         "beard": {
           "style": "full",
-          "color": "#1a1411",
+          "color": "#150f0c",
           "components": {
             "F": {
               "yA": "T.y+0.008",
-              "dA": 0.006,
+              "dA": 0.009,
               "yB": "CH.y+0.018",
               "dB": 0.006,
               "dN": 0.004,
               "moustache": true,
               "moustacheGapMm": 0.5,
               "zones": {"all": 0.95},
-              "neckCurve": [0.3, 1.35],
+              "neckCurve": [0.4, 1.5],
               "neckBackY": "GO.y-0.008",
               "backCut": "ramus",
-              "cornerRoundMm": 6,
+              "cornerRoundMm": 10,
               "moustacheLipMarginMm": 1.5
             }
           },
           "layers": [
-            {"name": "inner", "offsetMm": 1.5, "family": {"coil": 0.7, "stipple": 0.3}, "fadeMm": 0.6},
-            {"name": "outer", "chinMm": 3, "cheeksMm": 1, "density": 0.65, "insetMm": 1, "fadeMm": 2}
+            {"name": "inner", "offsetMm": 1.5, "family": {"coil": 0.7, "stipple": 0.3}, "fadeMm": 1.5},
+            {
+              "name": "outer",
+              "chinMm": 4,
+              "cheeksMm": 1,
+              "density": 0.75,
+              "insetMm": 1,
+              "fadeMm": 3,
+              "family": {"coil": 0.6, "stipple": 0.4}
+            }
           ]
         },
         "eyebrows": {
@@ -1544,7 +1590,8 @@
           "density": 1,
           "shape": "thick-low-straight",
           "offsetMm": 1.5,
-          "color": "#141010"
+          "color": "#141010",
+          "fadeMm": 0.8
         },
         "tattoos": [{"kind": "dottedBracket"}],
         "kit": {
@@ -1578,7 +1625,9 @@
             "colors": {"classic": "#111111", "allstarA": "#111111", "allstarB": "#111111"}
           },
           {"type": "mouthguard", "color": "#f2f2f2", "tier": "high"}
-        ]
+        ],
+        "faceShade": {"cheekHollow": 0.1},
+        "lipRoughK": 0
       }
     }
   ]

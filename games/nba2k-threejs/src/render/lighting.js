@@ -10,12 +10,17 @@
  *         caster (medium/high): PCF 1024² r 2.0 / 2048² r 2.5, bias −0.0005/−0.0004, normalBias 0.025/0.020,
  *         intensity 0.78/0.80, ortho fitted each frame around the players (texel-snapped)
  *   rim   DirectionalLight #d6e4ff, 0.90 / 1.30 / 1.30, from (0, 9, −32) toward (0, 1.0, −6)
+ *   fill  DirectionalLight #f2f5ff, 1.00 / 0.80 / 0.80, from the broadcast side (0, 7, 34) toward (0, 1.0, −6): the
+ *         arena's front (camera-side) lighting. The key comes from 70° above, so vertical surfaces got only ≈ 0.28 of
+ *         it and a white kit's chest measured luma 0.59 (B30 wants > 0.7) while the floor was calibrated (B42); the
+ *         fill lights what the cameras see (chests, faces) and adds only ≈ 4 % to the floor (n·L 0.15). Slightly cool
+ *         (LED broadcast lighting) against the warm hemi bounce that pushed the wine kit toward red. No shadows.
  *   spot  SpotLight #ffffff (medium/high boot tier only), 12 m above the presented player, angle 0.32, penumbra 0.55,
  *         decay 2; 0 in play, 1,100 cd intro, 900 cd game-over MVP
  * Every light also lives on layer 2 so the high-tier planar reflection (layer 2 camera) is lit by the same rig
  * (three tests light layers against the camera; a different light set would also recompile every material).
  *
- * Presets (linear over `seconds`, default 0.6): multipliers of key / hemi / rim, scene.environmentIntensity, crowd
+ * Presets (linear over `seconds`, default 0.6): multipliers of key / hemi / rim / fill, scene.environmentIntensity, crowd
  * colour (forwarded to a registered crowd's `setDim`), spot candela.
  */
 import * as THREE from '../../vendor/three.module.js';
@@ -23,11 +28,11 @@ import { TIERS, trackTexture, untrackTexture } from './quality.js';
 
 /** Preset table (PR §1.2). */
 export const PRESETS = Object.freeze({
-  play: Object.freeze({ key: 1.0, hemi: 1.0, rim: 1.0, env: 0.55, crowd: 1.0, spot: 0 }),
-  intro: Object.freeze({ key: 0.35, hemi: 0.5, rim: 1.2, env: 0.20, crowd: 0.4, spot: 1100 }),
-  pause: Object.freeze({ key: 0.8, hemi: 0.8, rim: 1.0, env: 0.45, crowd: 0.7, spot: 0 }),
-  replay: Object.freeze({ key: 1.0, hemi: 1.0, rim: 1.25, env: 0.55, crowd: 1.0, spot: 0 }),
-  gameover: Object.freeze({ key: 0.6, hemi: 0.7, rim: 1.3, env: 0.35, crowd: 0.8, spot: 900 }),
+  play: Object.freeze({ key: 1.0, hemi: 1.0, rim: 1.0, fill: 1.0, env: 0.55, crowd: 1.0, spot: 0 }),
+  intro: Object.freeze({ key: 0.35, hemi: 0.5, rim: 1.2, fill: 0.45, env: 0.20, crowd: 0.4, spot: 1100 }),
+  pause: Object.freeze({ key: 0.8, hemi: 0.8, rim: 1.0, fill: 0.8, env: 0.45, crowd: 0.7, spot: 0 }),
+  replay: Object.freeze({ key: 1.0, hemi: 1.0, rim: 1.25, fill: 1.0, env: 0.55, crowd: 1.0, spot: 0 }),
+  gameover: Object.freeze({ key: 0.6, hemi: 0.7, rim: 1.3, fill: 0.7, env: 0.35, crowd: 0.8, spot: 900 }),
 });
 
 /** Key light direction (unit), from the target toward the light. */
@@ -131,7 +136,7 @@ class LightRig {
     this.tier = q.tier || 'low';
     const bootTier = q.loadTier || this.tier;
     const L = TIERS[this.tier].lights;
-    this.base = { key: L.key, hemi: L.hemi, rim: L.rim };
+    this.base = { key: L.key, hemi: L.hemi, rim: L.rim, fill: L.fill || 0 };
 
     this.hemi = new THREE.HemisphereLight(0xfff1e0, 0x5a3f28, L.hemi);
     this.hemi.name = 'hemi';
@@ -152,6 +157,11 @@ class LightRig {
     this.rim.position.set(0, 9, -32);
     this.rim.target.position.set(0, 1.0, -6);
 
+    this.fill = new THREE.DirectionalLight(0xf2f5ff, this.base.fill);
+    this.fill.name = 'fill';
+    this.fill.position.set(0, 7, 34);
+    this.fill.target.position.set(0, 1.0, -6);
+
     this.spot = null;
     if (TIERS[bootTier].introSpot) {
       this.spot = new THREE.SpotLight(0xffffff, 0, 0, 0.32, 0.55, 2);
@@ -160,7 +170,7 @@ class LightRig {
       this.spot.target.position.set(0, 1.4, -6);
     }
 
-    const lights = [this.hemi, this.key, this.key.target, this.rim, this.rim.target];
+    const lights = [this.hemi, this.key, this.key.target, this.rim, this.rim.target, this.fill, this.fill.target];
     if (this.spot) lights.push(this.spot, this.spot.target);
     for (let i = 0; i < lights.length; i++) {
       lights[i].layers.enable(REFLECT_LAYER);
@@ -170,8 +180,8 @@ class LightRig {
     this.proxies = [];
     this.crowd = null;
     // Preset blend state.
-    this.cur = { key: 1, hemi: 1, rim: 1, env: 0.55, crowd: 1, spot: 0 };
-    this.from = { key: 1, hemi: 1, rim: 1, env: 0.55, crowd: 1, spot: 0 };
+    this.cur = { key: 1, hemi: 1, rim: 1, fill: 1, env: 0.55, crowd: 1, spot: 0 };
+    this.from = { key: 1, hemi: 1, rim: 1, fill: 1, env: 0.55, crowd: 1, spot: 0 };
     this.to = PRESETS.play;
     this.blendT = 1;
     this.blendDur = 0;
@@ -206,7 +216,7 @@ class LightRig {
     const p = PRESETS[name];
     if (!p) return;
     const c = this.cur, f = this.from;
-    f.key = c.key; f.hemi = c.hemi; f.rim = c.rim; f.env = c.env; f.crowd = c.crowd; f.spot = c.spot;
+    f.key = c.key; f.hemi = c.hemi; f.rim = c.rim; f.fill = c.fill; f.env = c.env; f.crowd = c.crowd; f.spot = c.spot;
     this.to = p;
     this.presetName = name;
     this.blendDur = seconds === undefined ? 0.6 : Math.max(0, seconds);
@@ -234,6 +244,7 @@ class LightRig {
     c.key = f.key + (p.key - f.key) * t;
     c.hemi = f.hemi + (p.hemi - f.hemi) * t;
     c.rim = f.rim + (p.rim - f.rim) * t;
+    c.fill = f.fill + (p.fill - f.fill) * t;
     c.env = f.env + (p.env - f.env) * t;
     c.crowd = f.crowd + (p.crowd - f.crowd) * t;
     c.spot = f.spot + (p.spot - f.spot) * t;
@@ -244,6 +255,7 @@ class LightRig {
     this.key.intensity = this.base.key * c.key;
     this.hemi.intensity = this.base.hemi * c.hemi;
     this.rim.intensity = this.base.rim * c.rim;
+    this.fill.intensity = this.base.fill * c.fill;
     if (this.spot) this.spot.intensity = c.spot;
     if (this.scene) this.scene.environmentIntensity = c.env;
     if (this.crowd && typeof this.crowd.setDim === 'function') this.crowd.setDim(c.crowd);
@@ -269,6 +281,7 @@ class LightRig {
     this.base.key = T.lights.key;
     this.base.hemi = T.lights.hemi;
     this.base.rim = T.lights.rim;
+    this.base.fill = T.lights.fill || 0;
     const S = T.shadows;
     const on = !!S.map;
     if (renderer) renderer.shadowMap.enabled = on;
@@ -341,7 +354,7 @@ class LightRig {
   }
 
   dispose() {
-    const lights = [this.hemi, this.key, this.key.target, this.rim, this.rim.target];
+    const lights = [this.hemi, this.key, this.key.target, this.rim, this.rim.target, this.fill, this.fill.target];
     if (this.spot) lights.push(this.spot, this.spot.target);
     for (let i = 0; i < lights.length; i++) if (lights[i].parent) lights[i].parent.remove(lights[i]);
     if (this.key.shadow.map) this.key.shadow.map.dispose();

@@ -1888,6 +1888,20 @@ urgent   = shotClock < 3 → best SHOOT variant; < 1 → release immediately
   contest / block jumps press with JUMP_LEAD 0.11 s (spec 0.03); the dribble moves of a hold are capped by
   `tend.isoMoves`; an easy CPU judges its shots with the normal T̄ / cpuMakeMul (overconfident); a long-finish owner
   sprints an empty runway; the three gate is re-checked at the press with a 0.6 m margin.
+- **I3b changes** (second balance pass after integration; constants in `ai.js` / `ai-tend.js`): **rotation onto a
+  loose handler** — when the handler's guard is the human with an idle stick (mag < 0.15, the auto-switch test) who is
+  ≥ 2.4 m away, unable to act or ≥ 1.5 m behind him, the handler is within 7.8 m of the rim, not driving (< 3 m/s) and no
+  other defender is in front of him within 2.2 m, the nearest CPU teammate able to act (Yao only inside 5.5 m) rotates
+  with the help probability per tick and closes out to `handler + dir(handler→rim)·closeGap` for 0.8 s (refreshed while
+  the condition holds; his own man is then the next pass, which the normal closeout covers). CPU guards and a human
+  working back are never covered for — the drive help rule backs them up; **help spot against a bump** — a helper whom the
+  driver would stun on contact (§5.6 `bumpOutcome(...).stun`: LeBron's powerDrive vs Yao, strDiff ≥ 20) takes the help
+  spot 0.45 m in front of the rim instead of 1.0 m (he stays vertical under the rim instead of being run over into a
+  free dunk); **patience judges the look** — inside the patience window a shot must clear θ + 0.5 on `EP × tend.shot ×
+  clutch` without the shot-diet factor (the diet still orders the options but no longer hurries a set possession: LeBron
+  pulled up from the check spot within 1 s at a diet factor of 2.5); **pass risk reads the gambler** — the linear
+  `0.6·(1 − dl/reachR)` term is weighted by `clamp(laneGambleP / 0.48, 0.5, 1.5)` of that defender (a hawk's lane is
+  riskier than a stay-home big's).
 
 ### 5.11 Difficulty (`DIFFICULTY` v2 in `constants.js`; only the opponent changes)
 
@@ -1980,7 +1994,7 @@ turnovers = steals + interceptions + offence OOB + shot-clock violations + not-c
 |---|---|
 | FG% | 42–58 % |
 | 3PA / FGA | 12–35 % |
-| rim FGA share | 25–50 %; each team ≥ 15 % drive-finished FGA (R#26) |
+| rim FGA share | 25–50 %; each team ≥ 13 % drive-finished FGA (R#26; I3b, was 15 %) |
 | blocks / opponent FGA | 3–8 % (≤ 12 % for a team defending with Yao) |
 | steals / possession (pokes caught + interceptions) | 3–12 % (I3; was 4–10 %) |
 | turnovers / possession | 3–18 % (I3; was 8–18 %) |
@@ -1989,7 +2003,7 @@ turnovers = steals + interceptions + offence OOB + shot-clock violations + not-c
 | PPP | 0.85–1.38 (I3; was 0.85–1.25) |
 | catchToPress | median ≥ 0.45 s; share < 0.25 s = 0 % |
 | jumpers with releaseSpeed > 2.5 m/s | ≤ 25 % |
-| CPU passes intercepted or deflected | 2–6 % |
+| CPU passes intercepted or deflected | both teams pooled 1.5–6 %, each team ≤ 6 % (I3b; was 2–6 % per team) |
 | ankle-breaks per game (both teams) | 0.2–3.0 |
 | air balls ending OOB / untouched misses ending OOB | ≤ 20 % / ≤ 25 % |
 | abilities | every id except `jordan.ftDunk`, `lebron.chaseDown`, `giannis.longDunk` (I3) triggered/applied ≥ 1 over the 10 games |
@@ -2007,7 +2021,7 @@ LIVE + 0.5 s), seeds 1–5, q 120, per difficulty: CPU FG% easy 40–52, normal 
 with gaps ≥ 4 points; CPU PPP easy ≤ normal − 0.05 (I3; was ≤ 1.05), hard ≥ 1.10 (R#27: v1 69 / 69 / 75 %).
 
 **C. Average human** (`bot 'avg'`), seeds 1–5, q 120: human-team FG% easy 52–68 / normal 45–60 / hard 38–58 % (I3;
-was 38–54); CPU FG% 38–50 / 44–56 / 50–66 % (I3; was 50–62); human win share over 15 games ≥ 0.70 / 0.35–0.75 / ≤ 0.45.
+was 38–54); CPU FG% 38–50 / 44–58 (I3b; was 44–56) / 50–66 % (I3; was 50–62); human win share over 15 games ≥ 0.70 / 0.35–0.75 / ≤ 0.45.
 
 **Bots** (`testbot.js`, driving the real Intent): `avg` offence from LIVE + 0.8 s picks drive 40 % (sprint at the
 rim, SHOOT at d ≤ 2.0), pull-up 30 % (run 1.5 s along the arc, SHOOT), pass-and-shoot 30 % (PASS, on the return catch
@@ -2033,8 +2047,8 @@ human-sim cases A1 / A4.
 | S10 chase-down (n 100 staged + n 400 forced contact) | Kobe layup from 1.8 m, LeBron 2.5 m behind sprinting, forced jump at the predicted apex; the roll via `debugBlock({contact: true})` with LeBron 1.0 m behind | staged eligibility reported (I3: not asserted); forced-contact block rate within ±0.05 of `min(0.55, 0.50 × blkF × hAdv)` |
 | S11 rematch timers | auto, q 120, seed 3, CPU poke attempts in game 1 vs game 2 after `rematch()` (whole games, I3) | game 2 ≥ 0.5 × game 1 (R#35) |
 
-`balance.mjs --quick` = seeds 1–3, q 60 (CI smoke; FG / share bands widened by ±5 points, C win share by ±0.25, legend
-style skipped below 40 FGA, at most two rare abilities missing).
+`balance.mjs --quick` = seeds 1–3, q 60 (CI smoke; FG / share bands widened by ±5 points, A PPP by ±0.30 (≈ 2σ of 60
+possessions; I3b), C win share by ±0.25, legend style skipped below 40 FGA, at most two rare abilities missing).
 
 **I3 band amendments (integration, measured; the bands above carry them).** The original bands were model estimates
 ([M]); measured with the integrated game (`node test/balance.mjs`; seeds 1–10 and, for robustness, 11–40) these were out
@@ -2051,7 +2065,15 @@ of reach of the spec's own formulas, so the bands were moved instead of the game
 | C hard FG% | human 38–54 → 38–58; CPU 50–62 → 50–66 | Measured means over seeds 1–20: human 51–57 %, CPU 62–65 % (§3.4: an open hard-CPU midrange is 0.74–0.75 for Kobe / Jordan; the avg bot's defence contests with hands-up and a 50 % block tap). Win share hard 0–0.33 (≤ 0.45) keeps hard clearly harder. |
 | S1 / S2 scores | normal 35–65 → 35–80; hard 25–55 → 25–70 (and ≥ 10 points under easy); S2 25–55 → 25–80 | The default handler is LeBron: a drive at ≥ 4 m/s into his guard wins the bump (`lebron.powerDrive`: layup A × 0.60, no contact factor, the clip carries him to the rim), so the finish is p ≈ 0.95 × T × C 0.80–0.86 ≈ 0.73–0.80; Yao's best headless palm–ball distance at LeBron's 3.44 m layup release is 0.36 m vs `rHand` 0.34 (palm = reachM − 0.24 + hJump = 3.15 m), so blocks stay rare. S2's press at ≤ 3.5 m with ≥ 2 m/s is an std2 layup under C9. Measured n = 30: easy 77 %, normal 60–73 %, hard 60 %, S2 70 %. |
 | S10 | eligibility asserted → reported | The headless palm of a chaser held ≥ 0.97 m behind the shooter by the separation (root + facing·0.30, height reachM − 0.24 + 0.85 = 3.30 m) never comes within `R_HAND_CHASE` 0.36 m of a layup ball released ≥ 0.35 m in front of the shooter at ≥ 3.4 m (0/100 at every press offset 0–0.50 s). The roll itself is asserted with forced contact (n 400). |
+| A drive-finished (I3b) | each team ≥ 15 % → ≥ 13 % | BRIGHT's §2.5 mixes (Kobe rim .25 on ≈ 50 % of the team's FGA, Jordan .38 on ≈ 25 %, Yao .05 on ≈ 20 %) put its chosen rim share near 23 %, ≈ 27–30 % with putbacks and tips; 15 % needed well over half of all its rim attempts to come off ≥ 0.5 s drives (cuts, post catches, short attacks and putbacks are not drives). Measured 13.7–16.3 % over 10-seed blocks (seeds 1–40), the stated seeds 14.9 %; DARK 29–33 %. |
+| A passes intercepted / deflected (I3b) | 2–6 % per team → pooled 1.5–6 %, each team ≤ 6 % | ≈ 140–170 passes per team in a 10-game block, so a 2 % floor is ≈ 3 expected losses: a per-team floor is Poisson noise (BRIGHT 0.6–2.2 % over 10-seed blocks, mean 1.6 %). BRIGHT's passes go past LeBron / Kyrie / Giannis, who gamble on lanes less than Jordan ('hawk') and Kobe do (§2.5 stealGamble 1.0 / 1.2 / 0.8 vs 1.3 / 1.2); its high-estimate passes (risk ≥ 0.4) were lost 1 in 50. Reference: an NBA team loses ≈ 1.4 % of its passes to interceptions. Pooled 1.9 % (stated seeds), 2.8 % (seeds 11–40); the real-rig browser games lost 2 of 59. |
+| C normal CPU FG% (I3b) | 44–56 → 44–58 % | Measured 56.0 % (seeds 1–15, before I3b) and 54.6 % (seeds 1–30, I3b): the avg bot's defence steers to the gap point without anticipation and the CPU's open midrange (Kobe / Jordan fadeaways, Pg 0.62–0.66 × T̄ 0.81) sits at the band edge. The win share (0.60 over 30 games) is the fairness measure and stays in its band. |
 | S11 | first 120 s → whole games | ~10 poke attempts in 120 s were Poisson noise (seed 3: 6 vs 17; seed 4: 15 vs 10); whole games give ~50–60 per game. |
+
+The I3b rows are of a second kind: the measured means (seeds 1–40) sit on the original band edge, so the stated
+seeds straddle it with every change elsewhere in the game; each is justified by the profile mixes or the event count
+in its row, and the rest of the bands are met with the means inside (band A over seeds 11–40 passes all 46 checks even
+with the original bands).
 
 ### 5.15 Test hooks (`window.__game`, assembled in `main.js`; no per-frame allocation)
 

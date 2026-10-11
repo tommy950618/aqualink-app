@@ -1559,16 +1559,38 @@ async function starKitBoxes(page, name, M) {
   const out = [];
   for (let i = 0; i < 2; i++) {
     const id = ids[i]; const L = M.legends.LEGENDS[id]; const kit = L.kit[L.kit.classic];
-    const nb = cap.normal[i], mb = cap.mask[i]; let s = null;
+    const nb = cap.normal[i], mb = cap.mask[i]; let s = null, part = null;
     if (nb && mb && nb.w === mb.w && nb.h === mb.h) {
       const img = { width: nb.w, height: nb.h, data: nb.px, bpp: 3 };
       const isKit = kitBaseFilter(cap, i);
       s = kitBoxStats(img, { cx: nb.w / 2, cy: nb.h / 2, w: nb.w, h: nb.h }, { baseHex: kit.base, numberHex: kit.number, mask: isKit });
       if (s) s.kitFrac = s.n / (nb.w * nb.h);
+      part = { img, isKit };
     }
-    out.push({ id, base: kit.base, box: cap.boxes[i], s });
+    out.push({ id, base: kit.base, number: kit.number, box: cap.boxes[i], s, part });
   }
   return out;
+}
+/**
+ * Kit statistics of one ★ pooled over several captures (B26): the captured torso boxes are stacked into one image
+ * (rows padded with masked-out pixels) and measured as one box, so a ★ seen at 10–40 px per frame on a phone still
+ * yields a sample of ≥ 60 kit pixels.
+ */
+function pooledKitStats(entries) {
+  const parts = entries.map((e) => e.part).filter(Boolean); if (!parts.length) return null;
+  const W = Math.max(...parts.map((p) => p.img.width)), H = parts.reduce((a, p) => a + p.img.height, 0);
+  const data = new Uint8Array(W * H * 3), keep = new Uint8Array(W * H);
+  let y0 = 0;
+  for (const p of parts) {
+    for (let y = 0; y < p.img.height; y++) for (let x = 0; x < p.img.width; x++) {
+      const si = (y * p.img.width + x) * 3, di = ((y0 + y) * W + x) * 3;
+      data[di] = p.img.data[si]; data[di + 1] = p.img.data[si + 1]; data[di + 2] = p.img.data[si + 2];
+      keep[(y0 + y) * W + x] = p.isKit && p.isKit(x, y) ? 1 : 0;
+    }
+    y0 += p.img.height;
+  }
+  const e = entries[0];
+  return kitBoxStats({ width: W, height: H, data, bpp: 3 }, { cx: W / 2, cy: H / 2, w: W, h: H }, { baseHex: e.base, numberHex: e.number, mask: (x, y) => keep[y * W + x] === 1 });
 }
 item('B26', 'Screenshots title / LIVE 2 s / LIVE 8 s (landscape, portrait): luma > 0.12 on > 25 %, pairwise > 1 % different; DOM team chips exact; ★ torso boxes keep the kit hue ±18° (≥ 40 % kept) and differ in mean luma ≥ 0.12', { timeoutS: 900, needs: [...BASE_HOOKS, 'characters', 'lineup', 'director.camera'] }, async (t) => {
   requireGame(); const M = await mods();
@@ -1581,9 +1603,15 @@ item('B26', 'Screenshots title / LIVE 2 s / LIVE 8 s (landscape, portrait): luma
     await waitForState(page, 'LIVE', 30000); await installHelpers(page);
     await ev(page, 'g.fastForward(2)'); await ev(page, 'acc.nextFrame(3)');
     shots.live2 = await shot(page, `B26-${device}-live2`);
-    const kits = await starKitBoxes(page, `B26-${device}-kits`, M);
-    await ev(page, 'g.fastForward(6)'); await ev(page, 'acc.nextFrame(3)');
+    // the ★ torso boxes are measured on the LIVE frames from 2 s to 8 s (every 2 s) and pooled: on a phone a ★ covers
+    // 10–40 kit pixels per frame (portrait broadcast view: players ≈ 45 px tall), too few for a median hue or a mean
+    // lightness from a single frame, and the 2 s frame alone often had one ★ screened by his defender
+    const caps = [await starKitBoxes(page, `B26-${device}-kits`, M)];
+    for (let k = 0; k < 2; k++) { await ev(page, 'g.fastForward(2)'); await ev(page, 'acc.nextFrame(3)'); caps.push(await starKitBoxes(page, `B26-${device}-kits${k + 4}`, M)); }
+    await ev(page, 'g.fastForward(2)'); await ev(page, 'acc.nextFrame(3)');
     shots.live8 = await shot(page, `B26-${device}-live8`);
+    caps.push(await starKitBoxes(page, `B26-${device}-kits8`, M));
+    const kits = caps[0].map((k, i) => ({ ...k, s: pooledKitStats(caps.map((c) => c[i])) }));
     for (const [n, img] of Object.entries(shots)) { const f = lumaFraction(img, 0.12); if (!(f > 0.25)) problems.push(`[${device}] ${n}: only ${(f * 100).toFixed(1)} % of pixels with luma > 0.12`); }
     for (const [a, b] of [['title', 'live2'], ['title', 'live8'], ['live2', 'live8']]) { const d = diffFraction(shots[a], shots[b], 24, 2); if (!(d > 0.01)) problems.push(`[${device}] ${a} vs ${b} differ by only ${(d * 100).toFixed(2)} %`); }
     const chips = await page.evaluate(() => ['#barA', '#barB', '#chipA', '#chipB'].map((s) => { const el = document.querySelector(s); return el ? getComputedStyle(el).backgroundColor : null; }));

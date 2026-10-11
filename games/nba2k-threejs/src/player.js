@@ -911,6 +911,7 @@ export class ActionMixin {
     const d = Math.sqrt((s.x - RIM.x) ** 2 + (s.z - RIM.z) ** 2);
     solveArc(P_HAND, P_TO, apexForDistance(d), BALL.G, ARC);
     ball.launch(ARC, 'flight', P_HAND);
+    ball.backspin = true;          // every flight shot leaves the hand with backspin (checks up at its first bounce)
     this.bookShotLaunch(p);
     ball.spinMode = s.variant === 'fingerRoll' ? 'underspin' : null;
     const e = this.ev('release', p); e.kind = s.kind; e.zone = s.zone; e.points = s.points; e.variant = s.variant; this.fire(e);
