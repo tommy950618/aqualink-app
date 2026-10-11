@@ -24,6 +24,7 @@ import { Gait, GAIT, FOOT, strideOf, gaitParams } from '../src/anim/locomotion.j
 import { Dribble, dribbleKinematics } from '../src/anim/dribble.js';
 import { LookAt, LOOK_LIMITS } from '../src/anim/look.js';
 import { Animator, ANIM_CAPTURE_FLOATS, FACE_AR } from '../src/anim/animator.js';
+import { PROXY_METRICS } from '../src/anim/proxy.js';
 import { EXAMPLE_CROSS, exampleJumper } from './unit-anim.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -606,6 +607,47 @@ GROUPS.push(['look', () => {
 // ------------------------------------------------------------------------------------------------ dunk IK
 GROUPS.push(['dunk', () => {
   registerTestClips();
+  // block reach assist (I2): airborne in a block clip the pelvis is lifted by the rig's shortfall to the spec palm
+  // (reachM − 0.24), ≤ 0.15 m; on the ground and outside defensive clips nothing changes
+  for (const id of PLAYER_IDS) {
+    const rig = RIGS[id], o = makeOwner(), a = makeAnimator(id, o);
+    const want = Math.min(0.15, Math.max(0, PROXY_METRICS[id].reachM - 0.24 - rig.metrics.reach0));
+    near(a.reachLift, want, 1e-9, `${id}: reach lift = spec palm − rig reach0`);
+    ok(a.reachLift > 0.03 && a.reachLift <= 0.15, `${id}: reach lift ${a.reachLift.toFixed(3)} m in (0.03, 0.15]`);
+    tick(a, o);
+    a.play(IDX['def.block1']);
+    for (let i = 0; i < 12; i++) tick(a, o);
+    o.jumpY = 0.5; a.step(DT);
+    near(a.blockLift(0.5), a.reachLift, 1e-9, `${id}: full lift airborne in a block clip`);
+    ok(a.blockLift(0) === 0 && a.blockLift(0.05) < a.reachLift, `${id}: no lift on the ground, ramped in over the first 0.10 m`);
+  }
+  // block aim (I4): airborne in a block clip with setBlockAim every step, the nearer palm of the step pose reaches for
+  // a ball 0.55 m in front and 0.45 m to the left of the defender (the clip alone keeps the hand beside the head); no aim
+  // on the ground or without setBlockAim; render palm (evaluate) follows the same IK
+  for (const id of PLAYER_IDS) {
+    const runBlock = (aim) => {
+      const o = makeOwner(), a = makeAnimator(id, o);
+      tick(a, o); a.play(IDX['def.block1']);
+      const pm = PROXY_METRICS[id], bx = o.pos.x + 0.45, bz = o.pos.z + 0.55, by = pm.reachM - 0.24 + 0.45;
+      let dGround = 0, dAir = 0, dRender = 0;
+      const pr = { x: 0, y: 0, z: 0 }, pl = { x: 0, y: 0, z: 0 };
+      const palmD = (fn) => { fn.call(a, SOCK.palm_r, pr); fn.call(a, SOCK.palm_l, pl); return Math.min(Math.hypot(pr.x - bx, pr.y - by, pr.z - bz), Math.hypot(pl.x - bx, pl.y - by, pl.z - bz)); };
+      for (let i = 0; i < 14; i++) {
+        o.jumpY = i < 4 ? 0 : 0.45;
+        if (aim) a.setBlockAim(bx, by, bz);
+        a.step(DT);
+        if (i === 3) dGround = palmD(a.querySocket);
+      }
+      dAir = palmD(a.querySocket);
+      a.evaluate(1, DT); dRender = palmD(a.renderSocket);
+      return { dGround, dAir, dRender };
+    };
+    const off = runBlock(false), on = runBlock(true);
+    near(on.dGround, off.dGround, 1e-9, `${id}: block aim does nothing on the ground`);
+    ok(on.dAir < off.dAir - 0.12, `${id}: airborne block aim brings the palm closer (${off.dAir.toFixed(2)} → ${on.dAir.toFixed(2)} m)`);
+    ok(on.dAir < 0.30, `${id}: aimed palm within 0.30 m of the ball (${on.dAir.toFixed(3)} m)`);
+    ok(Math.abs(on.dRender - on.dAir) < 0.08, `${id}: render palm follows the step-pose aim (${on.dRender.toFixed(3)} vs ${on.dAir.toFixed(3)} m)`);
+  }
   for (const id of PLAYER_IDS) {
     const rig = RIGS[id];
     const o = makeOwner(0, 0, Math.PI), a = makeAnimator(id, o);

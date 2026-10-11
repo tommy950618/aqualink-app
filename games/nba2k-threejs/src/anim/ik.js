@@ -29,7 +29,7 @@
  *      unreachable ones straighten the chain toward the target.
  * Knee pole = hip + Ry(foot yaw)·(0, −0.5, 0.6)·sLeg (knees track the toes); elbow poles are passed by the caller.
  */
-import { BONE_COUNT, BONE_PARENT, BONE, qmul, qconj, qrotate, qnlerp } from './rig.js';
+import { BONE_COUNT, BONE_PARENT, BONE, BONE_NAMES, qmul, qconj, qrotate, qnlerp } from './rig.js';
 
 // ---------------------------------------------------------------------------------------------------------------
 // Hierarchy helpers
@@ -447,9 +447,66 @@ export function handToPoint(sk, side, sockIdx, point, pole, weight = 1, poleW = 
   return twoBoneIK(sk, ch[1], ch[2], ch[3], _eff, point, pole, weight, poleW, elbowHinge(sk.rig, side));
 }
 
+const SOCK_PALM = [0, 1];        // SOCK.palm_r, SOCK.palm_l
+const _aimT = new Float64Array(3), _aimPole = new Float64Array(3);
+
+/**
+ * Block / contest aim (I4): the palm of the arm whose shoulder is nearer `target` (char frame, the ball) reaches for
+ * it with weight w. The target is kept at least 0.35 m above that shoulder (a block reaches up, never down into the
+ * shooter's chest); balls more than 0.45 m beyond the arm's reach are ignored (no flailing at far balls); an
+ * unreachable ball gets the straight arm pointed at it. `side` 0 / 1 keeps an arm already chosen (no switching arms
+ * mid-jump), −1 chooses. sk needs valid FK of both arm chains. Returns the side used (also when out of reach) or −1.
+ */
+export function aimPalm(sk, target, w, side = -1) {
+  if (!(w > 0)) return side;
+  const P = sk.P, rp = sk.rig.restPos, r = ARM_IK[0][1] * 3, l = ARM_IK[1][1] * 3;
+  const dr = Math.hypot(P[r] - target[0], P[r + 1] - target[1], P[r + 2] - target[2]);
+  const dl = Math.hypot(P[l] - target[0], P[l + 1] - target[1], P[l + 2] - target[2]);
+  const s = side === 0 || side === 1 ? side : dl < dr ? 1 : 0, ch = ARM_IK[s], sh = ch[1] * 3, la = ch[2] * 3, ha = ch[3] * 3;
+  const reach = Math.hypot(rp[la], rp[la + 1], rp[la + 2]) + Math.hypot(rp[ha], rp[ha + 1], rp[ha + 2]) + 0.10;
+  if ((s ? dl : dr) > reach + 0.45) return s;
+  _aimT[0] = target[0]; _aimT[2] = target[2];
+  _aimT[1] = target[1] > P[sh + 1] + 0.35 ? target[1] : P[sh + 1] + 0.35;
+  _aimPole[0] = P[sh] + (s === 1 ? 0.35 : -0.35); _aimPole[1] = P[sh + 1] - 0.10; _aimPole[2] = P[sh + 2] + 0.05;
+  handToPoint(sk, s, SOCK_PALM[s], _aimT, _aimPole, w > 1 ? 1 : w, 0.5);
+  return s;
+}
+
 const SOCK_BALL1 = [2, 3];       // SOCK.ball1_r, SOCK.ball1_l
 
 /** Puts the ball1 socket of hand `side` on the ball centre `ball` (char frame), keeping the elbow plane. */
 export function handOnBall(sk, side, ball, weight = 1) {
   return handToPoint(sk, side, SOCK_BALL1[side], ball, null, weight, 0);
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Pop guard (Animator.popGuard; moved here from animator.js in I4 to keep that file under the 1,600-line cap)
+// ---------------------------------------------------------------------------------------------------------------
+
+/** Pop guard limits: at most 22° per shown update, or 660°/s over longer frames. */
+const GUARD_MIN = 22 * Math.PI / 180, GUARD_RATE = 660 * Math.PI / 180;
+/** Bones the pop guard limits: 1 = always (pelvis, spine, legs, fingers), 2 = arms only while the hands need no exact
+ *  contact (no ball, no action clip, no dunk reach). Neck and head stay free (look-at has its own rate limits). */
+export const GUARDED = new Uint8Array(BONE_COUNT);
+for (const n of ['pelvis', 'spine_01', 'spine_02', 'spine_03', 'thigh_l', 'calf_l', 'foot_l', 'ball_l', 'thigh_r', 'calf_r', 'foot_r', 'ball_r']) GUARDED[BONE[n]] = 1;
+for (let b = 0; b < BONE_COUNT; b++) if (/^(thumb|index|middle|ring|pinky)_/.test(BONE_NAMES[b])) GUARDED[b] = 1;
+for (const n of ['clavicle_l', 'upperarm_l', 'lowerarm_l', 'hand_l', 'clavicle_r', 'upperarm_r', 'lowerarm_r', 'hand_r']) GUARDED[BONE[n]] = 2;   // 2 = only off the ball
+
+/**
+ * Limits every GUARDED bone-local rotation of L (quaternions × BONE_COUNT) with level ≤ `arms` to max(GUARD_MIN,
+ * GUARD_RATE·dt) away from the reference G, then copies L into G. Returns true when any bone was limited (FK needed).
+ */
+export function guardPose(L, G, arms, dt) {
+  const maxA = Math.max(GUARD_MIN, GUARD_RATE * dt);
+  let changed = false;
+  for (let b = 0; b < BONE_COUNT; b++) {
+    const o = b * 4;
+    if (GUARDED[b] < 1 || GUARDED[b] > arms) { G[o] = L[o]; G[o + 1] = L[o + 1]; G[o + 2] = L[o + 2]; G[o + 3] = L[o + 3]; continue; }
+    const d = L[o] * G[o] + L[o + 1] * G[o + 1] + L[o + 2] * G[o + 2] + L[o + 3] * G[o + 3];
+    const ad = d < 0 ? -d : d;
+    const ang = 2 * Math.acos(ad > 1 ? 1 : ad);
+    if (ang > maxA) { qnlerp(G, o, L, o, maxA / ang, L, o); changed = true; }
+    G[o] = L[o]; G[o + 1] = L[o + 1]; G[o + 2] = L[o + 2]; G[o + 3] = L[o + 3];
+  }
+  return changed;
 }

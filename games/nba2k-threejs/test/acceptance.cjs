@@ -1540,14 +1540,16 @@ async function kitCapture(page, ids) {
 }
 /**
  * Pixel filter of one captured box: visible kit pixels whose painted colour is the kit's base colour (within 40/255 per
- * channel of the most common painted colour), i.e. no number, name, trim, piping or anti-aliased number edge.
+ * channel of `baseHex`, or of the most common painted colour when no base is given), i.e. no number, name, trim,
+ * piping or anti-aliased number edge. B26 passes the spec base: on a phone a ★ chest is ~8 × 6 px and in some frames
+ * the white number is the most common painted colour of the box.
  */
-function kitBaseFilter(cap, i) {
+function kitBaseFilter(cap, i, baseHex) {
   const mb = cap.mask[i], ab = cap.albedo[i]; if (!mb || !ab) return null;
   const n = mb.w * mb.h, hist = new Map();
   for (let k = 0; k < n; k++) if (mb.px[k * 3] > 128) { const key = (ab.px[k * 3] >> 4) + ',' + (ab.px[k * 3 + 1] >> 4) + ',' + (ab.px[k * 3 + 2] >> 4); hist.set(key, (hist.get(key) || 0) + 1); }
   if (!hist.size) return () => false;
-  const top = [...hist.entries()].sort((a, b) => b[1] - a[1])[0][0].split(',').map((v) => Number(v) * 16 + 8);
+  const top = baseHex ? hexRgb(baseHex) : [...hist.entries()].sort((a, b) => b[1] - a[1])[0][0].split(',').map((v) => Number(v) * 16 + 8);
   return (x, y) => { const k = y * mb.w + x; if (mb.px[k * 3] <= 128) return false; return Math.abs(ab.px[k * 3] - top[0]) <= 40 && Math.abs(ab.px[k * 3 + 1] - top[1]) <= 40 && Math.abs(ab.px[k * 3 + 2] - top[2]) <= 40; };
 }
 async function starKitBoxes(page, name, M) {
@@ -1562,7 +1564,7 @@ async function starKitBoxes(page, name, M) {
     const nb = cap.normal[i], mb = cap.mask[i]; let s = null, part = null;
     if (nb && mb && nb.w === mb.w && nb.h === mb.h) {
       const img = { width: nb.w, height: nb.h, data: nb.px, bpp: 3 };
-      const isKit = kitBaseFilter(cap, i);
+      const isKit = kitBaseFilter(cap, i, kit.base);
       s = kitBoxStats(img, { cx: nb.w / 2, cy: nb.h / 2, w: nb.w, h: nb.h }, { baseHex: kit.base, numberHex: kit.number, mask: isKit });
       if (s) s.kitFrac = s.n / (nb.w * nb.h);
       part = { img, isKit };
@@ -1603,12 +1605,12 @@ item('B26', 'Screenshots title / LIVE 2 s / LIVE 8 s (landscape, portrait): luma
     await waitForState(page, 'LIVE', 30000); await installHelpers(page);
     await ev(page, 'g.fastForward(2)'); await ev(page, 'acc.nextFrame(3)');
     shots.live2 = await shot(page, `B26-${device}-live2`);
-    // the ★ torso boxes are measured on the LIVE frames from 2 s to 8 s (every 2 s) and pooled: on a phone a ★ covers
-    // 10–40 kit pixels per frame (portrait broadcast view: players ≈ 45 px tall), too few for a median hue or a mean
-    // lightness from a single frame, and the 2 s frame alone often had one ★ screened by his defender
+    // the ★ torso boxes are measured on the LIVE frames from 2 s to 8 s (every second) and pooled: on a phone a ★
+    // covers 2–40 kit pixels per frame (portrait broadcast view: players ≈ 45 px tall), too few for a median hue or a
+    // mean lightness from a single frame, and the 2 s frame alone often had one ★ screened by his defender
     const caps = [await starKitBoxes(page, `B26-${device}-kits`, M)];
-    for (let k = 0; k < 2; k++) { await ev(page, 'g.fastForward(2)'); await ev(page, 'acc.nextFrame(3)'); caps.push(await starKitBoxes(page, `B26-${device}-kits${k + 4}`, M)); }
-    await ev(page, 'g.fastForward(2)'); await ev(page, 'acc.nextFrame(3)');
+    for (let k = 3; k < 8; k++) { await ev(page, 'g.fastForward(1)'); await ev(page, 'acc.nextFrame(3)'); caps.push(await starKitBoxes(page, `B26-${device}-kits${k}`, M)); }
+    await ev(page, 'g.fastForward(1)'); await ev(page, 'acc.nextFrame(3)');
     shots.live8 = await shot(page, `B26-${device}-live8`);
     caps.push(await starKitBoxes(page, `B26-${device}-kits8`, M));
     const kits = caps[0].map((k, i) => ({ ...k, s: pooledKitStats(caps.map((c) => c[i])) }));
@@ -2094,7 +2096,17 @@ item('B35', 'Bytes: index.html + css/ + src/ + vendor/ + assets/legends/ ≤ 5.4
   let seenAt = null;
   while (Date.now() - t0 < 3000 && seenAt == null) {
     const ok = await page.evaluate(() => { const el = document.querySelector('#loading'); if (!el) return false; const cs = getComputedStyle(el); const r = el.getBoundingClientRect(); return cs.display !== 'none' && cs.visibility !== 'hidden' && +cs.opacity > 0 && r.width > 0 && r.height > 0; }).catch(() => false);
-    if (ok) { const img = await shot(page, 'B35-loading'); const gold = findColor(img, hexRgb('#d9a520'), 60, 2); if (gold.found) seenAt = Date.now() - t0; }
+    if (ok) {
+      // the screenshot proves the loading screen (gold logo) is on screen; the time it appeared is the page's own
+      // first-contentful-paint (the static #loading is the first content): a SwiftShader screenshot of the busy
+      // loading page takes 1.4–2.7 s by itself, which the wall clock after the capture wrongly counted
+      const img = await shot(page, 'B35-loading'); const gold = findColor(img, hexRgb('#d9a520'), 60, 2);
+      if (gold.found) {
+        const fcp = await page.evaluate(() => { const e = performance.getEntriesByName('first-contentful-paint')[0]; return e ? e.startTime : null; }).catch(() => null);
+        seenAt = fcp != null ? Math.round(fcp) : Date.now() - t0;
+        if (fcp == null) t.warn('no first-contentful-paint entry; wall clock after the screenshot used');
+      }
+    }
     if (seenAt == null) await sleep(30);
   }
   assert(seenAt != null && seenAt <= 1000, `loading screen not visible in a screenshot within 1.0 s of navigation (${seenAt == null ? 'never' : seenAt + ' ms'})`);
@@ -2953,7 +2965,9 @@ item('B60', 'Medium, signature faces in play: Jordan dunk tongueOut ≥ 0.8 at S
   const maxIn = (log, id, ch, t0, t1, rep) => log.filter((r) => r.t >= t0 && r.t <= t1 && (rep == null || r.rep === rep)).reduce((m, r) => Math.max(m, (r.w[id] || {})[ch] || 0), 0);
   const shootAndWait = async (id, opts, waitMs) => {
     await run(page, `acc.readyFor(${JSON.stringify(id)}); g.setClock({game: 100, shot: 14}); acc.place(${JSON.stringify(id)}, ${opts.x}, ${opts.z}); acc.sim(1 / 60); acc.face.mark = performance.now(); g.debugShoot(Object.assign({ shooter: ${JSON.stringify(id)} }, ${JSON.stringify(opts.shot)})); return true;`);
-    await waitFor(page, `acc.face.ev.some((e) => e.type === 'score' && e.t >= acc.face.mark) && performance.now() - acc.face.mark > ${waitMs}`, 900000, `${id} make + ${waitMs} ms`);
+    // wait `waitMs` after the score (not after the shot): a three's release + flight already takes > 1.5 s, so the
+    // face log was read on the scoring frame itself and the 0.5 s after it was never recorded
+    await waitFor(page, `acc.face.ev.some((e) => e.type === 'score' && e.t >= acc.face.mark && performance.now() - e.t > ${waitMs})`, 900000, `${id} make + ${waitMs} ms`);
     return ev(page, 'acc.face');
   };
   // Jordan generic dunk → tongueOut at SLAM (+ replay)

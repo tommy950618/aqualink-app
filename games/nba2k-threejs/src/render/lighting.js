@@ -10,10 +10,11 @@
  *         caster (medium/high): PCF 1024² r 2.0 / 2048² r 2.5, bias −0.0005/−0.0004, normalBias 0.025/0.020,
  *         intensity 0.78/0.80, ortho fitted each frame around the players (texel-snapped)
  *   rim   DirectionalLight #d6e4ff, 0.90 / 1.30 / 1.30, from (0, 9, −32) toward (0, 1.0, −6)
- *   fill  DirectionalLight #f2f5ff, 1.00 / 0.80 / 0.80, from the broadcast side (0, 7, 34) toward (0, 1.0, −6): the
+ *   fill  DirectionalLight #f2f5ff, 2.60 / 2.20 / 2.20, from the broadcast side (0, 7, 34) toward (0, 1.0, −6): the
  *         arena's front (camera-side) lighting. The key comes from 70° above, so vertical surfaces got only ≈ 0.28 of
  *         it and a white kit's chest measured luma 0.59 (B30 wants > 0.7) while the floor was calibrated (B42); the
- *         fill lights what the cameras see (chests, faces) and adds only ≈ 4 % to the floor (n·L 0.15). Slightly cool
+ *         fill lights what the cameras see (chests, faces; kits read at ≈ 0.9 of their albedo, so the DARK wine and
+ *         BRIGHT red ★ kits stay ≥ 0.12 apart in lightness, B26) and adds ≈ 0.02 luma to the floor (B42). Slightly cool
  *         (LED broadcast lighting) against the warm hemi bounce that pushed the wine kit toward red. No shadows.
  *   spot  SpotLight #ffffff (medium/high boot tier only), 12 m above the presented player, angle 0.32, penumbra 0.55,
  *         decay 2; 0 in play, 1,100 cd intro, 900 cd game-over MVP

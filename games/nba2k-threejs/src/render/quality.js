@@ -79,7 +79,7 @@ export const TIERS = freezeDeep({
     // ---- shadows ----
     shadows: { map: false, mapSize: 0, radius: 0, bias: 0, normalBias: 0, intensity: 0, blobPlayer: 0.45, blobBallNear: 0.5, blobBallFar: 0.15, proxies: false },
     // ---- lights / environment ----
-    lights: { hemi: 1.10, key: 2.40, rim: 0.90, fill: 1.70, spot: false },
+    lights: { hemi: 1.10, key: 2.40, rim: 0.90, fill: 2.60, spot: false },
     env: { size: 0 },
     // ---- floor / decal / reflection ----
     floor: { material: 'lambert', markings: [1024, 816], wood: 512, wear: false, anisotropy: 4, reflection: false },
@@ -110,7 +110,7 @@ export const TIERS = freezeDeep({
     },
     animation: { budgetMs: 1.2, fullRate: 'ownerAndAction', othersHz: 30 },
     shadows: { map: true, mapSize: 1024, radius: 2.0, bias: -0.0005, normalBias: 0.025, intensity: 0.78, blobPlayer: 0.25, blobBallNear: 0.20, blobBallFar: 0.20, proxies: true },
-    lights: { hemi: 0.35, key: 2.85, rim: 1.30, fill: 1.40, spot: true },
+    lights: { hemi: 0.35, key: 2.85, rim: 1.30, fill: 2.20, spot: true },
     env: { size: 128 },
     floor: { material: 'standard', markings: [2048, 1632], wood: 512, wear: true, anisotropy: 8, reflection: false },
     decal: { size: 512, material: 'standard' },
@@ -136,7 +136,7 @@ export const TIERS = freezeDeep({
     },
     animation: { budgetMs: 0.9, fullRate: 'all', othersHz: 60 },
     shadows: { map: true, mapSize: 2048, radius: 2.5, bias: -0.0004, normalBias: 0.020, intensity: 0.80, blobPlayer: 0.25, blobBallNear: 0.20, blobBallFar: 0.20, proxies: true },
-    lights: { hemi: 0.30, key: 2.85, rim: 1.30, fill: 1.40, spot: true },
+    lights: { hemi: 0.30, key: 2.85, rim: 1.30, fill: 2.20, spot: true },
     env: { size: 256 },
     floor: { material: 'standard', markings: [2048, 1632], wood: 1024, wear: true, anisotropy: 8, reflection: true },
     decal: { size: 1024, material: 'standard' },
@@ -267,9 +267,17 @@ export function detectStatic(gl, nav, screen, url) {
   return { cls: c.cls, startRung: start, capRung: cap, forced, touch, renderer: str };
 }
 
-/** Cadence target from the probed median rAF interval (§7.3): 120 Hz panels are capped at 60 fps. */
+/**
+ * Cadence target from the probed rAF interval (§7.3): 120 Hz panels are capped at 60 fps; a 30 Hz stream (33.3 ± 4 ms:
+ * iOS Low Power Mode, 30 Hz panels) → 33.33, a 60 Hz one → 16.67 (snapped, so an exact 2× stream never reads as the
+ * severe "mean > 2 × target" of a 16.6 ms probe). Any other value is not a
+ * display cadence but a busy main thread during the loading screen (decode / paint / compile slices; SwiftShader
+ * probes measured 40–120 ms), which must not become a lenient target that hides a slow GPU: the 60 Hz target is used
+ * and the mid-session cadence switch re-targets a real 30 Hz stream after 3 s of judged frames.
+ */
 export function cadenceTarget(medianMs) {
-  return medianMs < 12 ? TARGET_60 : medianMs;
+  if (Math.abs(medianMs - TARGET_30) <= 4) return TARGET_30;
+  return TARGET_60;
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -433,7 +441,9 @@ export class QualityMonitor {
     const tgt = this.effectiveTarget;
     // 2. Demotion: severe (2.0 s, mean > 2×) or regular (3.0 s, mean > 1.30× or p90 > 1.80×).
     let demote = false;
-    if (this._stats(SEVERE_WIN) && this._stat.mean > 2.0 * tgt) demote = true;
+    // a vsync-locked 30 Hz stream at the 60 Hz target is exactly 2×: the cadence rule above decides it at 3.0 s
+    if (this._stats(SEVERE_WIN) && this._stat.mean > 2.0 * tgt &&
+        !(tgt < 25 && this._fractionNear(SEVERE_WIN, TARGET_30, 2.0) >= 0.9)) demote = true;
     if (!demote && this._stats(DEMOTE_WIN)) {
       if (this._stat.mean > 1.30 * tgt || this._percentile(DEMOTE_WIN, 0.90) > 1.80 * tgt) demote = true;
     }
@@ -713,10 +723,12 @@ export function createQuality(args) {
         last = t;
         n++;
         if (n < 30) { rf(tick); return; }
+        // the lower quartile, not the median: the loading screen runs decode / paint / compile slices that only ever
+        // lengthen rAF intervals, so the shorter intervals are the ones that show the display's cadence
         const sorted = Array.from(iv).sort((x, y) => x - y);
-        const med = 0.5 * (sorted[14] + sorted[15]);
-        setCadence(med);
-        resolve(med);
+        const c = 0.5 * (sorted[7] + sorted[8]);
+        setCadence(c);
+        resolve(c);
       };
       rf(tick);
     });

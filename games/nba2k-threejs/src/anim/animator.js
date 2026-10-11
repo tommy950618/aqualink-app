@@ -1,54 +1,49 @@
 /**
- * animator.js — the layered skeletal animator of one legend (spec §1.4 "WP3 Animator", §4.2–§4.6, §4.8, §4.11,
- * §4.14, [ANIM §2.3–§2.9, §10]).
+ * animator.js — the layered skeletal animator of one legend (spec §1.4 "WP3 Animator", §4.2–§4.6, §4.8, §4.11, §4.14, [ANIM §2.3–§2.9, §10]).
  *
- * Exports
- *   Animator (class), FACE_AR (attack / release seconds per expression channel, spec §3.9), ANIM_CAPTURE_FLOATS (233,
- *   floats written by capture()), DETAIL_TIERS (per quality tier detail flags, spec §4.14).
+ * Exports Animator (class), FACE_AR (attack / release seconds per expression channel, spec §3.9), ANIM_CAPTURE_FLOATS (233, floats written by
+ * capture()), DETAIL_TIERS (per quality tier detail flags, spec §4.14).
  *
- * Gameplay-facing API (identical to AnimProxy, which game code may use instead headless):
- *   play(clipIdx, { mirror, rate, warp: {[EV]: t}, target: {x, z, yaw}, layer: 'action'|'upper'|'add', blendIn }) → fits
- *   releaseNow()  setJump(h, airT, profile?)  stopAction(blendOut)  stopUpper(blendOut)  step(dt)  querySocket(s, out)
- *   onCatch(mode)  setBallMode(mode, hand)  events (EventRing of 32: {code, t, param, clip, layer})  ballMode (BM)
- *   ballHand (HAND)  action / actionTime / actionClip / upper / airborne  motion {active, vx, vz, dyaw, exit, exitVx,
- *   exitVz}  owner (the Player: {pos:{x,z}, yaw, vel:{x,z}, jumpY, stamina?})  time
- * Render API: evaluate(alpha, frameDt), renderSocket(s, out), capture(f32, off) → 233, applyBlend(f32, offA, offB, alpha),
- *   external (bool: replay drives the bones), freeze(clipId, t, mirror), setYawOverride(yaw|null), walkTo(x, z, yaw,
- *   speed), setFace(name, w, dur?), setLookTarget(x, y, z, w) / clearLookTarget(), setLookPoint(name, x, y, z),
- *   setAim(angleRad), contact(x, y, z, kind), setCatch(x, y, z, tArrive), setSlamPoint(x, y, z), crossfade(s),
- *   deepBreath(), setDetail(flags), resetPose(), footLocks(), stats.
- * Context written by gameplay each step (no allocation): animator.ctx = { onDefence, stance ('auto' | 'stand' |
- *   'tripleThreat' | 'postUp' | 'postSeal' | 'boxOut' | 'def'), protect (defender within 1.0 m in front), post (backdown
- *   dribble), drive (Jordan's tongue: dribbling at the rim > 4.5 m/s within 7 m), stamina (0..1) }.
+ * Gameplay-facing API (identical to AnimProxy, which game code may use instead headless): play(clipIdx, { mirror, rate, warp: {[EV]: t}, target: {x,
+ * z, yaw}, layer: 'action'|'upper'|'add', blendIn }) → fits releaseNow()  setJump(h, airT, profile?)  stopAction(blendOut)  stopUpper(blendOut)
+ * step(dt)  querySocket(s, out) onCatch(mode)  setBallMode(mode, hand)  events (EventRing of 32: {code, t, param, clip, layer})  ballMode (BM)
+ * ballHand (HAND)  action / actionTime / actionClip / upper / airborne  motion {active, vx, vz, dyaw, exit, exitVx, exitVz}  owner (the Player:
+ * {pos:{x,z}, yaw, vel:{x,z}, jumpY, stamina?})  time
+ * Render API: evaluate(alpha, frameDt), renderSocket(s, out), capture(f32, off) → 233,
+ * applyBlend(f32, offA, offB, alpha), external (bool: replay drives the bones), freeze(clipId, t, mirror), setYawOverride(yaw|null), walkTo(x, z,
+ * yaw, speed), setFace(name, w, dur?), setLookTarget(x, y, z, w) / clearLookTarget(), setLookPoint(name, x, y, z), setAim(angleRad), contact(x, y, z,
+ * kind), setCatch(x, y, z, tArrive), setBlockAim(x, y, z), setSlamPoint(x, y, z), crossfade(s), deepBreath(), setDetail(flags), resetPose(),
+ * footLocks(), stats.
+ * Context written by gameplay each step (no allocation): animator.ctx = { onDefence, stance ('auto' | 'stand' | 'tripleThreat' |
+ * 'postUp' | 'postSeal' | 'boxOut' | 'def'), protect (defender within 1.0 m in front), post (backdown dribble), drive (Jordan's tongue: dribbling at
+ * the rim > 4.5 m/s within 7 m), stamina (0..1) }.
  *
- * Layers (render order, [ANIM §2.3.1]): 0 base = procedural gait / stance (+ dribble arm and ball-holding overlays),
- * 1 action (override, per-bone mask × weight, only tracked bones), 2 upper (upper mask over the base), 3 additive (lean,
- * breathing, aim twist, hold micro-motion, landing absorb, swat, `add` layer clips), 4 procedural (foot locks with the
- * reachability pelvis drop and auto-release, hand IK: two-hand closure, dribble contact, ball path contacts, catch, dunk
- * slam / rim grab, block contact; look-at + iris), 5 face (expression targets smoothed with §3.9 attack / release,
- * blink, baselines, mannerisms of §4.11). Entry fades ease-out w = 1 − (1 − u)³, exits smoothstep; an interrupted fade
- * starts from a snapshot of the last layered pose with the old per-bone weights (never a pop); teleports and
- * crossfade(s) blend from a full snapshot (0.20 s, R#37).
+ * Layers (render order, [ANIM §2.3.1]): 0 base = procedural gait / stance (+ dribble arm and ball-holding overlays), 1 action (override, per-bone
+ * mask × weight, only tracked bones), 2 upper (upper mask over the base), 3 additive (lean, breathing, aim twist, hold micro-motion, landing absorb,
+ * swat, `add` layer clips), 4 procedural (foot locks with the reachability pelvis drop and auto-release, hand IK: two-hand closure, dribble contact,
+ * ball path contacts, catch, dunk slam / rim grab, block contact; look-at + iris), 5 face (expression targets smoothed with §3.9 attack / release,
+ * blink, baselines, mannerisms of §4.11). Entry fades ease-out w = 1 − (1 − u)³, exits smoothstep; an interrupted fade starts from a snapshot of the
+ * last layered pose with the old per-bone weights (never a pop); teleports and crossfade(s) blend from a full snapshot (0.20 s, R#37).
  *
- * Timing (fixed step, deterministic): ClipClock / RootMotion from clip.js (the same classes AnimProxy uses, so proxy and
- * real timings are identical, B46/B57); events are pushed with exact crossing times; the render pass samples the clips
- * at prevClipTime + alpha·(clipTime − prevClipTime). querySocket() evaluates the step pose lazily (once per step) and
- * runs FK only along the socket's bone chain ([ANIM §2.4.6]); `ball` (SOCK.ball) is the current ball centre by ball
- * mode (both = midpoint of both ball1 sockets, drib = dribble.js, path = the clip's ball path, R/L = that ball1).
+ * Timing (fixed step, deterministic): ClipClock / RootMotion from clip.js (the same classes AnimProxy uses, so proxy and real timings are identical,
+ * B46/B57); events are pushed with exact crossing times; the render pass samples the clips at prevClipTime + alpha·(clipTime − prevClipTime).
+ * querySocket() evaluates the step pose lazily (once per step) and runs FK only along the socket's bone chain ([ANIM §2.4.6]); `ball` (SOCK.ball) is
+ * the current ball centre by ball mode (both = midpoint of both ball1 sockets, drib = dribble.js, path = the clip's ball path, R/L = that ball1).
  *
- * Bones: `matrixAutoUpdate = false`; evaluate() writes quaternion fields directly (no Euler sync), composes the
- * matrices and calls one `object.updateMatrixWorld(true)`. No allocation in step / evaluate / queries (H10); without a
- * character (Node tests) the same math runs on the internal Skel only.
+ * Bones: `matrixAutoUpdate = false`; evaluate() writes quaternion fields directly (no Euler sync), composes the matrices and calls one
+ * `object.updateMatrixWorld(true)`. No allocation in step / evaluate / queries (H10); without a character (Node tests) the same math runs on the
+ * internal Skel only.
  */
 import { BONE, BONE_COUNT, BONE_NAMES, BONE_PARENT, SOCK, anatQuat, AQ, toLocal, qnlerp, qmul, qrotate } from './rig.js';
 import { EV, BM, HAND, EventRing, ClipClock, RootMotion, sampleClip, sampleBall, SAMPLE_AIR_LINEAR, clipIndex, getDef } from './clip.js';
 import { Pose, copyPose, blendPose, addPose, MASK, MASK_W, EXPR, LOOK } from './pose.js';
 import { STYLE, FINGER_ID, FINGER_BONES, fingerQuats, SHORT } from './presets.js';
 import { timingClip, catOf, RIM_POS } from './select.js';
-import { Skel, footLock, footReach, footDropFor, handToPoint, handOnBall, FootTarget, LEG_IK, ARM_IK, RyRx } from './ik.js';
+import { Skel, footLock, footReach, footDropFor, handToPoint, handOnBall, aimPalm, guardPose, FootTarget, LEG_IK, ARM_IK, RyRx } from './ik.js';
 import { Gait, GAIT, STANCE_CODE, poseArm } from './locomotion.js';
 import { Dribble } from './dribble.js';
 import { LookAt } from './look.js';
+import { PROXY_METRICS } from './proxy.js';
 
 const DEG = Math.PI / 180;
 const G = 9.81;
@@ -63,18 +58,6 @@ export const FACE_AR = Object.freeze([
   [0.08, 0.15], [0.10, 0.12], [0.15, 0.30], [0.10, 0.25], [0.20, 0.30], [0.20, 0.40], [0.15, 0.30], [0.10, 0.20], [0.05, 0.07],
 ]);
 
-/** Pop guard limits (popGuard): at most 22° per shown update, or 660°/s over longer frames. */
-const GUARD_MIN = 22 * Math.PI / 180, GUARD_RATE = 660 * Math.PI / 180;
-/**
- * Bones the pop guard limits: 1 = always (pelvis, spine and legs: heading flips of the gait's hip / trunk yaw, foot-lock re-plants and
- * reach limits of the foot IK; fingers: hand
- * preset switches), 2 = arms only while the hands need no exact contact (no ball, no action clip, no dunk reach: rim
- * grabs and ball contacts must land exactly). Neck and head stay free (look-at has its own rate limits).
- */
-const GUARDED = new Uint8Array(BONE_COUNT);
-for (const n of ['pelvis', 'spine_01', 'spine_02', 'spine_03', 'thigh_l', 'calf_l', 'foot_l', 'ball_l', 'thigh_r', 'calf_r', 'foot_r', 'ball_r']) GUARDED[BONE[n]] = 1;
-for (let b = 0; b < BONE_COUNT; b++) if (/^(thumb|index|middle|ring|pinky)_/.test(BONE_NAMES[b])) GUARDED[b] = 1;
-for (const n of ['clavicle_l', 'upperarm_l', 'lowerarm_l', 'hand_l', 'clavicle_r', 'upperarm_r', 'lowerarm_r', 'hand_r']) GUARDED[BONE[n]] = 2;   // 2 = only off the ball (popGuard)
 /** Detail flags per quality tier (spec §4.14; the integrator also decides which players run at 30 Hz). */
 export const DETAIL_TIERS = Object.freeze({
   high: Object.freeze({ fingers: true, footIK: true, handIK: true, look: true, eyes: true, breathing: true, expressions: true, halfRate: false }),
@@ -109,21 +92,15 @@ class Layer {
     this.outAge = 0; this.outAgePrev = 0; this.fadeOut = 0.20; this.frozenT = 0;
     this.mask = MASK.full; this.start = 0;
     this.x0 = 0; this.z0 = 0; this.yaw0 = 0;   // clip-start frame (world)
-    this.w = 0;                      // weight used by the last evaluate
-    this.inPlace = false; this.cosmetic = false; this.frozen = false;
+    this.w = 0; this.inPlace = false; this.cosmetic = false; this.frozen = false;   // w: weight of the last evaluate
     this.gather = -1; this.land = -1; this.slamAt = -1; this.takeoffAt = -1;
   }
 }
 
 /** Clip-driven foot lock state (render side). */
-class ClipFoot {
-  constructor() { this.on = 0; this.x = 0; this.z = 0; this.yaw = 0; this.mode = 0; this.catchT = -1; this.fx = 0; this.fz = 0; this.fy = 0; }
-}
-
+class ClipFoot { constructor() { this.on = 0; this.x = 0; this.z = 0; this.yaw = 0; this.mode = 0; this.catchT = -1; this.fx = 0; this.fz = 0; this.fy = 0; } }
 /** Foot lock diagnostics (slide since the lock was taken). */
-class LockDiag {
-  constructor(s) { this.side = s === 0 ? 'R' : 'L'; this.locked = false; this.slide = 0; this.max = 0; this.lx = 0; this.ly = 0; this.lz = 0; }
-}
+class LockDiag { constructor(s) { this.side = s === 0 ? 'R' : 'L'; this.locked = false; this.slide = 0; this.max = 0; this.lx = 0; this.ly = 0; this.lz = 0; } }
 
 /** The layered animator of one player (module header). */
 export class Animator {
@@ -140,8 +117,10 @@ export class Animator {
     this.owner = opts.owner || null;
     this.rng = opts.rng || null;
     this.sLeg = rig.metrics.sLeg;
+    const PM = PROXY_METRICS[this.id];      // block reach assist (blockLift)
+    this.reachLift = PM && rig.metrics.reach0 > 0 ? clamp(PM.reachM - 0.24 - rig.metrics.reach0, 0, 0.15) : 0;
     this.tempo = STYLE[this.id].tempo;
-    this.time = 0; this.stepN = 0; this.stepCalls = 0;
+    this.time = 0; this.stepN = 0; this.stepCalls = 0; this.skipDt = 0;
     this.external = false;
     this.events = new EventRing(32);
     this.cosRing = new EventRing(32);
@@ -192,6 +171,7 @@ export class Animator {
     this.catchP = new Float64Array(4); this.catchT = -1;
     this.slamP = new Float64Array(3); this.slamSet = false;
     this.contactP = new Float64Array(3); this.contactT = -1; this.contactKind = 0; this.contactSide = 0;
+    this.blkP = new Float64Array(3); this.blkN = -10; this.blkW = 0; this.blkQ = -1; this.blkSide = -1;   // block aim (setBlockAim)
     this.dunkW = 0;
     this.launch = { x: 0, y: 0, z: 0 }; this.launchStep = -10;
     // additive state (fixed step)
@@ -578,6 +558,7 @@ export class Animator {
     if (this.landT >= 0) { this.landT += dt; if (this.landT > 0.40) this.landT = -1; }
     const aimTarget = (this.slots[0].state === 1 && this.slots[0].cat === C_PASS) || (this.slots[1].state === 1 && this.slots[1].cat === C_PASS) ? 1 : 0;
     this.aimW += clamp(aimTarget - this.aimW, -dt / 0.10, dt / 0.10);
+    this.blkW += clamp((this.blkN >= this.stepN - 1 && this.slots[0].state === 1 && this.slots[0].cat === C_BLOCK ? 1 : 0) - this.blkW, -dt / 0.10, dt / 0.10); if (this.blkW <= 0) this.blkSide = -1;
     if (this.contactT >= 0) { this.contactT += dt; if (this.contactT > 0.45) this.contactT = -1; }
     if (this.catchT >= 0) this.catchT -= dt;
     this.look.step(dt, this.rng, this.gait.mode === GAIT.IDLE && this.slots[0].state === 0);
@@ -681,7 +662,14 @@ export class Animator {
     }
     const sk = this.skQ;
     for (let b = 0; b < BONE_COUNT; b++) toLocal(this.rig, b, pose.q, sk.L, b * 4, b * 4);
-    this.pelvisLocal(sk, pose, this.curJumpY());
+    this.pelvisLocal(sk, pose, this.curJumpY() + this.blockLift(this.curJumpY()));
+  }
+
+  /** Block reach assist (I2): rig overhead palm ≈ reach0 is 0.08–0.12 m below the §5.4 palm (reachM − 0.24) that proxy /
+   *  balance assume → airborne block / contest / rebound / tip clips lift the pelvis by it (≤ 0.15 m, ramp 0.10 m of jy). */
+  blockLift(jy) {
+    const c = this.slots[0].state === 1 ? this.slots[0].cat : C_OTHER;
+    return (c === C_BLOCK || c === C_REB || c === C_TIP) && jy > 0 ? this.reachLift * Math.min(1, jy / 0.10) : 0;
   }
 
   /** Pelvis local translation = rest + pel·sLeg + (0, jumpY, 0) (Root and others at rest). */
@@ -737,8 +725,20 @@ export class Animator {
       const f = this.gait.feet[s];
       if (f.state === 0 && this.slots[0].state === 0 && this.curJumpY() < 0.02) return this.footSockFromGait(s, sockIdx, out);
     }
+    if ((sockIdx === SOCK.palm_r || sockIdx === SOCK.palm_l) && this.blkQ !== this.stepN) this.aimStepPose();
     this.chainSock(sockIdx, _q3, 0);
     return this.toWorld(_q3, this.rootX(), this.rootZ(), this.rootYaw(), out);
+  }
+
+  /** Block aim on the step pose (gameplay palm sockets): the render pass's palm IK (aimPalm) at the step root. */
+  aimStepPose() {
+    this.blkQ = this.stepN;
+    const jy = this.curJumpY(), w = jy > 0 ? this.blkW * Math.min(1, jy / 0.10) : 0;
+    if (w <= 0) return;
+    this.ensureQ(ARM_IK[0][3]); this.ensureQ(ARM_IK[1][3]);
+    const c = Math.cos(this.rootYaw()), s = Math.sin(this.rootYaw()), dx = this.blkP[0] - this.rootX(), dz = this.blkP[2] - this.rootZ();
+    _k3[0] = dx * c - dz * s; _k3[1] = this.blkP[1]; _k3[2] = dx * s + dz * c;
+    this.blkSide = aimPalm(this.skQ, _k3, w, this.blkSide);
   }
 
   /** Char-frame socket position in skQ (lazy chain FK) into a[o..o+2]. */
@@ -831,8 +831,10 @@ export class Animator {
     if (this.stepCalls === 0 && (this.walk.active || !this.owner)) this.selfDrive(frameDt);
     this.stepCalls = 0;
     const culled = this.ch && this.ch.visible === false;
-    if (culled && (this.frameN & 3) !== 0) return;          // culled: 15 Hz, no IK, no look
-    if (this.detail.halfRate && (this.frameN & 1) !== 0 && this.hasLast) return;
+    // culled: 15 Hz, no IK, no look; half rate: every 2nd frame. Skipped frame time is carried into the next evaluate
+    // (face timelines, springs and smoothing keep their real-time rates instead of running at 1/2 or 1/4 speed)
+    if ((culled && (this.frameN & 3) !== 0) || (this.detail.halfRate && (this.frameN & 1) !== 0 && this.hasLast)) { if (frameDt > 0) this.skipDt += frameDt; return; }
+    if (this.skipDt > 0) { frameDt = Math.min(frameDt + this.skipDt, 0.1); this.skipDt = 0; }
     const d = this.detail;
     const a = alpha < 0 ? 0 : alpha > 1 ? 1 : alpha;
     // ---- render root ----
@@ -886,7 +888,7 @@ export class Animator {
     // ---- locals, FK ----
     const sk = this.sk;
     for (let b = 0; b < BONE_COUNT; b++) toLocal(this.rig, b, P.q, sk.L, b * 4, b * 4);
-    this.pelvisLocal(sk, P, jy);
+    this.pelvisLocal(sk, P, jy + this.blockLift(jy));
     sk.fkAll();
     // ---- 4 procedural ----
     if (d.footIK && !(culled)) this.feetIK(a, jy, frameDt);
@@ -914,30 +916,18 @@ export class Animator {
   }
 
   /**
-   * Pop guard (R#37 "never a snap", B49): every GUARDED bone-local rotation may turn at most max(GUARD_MIN, GUARD_RATE·dt)
-   * since the last full evaluation (dt includes frames skipped at 30 Hz), so foot-lock re-plants, IK reach limits
-   * and preset switches ease over a few frames instead of snapping. 22° per update is far above ordinary motion
-   * (a sprint's thigh swing is ≈ 12° per 60 Hz frame), so normal animation is untouched. Gameplay sockets come from
-   * the fixed-step queries and are not affected. Culled characters (15 Hz, unseen) only refresh the reference.
+   * Pop guard (R#37 "never a snap", B49): every GUARDED bone-local rotation may turn at most max(GUARD_MIN, GUARD_RATE·dt) since the last full
+   * evaluation (dt includes frames skipped at 30 Hz), so foot-lock re-plants, IK reach limits and preset switches ease over a few frames instead of
+   * snapping. 22° per update is far above ordinary motion (a sprint's thigh swing is ≈ 12° per 60 Hz frame), so normal animation is untouched.
+   * Gameplay sockets come from the fixed-step queries and are not affected. Culled characters (15 Hz, unseen) only refresh the reference.
    */
   popGuard(culled) {
     const L = this.sk.L, G = this.guardL;
     const dt = this.guardDt; this.guardDt = 0;
     if (!this.guardOn || culled) { G.set(L); this.guardOn = true; return; }
-    const maxA = Math.max(GUARD_MIN, GUARD_RATE * dt);
     // arms too while nothing needs an exact hand contact (no ball in hand, no action clip, no dunk reach)
     const arms = this.ballMode === BM.FREE && this.slots[0].state === 0 && this.slots[1].state === 0 && this.dunkW === 0 ? 2 : 1;
-    let changed = false;
-    for (let b = 0; b < BONE_COUNT; b++) {
-      const o = b * 4;
-      if (GUARDED[b] < 1 || GUARDED[b] > arms) { G[o] = L[o]; G[o + 1] = L[o + 1]; G[o + 2] = L[o + 2]; G[o + 3] = L[o + 3]; continue; }
-      const d = L[o] * G[o] + L[o + 1] * G[o + 1] + L[o + 2] * G[o + 2] + L[o + 3] * G[o + 3];
-      const ad = d < 0 ? -d : d;
-      const ang = 2 * Math.acos(ad > 1 ? 1 : ad);
-      if (ang > maxA) { qnlerp(G, o, L, o, maxA / ang, L, o); changed = true; }
-      G[o] = L[o]; G[o + 1] = L[o + 1]; G[o + 2] = L[o + 2]; G[o + 3] = L[o + 3];
-    }
-    if (changed) this.sk.fkAll();
+    if (guardPose(L, G, arms, dt)) this.sk.fkAll();
   }
 
   /** Render clip time of a layer: prevT + alpha·(t − prevT) (loop-aware), the frozen time when fading out. */
@@ -1284,7 +1274,10 @@ export class Animator {
         handOnBall(sk, 0, _b3, w); handOnBall(sk, 1, _b3, w);
       }
     }
-    // block / contest contact: palm IK to the ball over 0.06 s, held 2 frames, released over 0.10 s
+    // block / contest aim at the ball (aimPalm, as on the step pose), then the contact: palm IK to the ball over 0.06 s,
+    // held 2 frames, released over 0.10 s
+    const ajy = this.blkW > 0 ? this.curJumpY() : 0;
+    if (handIK && ajy > 0) { this.toChar(this.blkP[0], this.blkP[1], this.blkP[2], _b3, 0); this.blkSide = aimPalm(sk, _b3, this.blkW * Math.min(1, ajy / 0.10), this.blkSide); }
     if (handIK && this.contactT >= 0) {
       const t = this.contactT;
       const w = t < 0.06 ? t / 0.06 : t < 0.093 ? 1 : 1 - clamp((t - 0.093) / 0.10, 0, 1);
@@ -1316,9 +1309,8 @@ export class Animator {
   }
 
   /**
-   * reachDunk of spec §4.9.4: shoulder elevation 30° (clavicle) and a 15° spine side-bend toward a one-hand dunking
-   * arm (two hands: 8° extension), and the takeoff pelvis height held through the slam (the landing crouch starts
-   * after it), weighted by w.
+   * reachDunk of spec §4.9.4: shoulder elevation 30° (clavicle) and a 15° spine side-bend toward a one-hand dunking arm (two hands: 8° extension),
+   * and the takeoff pelvis height held through the slam (the landing crouch starts after it), weighted by w.
    */
   dunkAssist(P, w) {
     const L0 = this.slots[0], tm = L0.src.timing, src = L0.src;
@@ -1527,6 +1519,8 @@ export class Animator {
 
   /** Pass in flight to me: predicted ball position (world) and seconds to arrival (hand IK over the last 0.15 s). */
   setCatch(x, y, z, tArrive) { this.catchP[0] = x; this.catchP[1] = y; this.catchP[2] = z; this.catchT = tArrive; }
+  /** Ball to block / contest this step (world; gameplay, every step while it applies): aimPalm in block clips. */
+  setBlockAim(x, y, z) { this.blkP[0] = x; this.blkP[1] = y; this.blkP[2] = z; this.blkN = this.stepN; }
 
   /** Dunk slam point (world); default: rim front 0.10 m toward the dunker at RIM.y + 0.18. */
   setSlamPoint(x, y, z) { this.slamP[0] = x; this.slamP[1] = y; this.slamP[2] = z; this.slamSet = true; }
@@ -1588,7 +1582,7 @@ export class Animator {
 const _lw = new Float32Array(3);
 const _c3 = new Float64Array(3), _q4 = new Float64Array(4), _v3 = new Float64Array(3);
 const _q3 = new Float64Array(6), _a3 = new Float64Array(3), _b3 = new Float64Array(3), _w3 = new Float64Array(3), _p3 = new Float64Array(3);
-const _h4 = new Float64Array(4), _r2 = new Float64Array(4), _pr = new Float64Array(5);
+const _h4 = new Float64Array(4), _r2 = new Float64Array(4), _pr = new Float64Array(5), _k3 = new Float64Array(3);
 const _o3 = { x: 0, y: 0, z: 0 };
 const _fq = new Float32Array(60);
 const _snapOld = new Float32Array(BONE_COUNT);

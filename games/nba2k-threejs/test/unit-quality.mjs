@@ -113,10 +113,11 @@ check('ladder, tiers and budgets tables', () => {
   assert.ok(Object.isFrozen(TIERS.low.crowd));
 });
 
-check('cadence target (§7.3): 8.3 → 16.67, 16.7 → 16.7, 33 → 33', () => {
+check('cadence target (§7.3): 8.3 → 16.67, 16.6 → 16.67, 33 → 33.33; a busy loading probe (24 / 45 / 120 ms) → 16.67', () => {
   assert.equal(cadenceTarget(8.3), TARGET_60);
-  assert.equal(cadenceTarget(16.7), 16.7);
-  assert.equal(cadenceTarget(33), 33);
+  assert.equal(cadenceTarget(16.6), TARGET_60);
+  assert.equal(cadenceTarget(33), TARGET_30);
+  for (const busy of [24, 45, 120]) assert.equal(cadenceTarget(busy), TARGET_60, `probe ${busy} ms is not a display cadence`);
 });
 
 // Feed `seconds` of constant intervals; returns the decisions seen.
@@ -146,6 +147,13 @@ check('synthetic 3 s of 26 ms frames in LIVE at target 16.7 demotes exactly one 
   const d = feed(m, 26, 2.0 + 3.0 + 0.05, LIVE);    // holdoff + 3 s window
   assert.deepEqual(d, [DECISION.DEMOTE]);
   assert.equal(m.rung, 3);
+});
+
+check('an exact 30 Hz stream (1000/30 ms) at a 16.6 ms target never takes the 2.0 s severe demotion before the cadence rule', () => {
+  const m = new QualityMonitor({ startRung: 2, capRung: 6, target: 16.6 });
+  const d = feed(m, 1000 / 30, 2.0 + 3.0 + 0.1, { judged: true, busyMs: 1 });
+  assert.deepEqual(d, [DECISION.RETARGET]);
+  assert.equal(m.rung, 2); assert.equal(m.halfRate, false);
 });
 
 check('synthetic 33 ms vsync-locked cadence with light busy time re-targets instead of demoting (R#3)', () => {

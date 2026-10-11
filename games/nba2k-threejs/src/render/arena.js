@@ -544,13 +544,15 @@ export class Jumbotron {
       case 'replay': text = this._paintReplay(ctx, W, H, d); break;
       case 'intro': text = this._paintIntro(ctx, W, H, d); break;
       case 'gameover': text = this._paintGameover(ctx, W, H, d); break;
-      default: text = this._paintTitle(ctx, W, H); break;
+      default: text = this._paintTitle(ctx, W, H, this.data); break;
     }
     this.lastText = text;
     if (ctx) this.texture.needsUpdate = true;
   }
 
-  _paintTitle(ctx, W, H) {
+  /** d.underLogo (title screen, I4): the DOM title logo sits right over the screen in the title shot, so only the sweep
+   *  is painted (the brand text drawn under it read as a ghosted double logo); intro crane and lineup show the text. */
+  _paintTitle(ctx, W, H, d) {
     const zh = tr('brand.zh'), en = tr('brand.sub', null, tr('brand.wordmark'));
     const sub = tr('app.title');
     const legal = tr('legal.note');
@@ -563,6 +565,7 @@ export class Jumbotron {
       g.addColorStop(1, 'rgba(217,165,32,0)');
       ctx.fillStyle = g;
       ctx.fillRect(0, 0, W, H);
+      if (d && d.underLogo) return sub + ' | ' + legal;
       ctx.fillStyle = GOLD;
       fitText(ctx, zh, W / 2, H * 0.34, W * 0.8, H * 0.30, '900');
       ctx.fillStyle = '#f4f2ec';

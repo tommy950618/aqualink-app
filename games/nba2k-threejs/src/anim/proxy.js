@@ -333,6 +333,7 @@ export class AnimProxy {
   walkTo() {}
   setFace() {}
   setLook() {}
+  setBlockAim() {}     // block aim (I4): the closed-form palm already sits 0.30 m in front of the defender
 }
 
 const EMPTY = Object.freeze({});

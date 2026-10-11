@@ -749,10 +749,12 @@ export function swatchU(name) {
 }
 
 /**
- * Kit base colours painted with a different albedo than their data value (likeness round 4): the Cavs wine
- * #6F263D rendered crushed toward crimson (#4f0726 … #651330 lit), so the paint lifts it to #7A3048.
+ * Kit base colours painted with a different albedo than their data value. Empty since integration I2: the Cavs wine
+ * #6F263D used to be lifted to #7A3048 (likeness round 4: it rendered crushed toward crimson), which broke B31's
+ * "atlas = spec base ±6/255" and halved the DARK / BRIGHT lightness gap of B26; the chroma-keeping tone-mapping toe
+ * (materials.js) and the broadcast-side fill light (render/lighting.js) now keep the unlifted wine wine.
  */
-const PAINT_BASE = Object.freeze({ '#6F263D': '#7A3048' });
+const PAINT_BASE = Object.freeze({});
 
 /**
  * Terry rib of a dark headband (likeness round 4): vertical stripes ±8 % value, 1.5 mm pitch along the band
@@ -786,7 +788,7 @@ export function paintKit(ctx, rctx, job, S) {
   for (const c of [ctx, rctx]) { c.setTransform(1, 0, 0, 1, 0, 0); c.globalAlpha = 1; c.globalCompositeOperation = 'source-over'; }
   ctx.fillStyle = '#000000'; ctx.fillRect(0, 0, S, S);
   rctx.fillStyle = grey(0.8); rctx.fillRect(0, 0, S, S);
-  // 1 base fills (wine #6F263D is painted pre-compensated: it rendered #4f0726–#651330, crushed toward crimson)
+  // 1 base fills (PAINT_BASE: per-colour paint compensation, none at present)
   const base = PAINT_BASE[String(kit.base).toUpperCase()] || kit.base;
   fillRect(ctx, rctx, 'jersey', base, R.jersey, S);
   fillRect(ctx, rctx, 'shorts', base, R.shorts, S);

@@ -476,7 +476,10 @@ export class Player {
 
     // animator context (real Animator; harmless on the proxy)
     const ctx = this.animator.ctx;
-    ctx.onDefence = !this.offense;
+    // QUARTER_END / HALFTIME / GAME_OVER (Game.stepIdle): everyone stands, no defensive crouch (I4: the defending team's
+    // MVP stood in a crouch at centre stage)
+    const wst = world ? world.state : null;
+    ctx.onDefence = !this.offense && wst !== 'GAME_OVER' && wst !== 'HALFTIME' && wst !== 'QUARTER_END';
     ctx.post = this.state === 'post';
     ctx.stamina = this.stamina;
     ctx.stance = this.state === 'post' ? 'postUp' : this.boxT > 0 ? 'boxOut' : 'auto';

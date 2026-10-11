@@ -285,9 +285,13 @@ function boot() {
   let resolveReady = null;
   const legendsReady = new Promise((r) => { resolveReady = r; });
   const bs = { ui: screens.ui, legendsReady, simplified: false, version: 'legends-3v3 v2', params, audio, settings, loading: true };
+  // __game.ui reports what the player sees: the title DOM is switched on under the loading screen before the shader
+  // compile and warm-up frames (they render the title scene), but it only becomes usable once the loader has faded out
+  const LOADING_UI = Object.freeze({ screen: 'loading', overlay: null });
+  const uiView = () => (bs.loading && screens.ui.screen !== 'loadError' ? LOADING_UI : screens.ui);
   window.__game = {
     version: 'legends-3v3 v2', legendsReady, params, audio, settings, legends: LEGENDS,
-    get ui() { return screens.ui; }, get simplified() { return bs.simplified; }, get state() { return 'BOOT'; },
+    get ui() { return uiView(); }, get simplified() { return bs.simplified; }, get state() { return 'BOOT'; },
   };
   loader.phase('load.engine');
   loader.progress(0.02);
@@ -550,7 +554,16 @@ function boot() {
     if (renderer) renderer.compile(scene, director.camera);
     prog.shader = 0.9; report();
     await yieldNow();
-    for (let k = 0; k < 2; k++) { renderFrame(nowMs(), 1 / 60); await yieldNow(); }
+    // the first warm frame draws with frustum culling off, so every geometry / texture of the scene is uploaded during
+    // loading and renderer.info.memory stays flat afterwards (B41: the far hoop first came into view in the game-over
+    // orbit of the first game, +2 geometries after the baseline)
+    const unculled = [];
+    if (renderer) scene.traverse((o) => { if (o.frustumCulled && (o.isMesh || o.isPoints || o.isLine || o.isSprite)) { unculled.push(o); o.frustumCulled = false; } });
+    for (let k = 0; k < 2; k++) {
+      renderFrame(nowMs(), 1 / 60);
+      if (k === 0) for (let i = 0; i < unculled.length; i++) unculled[i].frustumCulled = true;
+      await yieldNow();
+    }
     prog.shader = 1; report();
     if (lib) perf.load = Object.assign({}, lib.perf);
     await loader.done();
@@ -711,7 +724,7 @@ function boot() {
       flow,
       hud,
       screens,
-      get ui() { return screens.ui; },
+      get ui() { return uiView(); },
       get replay() { const r = app.replayPlayer; return { active: r.active, kind: r.kind, t: r.playT, busy: r.busy, phase: r.phase }; },
       get director() { return { mode: director.mode, cameraMode: director.cameraMode, camera: director.camera, obj: director }; },
       get arena() { return { jumbo: arenaParts.arena.jumbo, led: arenaParts.arena.led, reflection: app.reflection, hoop: arenaParts.hoop, crowd: arenaParts.crowd }; },

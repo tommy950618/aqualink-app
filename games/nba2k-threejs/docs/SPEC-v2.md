@@ -1301,6 +1301,23 @@ press [3.0, 5.2] m, C11), `lay.power` (two-foot jump stop 1.2–1.8 m, pelvis �
 | yao | 2.82 | 0.42 | 0.48 | 0.26 / 0.28 |
 | kyrie | 2.37 | 0.87 | 0.93 | 0.39 / 0.41 (open breaks only) |
 
+Block reach assist (integration I2, the defensive twin of the dunk reach assist; orchestrator decision 3): the baked
+rig's overhead palm (≈ `reach0`) is 0.08–0.12 m below the §5.4 palm `reachM − 0.24` that the AnimProxy and the headless
+balance use, so while airborne in a block / contest / rebound / tip clip the animator lifts the pelvis by
+`clamp(reachM − 0.24 − reach0, 0, 0.15)` (ramped in over the first 0.10 m of jump height).
+
+Block aim (integration I4): the block / contest clips raise the hand straight up beside the head, while the proxy's
+closed-form palm sits 0.30 m in front of the defender, so on the real rig the palm–ball test of §5.4 missed balls
+0.4–0.7 m in front of a jumping defender (B60: Yao 0/60 blocks vs 7/60 with the proxy). Each step, `Game.aimBlocks`
+calls `animator.setBlockAim(ball)` for every opponent in a block / contest jump while a shot is live (ball held by the
+shooter, or untouched in flight; a no-op on AnimProxy). Airborne in a block clip, the palm of the arm whose shoulder is
+nearer the ball reaches for it with two-bone arm IK (`ik.js aimPalm`; target kept ≥ 0.35 m above that shoulder, balls
+more than 0.45 m beyond arm reach ignored, weight eased over 0.10 s and ramped in over the first 0.10 m of jump height).
+The same IK runs on the step pose (gameplay palm sockets: `tryBlocks`, `tryStuff`, B50) and in the render pass (medium /
+high, `handIK`), so what blocks is what is drawn. The arm chosen at the start of the aim is kept until the aim fades out.
+Measured on the real rig in auto games (13 seeds, q 60): blocks / opponent FGA 2.9 % (DARK) and 2.7 % (BRIGHT, Yao)
+without the aim, 7.8 % and 9.0 % with it (§5.14 bands 3–8 % and 3–12 % with Yao; proxy balance 6.8 % / 6.5 %).
+
 Vertical profile: ballistic rise; slam at apex − 0.03 (ascending) unless the clip says descending; **hang** from
 slam + 0.03 for `hangT` 0.10–0.25 s (per clip; `jumpY` eases h → h − 0.05, elbows 30° on the rim); **drop** free fall
 (landing `sqrt(2(h − 0.05)/g')` after the hang). Takeoff windows (rim centre → takeoff root): one-foot 1.2–2.0, two-foot
@@ -1607,7 +1624,9 @@ euro: the dodged defender is excluded entirely; others 1.0. v1 `C *= 0.8 if jump
 
 5.3.7 **Miss targets and rim** (R#30, R#31, R#32): green miss short or long with `rng < 0.5`; air ball target
 `along = −(0.50 + 0.30·rng)` m from the rim centre at `y = RIM.y − 0.55` (drops in front, never touches the rim);
-rim `REST_RIM 0.40`, tangential 0.80, board `REST_BOARD 0.50`. Acceptance in §5.14 (≥ 80 % of air balls rest
+rim `REST_RIM 0.40`, tangential 0.80, board `REST_BOARD 0.50`. Floor: the first bounce of a shot that touched nothing
+(still carrying its backspin) keeps 0.40 of its horizontal speed instead of 0.85 (`BALL.BACKSPIN_FLOOR`, integration
+I2: the air ball target makes the ball land under the rim, from where it skidded out over the baseline in 10/20 B12 trials). Acceptance in §5.14 (≥ 80 % of air balls rest
 inside; untouched misses: median first-bounce 1.5–3.5 m, ≥ 75 % rest inside, ≥ 70 % first floor contact within 4.5 m).
 
 ### 5.4 Blocks (`game.tryBlocks`, D-GP-4)
@@ -2120,9 +2139,10 @@ window.__game = { ...v1 hooks (game, state, world, controlled, ball, perf, audio
 | `hemi` | Hemisphere | sky #fff1e0, ground #5a3f28 | 1.10 / 0.35 / 0.30 | — | — |
 | `key` | Directional | #fff4e5 | 2.40 / 2.50 / 2.50 (tunable 2.0–3.2 to hit the B42 luminance) | target + 30·normalize(4, 20, 6); target = shadow-fit centre (default (0, 0, −7)) | medium/high |
 | `rim` | Directional | #d6e4ff | 0.90 / 1.30 / 1.30 | (0, 9, −32) → (0, 1.0, −6) | no |
+| `fill` | Directional | #f2f5ff | 2.60 / 2.20 / 2.20 | (0, 7, 34) → (0, 1.0, −6): broadcast-side front light (integration I2: the 70° key left vertical surfaces at ≈ 0.28 of it, a white kit's chest read luma 0.59 < B30's 0.7 and the ★ kits only 0.09 apart in B26; adds ≈ 0.02 luma to the B42 floor) | no |
 | `spot` | Spot (medium/high only) | #ffffff | 0 in play; 1,100 cd in announcements | 12 m above the presented player; angle 0.32 rad, penumbra 0.55, decay 2 | no |
 
-Presets (`setPreset(name, s)`, linear 0.6 s): `play` key/hemi/rim ×1.0, env 0.55, crowd ×1.0, spot 0; `intro` ×0.35 /
+Presets (`setPreset(name, s)`, linear 0.6 s; `fill` ×1.0 / 0.45 / 0.8 / 1.0 / 0.7 for play / intro / pause / replay / gameover): `play` key/hemi/rim ×1.0, env 0.55, crowd ×1.0, spot 0; `intro` ×0.35 /
 ×0.5 / ×1.2, env 0.20, crowd ×0.4, spot 1,100 cd; `pause` ×0.8 / ×0.8 / ×1.0, env 0.45, crowd ×0.7; `replay` ×1.0 / ×1.0
 / ×1.25, env 0.55; `gameover` ×0.6 / ×0.7 / ×1.3, env 0.35, crowd ×0.8, spot 900 cd on the MVP.
 
@@ -2273,7 +2293,9 @@ at z −4 1.25 m apart; `lineup` overview (landscape) (0, 1.6, 2.5) look (0, 1.2
 0.5°/px with inertia decay 4/s, auto-spin resumes 3 s after the last touch, 0.5 s ease between players; `pause` ease
 0.6 s to (9, 5.5, 3) look (0, 1.5, −8) fov 40, drift +0.12 m/s for 8 s at 30 Hz then **stop rendering** until resume
 (resume = cut to broadcast + 1.0 s countdown); `halftime` (0, 14, 12) look (0, 0, −8) fov 46, pan x −3 → +3 over 6 s;
-`gameover` 1.0 s hold then orbit the MVP r 3.2 m, height 1.5, 12°/s, fov 32 (portrait lens 0.30); `showcase` §10.
+`gameover` 1.0 s hold then orbit the MVP r 3.2 m, height 1.5, 12°/s, fov 32 (portrait lens 0.30; integration I2: in
+landscape r 3.2 cut him at the knees, so the radius / look height come from a band fit of the whole body, feet − 0.05 …
+head + 0.15 in NDC [−0.80, 0.86] or above the MVP card, beside the box-score panel via a sideways look); `showcase` §10.
 
 6.4.6 **Instant replay** (`replay.js`, D-PR-7):
 - Recorder (CHECK/LIVE/DEAD): ring of **240 frames** (≤ 1 sample per 1/60 s game time); per frame 1 + 6 × 233 + 8 =
@@ -2296,7 +2318,10 @@ at z −4 1.25 m apart; `lineup` overview (landscape) (0, 1.6, 2.5) look (0, 1.2
   side of the approach, sweep −50° over 3.0 s, fov 32, look subject + (0, 0.495h, 0) blended 40 % to the rim after
   takeoff, slam shake 0.25 s 0.03 m 12 Hz; jumper first 55 % 2.8 m behind / 1.9 m above the shooter fov 35, then rim
   cam at (rim.x ± 2.4, 3.8, rim.z + 3.0) fov 35 → 28; block side-on 5 m from the shot line at 1.6 m, fov 30. Constraints:
-  z ≥ −12.0, y ≥ 0.8, ≥ 0.9 m from every recorded pelvis.
+  z ≥ −12.0, y ≥ 0.8, ≥ 0.9 m from every recorded pelvis. Dunk framing fit (integration I4: at r 3.6 / fov 32 a
+  1.96 m player standing already fills the frame, so the letterbox cut the airborne dunker's head and the ball): after the
+  constraints, the band feet (floor + jump) … max(head + 0.12, ball + 0.18) must lie within 86 % of the half fov; the
+  look height moves just enough, and a taller band widens the fov (≤ 50°; typically 37–45°).
 - Chrome: letterbox 7 % top/bottom, tag "回放 REPLAY" 13 px gold, CSS vignette, jumbotron `replay`, preset `replay`, HUD
   hidden; LOD high LOD0 within 7 m, medium LOD0 for the 2 nearest + LOD1, low LOD1 for the 2 nearest; audio crowd
   low-passed 600 Hz × 0.6, recorded `slam/rim/swish` re-fired with slow variants.
@@ -2531,7 +2556,8 @@ a manual tier change shows `settings.reloadNote`).
 
 ### 7.3 Runtime adaptation
 
-- Cadence probe during the loading screen: median of 30 rAF intervals; `target = cadence < 12 ms ? 16.67 : cadence`
+- Cadence probe during the loading screen: median of 30 rAF intervals (integration I2: the lower quartile, and only a
+  60 Hz ± 3 / 30 Hz ± 4 ms value is kept, anything else is a busy loading thread → 16.67); `target = cadence < 12 ms ? 16.67 : cadence`
   (120 Hz displays capped at 60 fps by skipping frames with `now − lastRender < 16.67 − 1.5`; 30 Hz panels / low-power
   mode → target 33.3, never mistaken for a slow GPU; R#3).
 - **Cadence change mid-session** (CRITIC, rest of R#3: Low Power Mode switched on during a game, iframe throttling):

@@ -53,6 +53,7 @@ export const REPLAY = Object.freeze({
   JUMPER: Object.freeze({ split: 0.55, back: 2.8, up: 1.9, shoulder: 0.45, fov: 35, rimX: 2.4, rimY: 3.8, rimDz: 3.0, fovTo: 28 }),
   BLOCK: Object.freeze({ dist: 5.0, y: 1.6, fov: 30, chestUp: 0.35 }),
   MIN_Z: -12.0, MIN_Y: 0.8, MIN_PELVIS: 0.9,
+  FIT_USE: 0.86, FIT_FOV_MAX: 50,   // dunk framing fit (I4): share of the half fov the dunker's band may use; widest fov
   LOD_NEAR_M: 7,
 });
 
@@ -701,6 +702,7 @@ export class ReplayPlayer {
       out.fov = B.fov;
     }
     this._constrain(out);
+    if (this.kind === 'dunk') this._fitDunk(out, f);
     this.cam.x = out.px; this.cam.y = out.py; this.cam.z = out.pz;
     replayLod(this.tier, out.px, out.py, out.pz, this.pelvis, this.vis, this.lod);
     return out;
@@ -865,6 +867,26 @@ export class ReplayPlayer {
   }
 
   /** z ≥ −12.0, y ≥ 0.8, ≥ 0.9 m from every visible recorded pelvis (two relaxation passes). */
+  /**
+   * Dunk framing fit (I4): the r 3.6 / fov 32 orbit (closer still after the z ≥ −12 clamp near the baseline) cut the
+   * airborne dunker's head and the ball off at the top of the letterboxed frame. The vertical band feet (floor + jump) …
+   * max(head + 0.12, ball + 0.18) must lie within ±FIT_USE of the half fov: the look height moves just enough (the spec
+   * path is kept whenever the band already fits) and, when the band is taller than the frame, the fov widens (≤ 50°).
+   */
+  _fitDunk(out, f) {
+    const S = this.subj, h = this.heights[f], jump = Math.max(0, S.y - this.y0);
+    const lo = jump, hi = Math.max(jump + h + 0.12, this.ballS.y + 0.18);
+    const d = Math.max(0.5, Math.hypot(S.x - out.px, S.z - out.pz));
+    const aLo = Math.atan2(lo - out.py, d), aHi = Math.atan2(hi - out.py, d);
+    let half = 0.5 * out.fov * DEG * REPLAY.FIT_USE;
+    if (aHi - aLo > 2 * half) { out.fov = Math.min(REPLAY.FIT_FOV_MAX, (aHi - aLo) / (DEG * REPLAY.FIT_USE)); half = 0.5 * out.fov * DEG * REPLAY.FIT_USE; }
+    const dl = Math.max(0.5, Math.hypot(out.lx - out.px, out.lz - out.pz));
+    const pitch = Math.atan2(out.ly - out.py, dl);
+    const lim0 = aHi - half, lim1 = aLo + half;
+    const want = lim0 > lim1 ? 0.5 * (aLo + aHi) : pitch < lim0 ? lim0 : pitch > lim1 ? lim1 : pitch;
+    if (want !== pitch) out.ly = out.py + dl * Math.tan(want);
+  }
+
   _constrain(out) {
     for (let pass = 0; pass < 2; pass++) {
       for (let i = 0; i < REPLAY.PLAYERS; i++) {

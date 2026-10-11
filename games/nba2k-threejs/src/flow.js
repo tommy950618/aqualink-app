@@ -226,7 +226,7 @@ export class Flow {
     a.screens.show('title');
     a.director.setMode('title', { transition: snap ? 'cut' : 'ease' });
     a.lights.setPreset('play', snap ? 0 : 0.6);
-    a.arena.jumbo.setMode('title', {});
+    a.arena.jumbo.setMode('title', { underLogo: true });   // the DOM logo covers the screen in the title shot
     a.arena.led.message('led.brand');
     a.crowd.excite(0.15, 1e6);
     a.audio.crowdAudio.setBase(BASE_NORMAL);

@@ -324,7 +324,7 @@ check('playback applies bracketing frames per player (slerp α) and lerps / sler
   assert.equal(rec.suspended, true);
 });
 
-check('dunk camera: r 3.6 orbit starting 60° to the camera side, sweeping 50°, height 1.2 → 2.2, fov 32, constraints', () => {
+check('dunk camera: r 3.6 orbit starting 60° to the camera side, sweeping 50°, height 1.2 → 2.2, fov 32 (framing fit ≤ 50), constraints', () => {
   const { log } = runDunkReplay();
   const act = log.filter((f) => f.active);
   for (const f of act) {
@@ -335,8 +335,18 @@ check('dunk camera: r 3.6 orbit starting 60° to the camera side, sweeping 50°,
       const d = Math.hypot(f.px - f.pelvis[i * 3], f.py - f.pelvis[i * 3 + 1], f.pz - f.pelvis[i * 3 + 2]);
       assert.ok(d >= 0.9 - 1e-6, `pelvis ${i} at ${d}`);
     }
-    assert.equal(f.fov, 32);
+    // fov 32, widened by the framing fit (I4) only as far as the airborne dunker's band needs (≤ 50°)
+    assert.ok(f.fov >= 32 - 1e-9 && f.fov <= 50 + 1e-9, `fov ${f.fov}`);
+    // the dunker's head top (pelvis + 0.55·h) and feet (pelvis − 0.5·h) stay inside the vertical frame
+    const pitch = (y, x, z) => Math.atan2(y - f.py, Math.hypot(x - f.px, z - f.pz));
+    const look = pitch(f.ly, f.lx, f.lz), half = f.fov / 2 * Math.PI / 180;
+    for (const dy of [0.55 * 1.96, -0.5 * 1.96]) {
+      const a = pitch(f.pelvis[1] + dy, f.pelvis[0], f.pelvis[2]) - look;
+      assert.ok(Math.abs(a) <= half + 1e-6, `dunker ${dy > 0 ? 'head' : 'feet'} ${(a * 180 / Math.PI).toFixed(1)}° off the look (half fov ${(half * 180 / Math.PI).toFixed(1)}°)`);
+    }
   }
+  // the fov is only as wide as the band needs: the widest frame of the window is ≤ 48° (r 3.6 orbit, 0.9 m jump)
+  assert.ok(Math.max(...act.map((f) => f.fov)) <= 48, `widest fov ${Math.max(...act.map((f) => f.fov)).toFixed(1)}`);
   near(act[0].py, 1.2, 0.05);
   near(act[act.length - 1].py, 2.2, 0.05);
   // the first camera position is on the +z (broadcast) side of the dunker's path
@@ -380,7 +390,7 @@ check('dunk camera occlusion avoidance: a defender on the default orbit\'s sight
   const clear = clearance(act);
   assert.ok(clear > 0.3, `defender's chest ${clear.toFixed(2)} m from the camera → head line (> 0.3 m)`);
   // still the dunk orbit: r 3.6 around the subject, height 1.2 → 2.2, fov 32
-  for (const f of act) { assert.equal(f.fov, 32); assert.ok(f.pz >= -12.0 - 1e-9); }
+  for (const f of act) { assert.ok(f.fov >= 32 - 1e-9 && f.fov <= 50 + 1e-9); assert.ok(f.pz >= -12.0 - 1e-9); }
   near(act[0].py, 1.2, 0.05); near(act[act.length - 1].py, 2.2, 0.05);
 });
 

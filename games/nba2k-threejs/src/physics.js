@@ -634,6 +634,7 @@ export class ContactMixin {
   // ---------------------------------------------------------------- contacts (§1.3 step 6)
   stepContacts(dt) {
     const w = this.world, ball = this.ball;
+    this.aimBlocks();
     for (let i = 0; i < 6; i++) {
       const p = this.players[i];
       const s = p.shot;
@@ -730,6 +731,24 @@ export class ContactMixin {
       if (dx * dx + dz * dz > HANDS_UP_R * HANDS_UP_R) continue;
       if (d.animator.upper !== C_HAND_UP) d.animator.play(C_HAND_UP, { layer: 'upper' });
       return;
+    }
+  }
+
+  /**
+   * Block aim (I4): every opponent in a block / contest jump reaches for the ball of a live shot, held by the shooter or
+   * untouched in flight (animator.setBlockAim → palm IK on the step pose and in the render pass; a no-op on AnimProxy,
+   * whose closed-form palm already sits in front of the defender). Real defenders swat at the ball; the clips alone
+   * raise the hand straight up beside the head, so the palm–ball test of tryBlocks / tryStuff missed balls 0.4–0.7 m in
+   * front of a jumping Yao that the proxy (and balance) blocked.
+   */
+  aimBlocks() {
+    const ball = this.ball;
+    const sh = ball.state === 'flight' && ball.ctx === 'shot' ? (ball.shot.touched ? null : ball.shot.shooter) : (ball.owner && ball.owner.shot.active ? ball.owner : null);
+    if (!sh) return;
+    for (let i = 0; i < 6; i++) {
+      const d = this.players[i];
+      if (d.team === sh.team || !d.isJumping || !d.defJump.active || d.defJump.intent === 'rebound') continue;
+      d.animator.setBlockAim(ball.pos.x, ball.pos.y, ball.pos.z);
     }
   }
 
