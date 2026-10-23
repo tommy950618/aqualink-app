@@ -5,7 +5,7 @@
  * fallback) so the whole engine also runs in node (tools/test-engine.js).
  *
  * Quick reference (beyond CONTRACT §4.2, all extras are optional helpers):
- *   NG.game.enemyPreview(stageId) -> [{id, lv, star, boss, hpMult, c}]
+ *   NG.game.enemyPreview(stageId) -> [{id, lv, star, boss, hpMult, mult, c}]  (mult > 1 = elite beyond Lv400)
  *   NG.game.nextStage()           -> first uncleared (hence unlocked) stage id, or null when all cleared
  *   NG.game.chapterState(chId)    -> {unlocked, stars, maxStars, cleared, total}
  *   NG.game.idleRate()            -> {coins, exp, scrolls} per hour at current progress
@@ -165,7 +165,7 @@
    * Data agents scale multipliers with rarity, so pure stats under-rate strong kits. The rating is an
    * "ATK-multiplier equivalent per action" estimate; power is scaled by (kit/KIT_REF)^KIT_EXP. */
   var KIT = { ref: 2.0, exp: 0.7, min: 0.6, max: 1.8, freq: { s1: 0.55, s2: 0.28, ult: 0.17 },
-    // empirical per-rarity factor (calibrated so power-equal teams of different rarity fight ~50/50)
+    // empirical per-rarity factor: data kits scale with rarity beyond what the kit rating sees
     rarity: { UR: 1.15, SSR: 1.04, SR: 1.02, R: 1 } };
   var TRIG_RATE = { battle_start: 0.12, turn_start: 1, on_attack: 0.9, on_hit: 0.7, on_kill: 0.15, low_hp: 0.1, on_ult: 0.17, on_death: 0.08, on_ally_death: 0.2 };
   var BUFF_W = { atk: 1.5, dmg: 1.5, crit: 0.7, critDmg: 0.5, def: 1.0, dr: 1.3, spd: 1.2, dodge: 1.2 };
@@ -1130,13 +1130,32 @@
 
   // level a 5-UR team "should" have at the end of each chapter (drives enemy power & rewards)
   var CH_END_LV = [4, 15, 35, 60, 95, 120, 145, 170, 195, 220, 245, 270, 300, 330];
-  // target enemy team power at the end of each chapter (calibrated with a progression simulation,
-  // see tools/test-engine.js balance section); stage 1-1 starts at ECON.firstPower
-  var CH_END_POWER = [25000, 75000, 160000, 350000, 630000, 880000, 1090000, 1320000, 1600000, 1850000, 2140000, 2470000, 2800000, 2950000];
+  // Recommended team power at the end of each chapter (geometric interpolation inside a chapter; stage 1-1
+  // starts at ECON.firstPower). Fitted to a greedy-player simulation (`node tools/test-engine.js --sim N`):
+  // ch1–4 are a honeymoon for the 1000-pull opening team, from ch6 on players arrive at ~0.85–1.0× of it.
+  var CH_END_POWER = [25000, 75000, 160000, 350000, 630000, 930000, 1220000, 1480000, 1790000, 2070000, 2400000, 2770000, 3140000, 3300000];
   // Per-stage enemy strength adjustment, fitted by `node tools/test-engine.js --calibrate` so that a
   // UR/SSR team at exactly the recommended power wins ~78% of the time on every stage (kits such as
   // dodge+self-heal solos are stronger than any power formula predicts). Missing ids = 1. Range [0.5, 2].
-  var STAGE_ADJ = {};
+  var STAGE_ADJ = {
+    '1-1': 2, '1-2': 2, '1-3': 2, '1-4': 2, '1-5': 2, '1-6': 2, '1-7': 2, '1-8': 1.68, '1-9': 1.27,
+    '2-1': 1.56, '2-2': 0.99, '2-3': 1.04, '2-4': 0.83, '2-5': 1.29, '2-6': 0.82, '2-7': 1.25, '2-8': 0.96,
+    '2-9': 0.95, '3-1': 1.07, '3-2': 1.56, '3-3': 1.02, '3-4': 0.9, '3-5': 0.89, '3-6': 0.92, '3-7': 0.86,
+    '3-8': 1.12, '3-9': 0.99, '4-1': 1.17, '4-2': 1.36, '4-3': 1.14, '4-4': 0.97, '4-5': 1.05, '4-6': 1.03,
+    '4-7': 1.38, '5-1': 0.93, '5-2': 1.49, '5-3': 1.12, '5-4': 0.98, '5-5': 0.93, '5-6': 0.79, '5-7': 0.95,
+    '5-8': 1.09, '6-1': 1.04, '6-2': 0.89, '6-3': 0.95, '6-4': 1.14, '6-5': 0.91, '6-6': 0.9, '6-7': 0.88,
+    '6-8': 0.82, '6-9': 0.79, '7-1': 1.03, '7-2': 1.21, '7-3': 0.77, '7-4': 1.07, '7-5': 0.9, '7-6': 0.85,
+    '7-7': 0.72, '7-8': 0.96, '7-9': 0.77, '7-10': 0.9, '8-1': 1.02, '8-2': 0.87, '8-3': 0.89, '8-4': 0.93,
+    '8-5': 0.98, '8-6': 0.9, '8-7': 0.88, '8-8': 0.94, '9-1': 0.91, '9-2': 0.87, '9-3': 1.24, '9-4': 1.01,
+    '9-5': 0.92, '9-6': 1.1, '9-7': 1.06, '9-8': 1.09, '9-9': 1.17, '10-1': 0.81, '10-2': 1.08, '10-3': 0.8,
+    '10-4': 0.93, '10-5': 0.87, '10-6': 0.91, '10-7': 0.85, '10-8': 0.88, '10-9': 0.88, '11-1': 0.8,
+    '11-2': 1.23, '11-3': 1.04, '11-4': 0.92, '11-5': 1.02, '11-6': 0.96, '11-7': 0.92, '11-8': 1.03,
+    '11-9': 1.05, '11-10': 1.02, '12-1': 0.84, '12-2': 0.87, '12-3': 1.28, '12-4': 1.06, '12-5': 0.97,
+    '12-6': 0.93, '12-7': 1.1, '12-8': 0.83, '12-9': 0.82, '12-10': 0.9, '13-1': 1.11, '13-2': 0.92,
+    '13-3': 0.93, '13-4': 1.07, '13-5': 0.85, '13-6': 1.05, '13-7': 0.78, '13-8': 0.92, '13-9': 0.88,
+    '13-10': 1.22, '14-1': 0.75, '14-2': 1.06, '14-3': 1.03, '14-4': 0.84, '14-5': 0.83, '14-6': 0.97,
+    '14-7': 0.96, '14-8': 1.02, '14-9': 0.79, '14-10': 0.89
+  };
   var adjVersion = 0;
   var ECON = {
     firstPower: 2500,
@@ -1172,12 +1191,13 @@
     return out;
   }
 
-  // Small lineups are stronger per power point (focus fire / AoE asymmetry): measured k50 factors
-  // (enemy power that gives a 5-unit team 50% at equal power) are applied, and solos/duos get their
-  // extra strength mostly as HP so they never one-shot the player's team.
-  var ENEMY_MAX_LV = 999;          // enemies may exceed the player's star caps (shown as e.g. Lv.420)
+  // Lineup builder. Small lineups are stronger per power point (focus fire / AoE asymmetry), so measured
+  // size factors are applied; solos/duos get extra strength mostly as HP so they rarely one-shot anyone.
+  // The solver picks the enemy level; beyond Lv400 the level stays 400★6 and an elite `mult` (applied to
+  // hp/atk/def and to DEF-mitigation growth, i.e. battle-equivalent to more levels) carries the rest.
+  var ENEMY_MAX_LV = 999;
   var LINEUP = {
-    sizeK: [1, 0.79, 0.85, 0.91, 0.99, 1.01],  // index = enemy count (measured, see header of LINEUP)
+    sizeK: [1, 0.79, 0.85, 0.91, 0.99, 1.01],  // index = enemy count (measured, equal win rate per power)
     bossK: [1, 0.88, 0.99, 1.01, 0.99, 1.02],  // extra factor for boss lineups (control & true-dmg resist)
     hpBoost: [1, 2.6, 1.6, 1.2, 1.05, 1],
     ease: 0.85,                                   // < 1: at recommended power the player usually wins
@@ -1628,7 +1648,7 @@
   game.enemyPreview = function (id) {
     var stg = game.stage(id);
     if (!stg) return [];
-    return stg.enemies.map(function (e) { return { id: e.id, lv: e.lv, star: e.star, boss: !!e.boss, hpMult: e.hpMult || 1, c: charOf(e.id) }; });
+    return stg.enemies.map(function (e) { return { id: e.id, lv: e.lv, star: e.star, boss: !!e.boss, hpMult: e.hpMult || 1, mult: e.mult || 1, c: charOf(e.id) }; });
   };
   game.battleStage = function (id, seed) {
     var stg = game.stage(id);

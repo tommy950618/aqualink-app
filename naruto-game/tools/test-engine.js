@@ -922,6 +922,8 @@ if (SIM_N) {
 
 /* ------------------------------------------------------------------ summary */
 console.log('\n' + (failed ? 'FAILED' : 'OK') + ': ' + passed + ' passed, ' + failed + ' failed (' + ((Date.now() - t0) / 1000).toFixed(1) + 's)');
-var engineWarns = ctx._warns.filter(function (w) { return /NG\.engine/.test(w); });
-if (engineWarns.length) console.log('engine warnings (' + engineWarns.length + '): ' + engineWarns.slice(0, 12).join(' | '));
+var DELIBERATE = /"(nobody|ghost|charisma|teleport|moon|luck|confuse|sideways|on_sneeze)"/;
+var engineWarns = ctx._warns.filter(function (w) { return /NG\.engine/.test(w) && !DELIBERATE.test(w); });
+console.log('engine warnings from real data: ' + (engineWarns.length ? engineWarns.length + ' — ' + engineWarns.slice(0, 12).join(' | ') : 'none') +
+  ' (' + ctx._warns.filter(function (w) { return DELIBERATE.test(w); }).length + ' more were provoked on purpose by the unknown-vocabulary test)');
 process.exit(failed ? 1 : 0);

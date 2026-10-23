@@ -1016,18 +1016,18 @@ html.rotated #app-bg { inset: auto; left: 50%; top: 50%; width: 100vh; height: 1
 @keyframes cutout { to { opacity: 0; transform: scale(1.04); } }
 
 /* result */
-.res { width: 720px; text-align: center; padding-top: 30px; overflow: visible; }
-.res .rbig { position: absolute; left: 50%; top: -120px; transform: translateX(-50%); font-family: var(--f-brush); font-size: 150px; line-height: 1; white-space: nowrap; animation: urbig .6s var(--ease-back) both; }
+.res { width: 720px; text-align: center; padding: 24px 30px 22px !important; overflow: visible; margin-top: 96px; }
+.res .rbig { position: absolute; left: 50%; top: -104px; transform: translateX(-50%); font-family: var(--f-brush); font-size: 128px; line-height: 1; white-space: nowrap; animation: urbig .6s var(--ease-back) both; }
 .res.win .rbig { filter: drop-shadow(0 4px 0 #3a1500) drop-shadow(0 0 26px rgba(255, 170, 40, .9)); }
 .res.lose .rbig { background: linear-gradient(180deg, #f2f4ff 10%, #9aa8d0 60%, #55608a 90%); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 4px 0 #0a1030) drop-shadow(0 0 18px rgba(120, 140, 220, .6)); }
 .res .rrays { position: absolute; left: 50%; top: -40px; width: 900px; height: 900px; transform: translate(-50%, -50%); z-index: -1; pointer-events: none; background: repeating-conic-gradient(from 0deg, rgba(255, 214, 102, .2) 0deg 7deg, rgba(255, 214, 102, 0) 7deg 18deg); -webkit-mask: radial-gradient(circle, #000 0%, transparent 60%); mask: radial-gradient(circle, #000 0%, transparent 60%); animation: spin 24s linear infinite; }
-.res .rstars { display: flex; justify-content: center; gap: 10px; font-size: 76px; margin: 6px 0 4px; }
+.res .rstars { display: flex; justify-content: center; gap: 10px; font-size: 68px; margin: 14px 0 2px; }
 .res .rstars img { width: 1em; height: 1em; opacity: 0; }
 .res .rstars img.pop { animation: starpop .55s var(--ease-back) both; opacity: 1; }
 .res .rstars img.dim { opacity: .9; }
 .res .rsub { font-size: 18px; color: var(--text-2); }
-.res .rrw { display: flex; justify-content: center; gap: 14px; margin: 18px 0 4px; flex-wrap: wrap; }
-.res .rrw .rw { width: 92px; height: 92px; animation: minipop .4s var(--ease-back) both; }
+.res .rrw { display: flex; justify-content: center; gap: 14px; margin: 14px 0 2px; flex-wrap: wrap; }
+.res .rrw .rw { width: 84px; height: 84px; animation: minipop .4s var(--ease-back) both; }
 .res .rrw .rw img { width: 52px; height: 52px; }
 .res .rrw .rw b { font-size: 16px; }
 .res .tips { display: flex; justify-content: center; gap: 18px; margin-top: 16px; }

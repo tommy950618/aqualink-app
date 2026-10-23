@@ -5,7 +5,7 @@
   'use strict';
   var NG = window.NG, U = NG.ui;
   var B = { token: 0 };
-  var SLOTS = [[538, 470], [388, 340], [388, 610], [226, 458], [226, 664], [538, 262]];
+  var SLOTS = [[538, 462], [388, 332], [388, 598], [226, 450], [226, 646], [538, 262]];
   var ST_LABEL = { stun: '晕', freeze: '冰', sleep: '睡', bind: '缚', silence: '封', burn: '灼', poison: '毒', bleed: '血', taunt: '嘲', counter: '反', immune: '免' };
   var STAT_CN = { atk: '攻', def: '防', spd: '速', crit: '暴', critDmg: '爆', dmg: '伤', dr: '免', dodge: '闪' };
   var STAT_FULL = { atk: '攻击', def: '防御', spd: '速度', crit: '暴击', critDmg: '暴伤', dmg: '伤害', dr: '减伤', dodge: '闪避' };
@@ -465,7 +465,6 @@
     setTimeout(function () {
       if (tk !== B.token) return;
       showResult(res, sid);
-      if (res.playerLvUp > 0) setTimeout(function () { U.toast('忍者等级提升！当前 Lv.' + ((U.state().player || {}).lv || ''), 'ok'); }, 900);
     }, B.skip ? 250 : 700);
   }
   /* per-unit damage summary (record.summary is an optional engine extra) */
@@ -489,7 +488,7 @@
     var rwHTML = Object.keys(rw).filter(function (k) { return rw[k] > 0 && U.CUR[k]; }).map(function (k, i) { return U.rewardHTML(k, rw[k]).replace('class="rw"', 'class="rw" style="animation-delay:' + (0.5 + i * 0.08) + 's"'); }).join('');
     var html = (win ? '<div class="rrays"></div><div class="rbig gold-text">胜利</div>' : '<div class="rbig">失败</div>') +
       '<div class="rstars">' + [1, 2, 3].map(function (i) { return '<img src="' + U.iconURL(i <= stars ? 'starOn' : 'starOff') + '" alt="" class="' + (i <= stars ? '' : 'dim') + '">'; }).join('') + '</div>' +
-      (win ? '<div class="rsub">' + (res.firstClear ? '<b style="color:#ff9b7a">首次通关！</b> ' : '') + (stars >= 3 ? '完美通关：无人阵亡' : stars === 2 ? '阵亡不超过2人' : '惊险取胜') + '</div>' +
+      (win ? '<div class="rsub">' + (res.firstClear ? '<b style="color:#ff9b7a">首次通关！</b> ' : '') + (stars >= 3 ? '完美通关：无人阵亡' : stars === 2 ? '阵亡不超过2人' : '惊险取胜') + (res.playerLvUp > 0 ? '　<b style="color:#7dff9a">忍者等级提升至 Lv.' + ((U.state().player || {}).lv || '') + '</b>' : '') + '</div>' +
         '<div class="rrw">' + (rwHTML || '<span class="muted">无额外奖励</span>') + '</div>'
         : '<div class="rsub">胜败乃兵家常事，提升实力后再来挑战吧！</div><div class="tips"><button data-go="train"><span class="qk">培</span>升级忍者</button><button data-go="team"><span class="qk">阵</span>调整编队</button><button data-go="summon"><span class="qk">召</span>招募忍者</button></div>');
     var btns = [{ html: '返 回', cls: 'dark', fn: function () { U.go('campaign', { stage: win && nextOk ? next : sid }, { replace: true }); } },
