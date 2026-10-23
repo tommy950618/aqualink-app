@@ -173,7 +173,7 @@ kitsuchi|黄土||iwa|SR|kumo_iwa
 roshi|老紫|四尾人柱力|iwa|SR|kumo_iwa
 han|汉|五尾人柱力|iwa|SR|kumo_iwa
 mu|无|二代目土影|iwa|SSR|kumo_iwa
-fu|富|七尾人柱力|other|SR|kumo_iwa
+fu|芙|七尾人柱力|other|SR|kumo_iwa
 mifune|三船||samurai|SSR|kumo_iwa
 shukaku|守鹤|一尾|bijuu|SSR|bijuu
 matatabi|又旅|二尾|bijuu|SSR|bijuu

@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>忍界传说 · Art Gallery (dev)</title>
+<style>
+  :root { --bg:#0d1430; --panel:#16214a; --line:#2d3f80; --txt:#e8eeff; --dim:#8b9bd0; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--txt); font:13px/1.4 'Noto Sans SC','WenQuanYi Zen Hei',sans-serif; }
+  header { position:sticky; top:0; z-index:5; background:#0a1026ee; border-bottom:1px solid var(--line); padding:8px 12px; display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+  header a { color:#9fc3ff; text-decoration:none; padding:3px 8px; border:1px solid var(--line); border-radius:6px; }
+  header a.on { background:#2d4ab0; color:#fff; }
+  h2 { margin:18px 12px 6px; font-size:16px; color:#ffd25a; }
+  h3 { margin:10px 12px 4px; font-size:13px; color:var(--dim); font-weight:600; }
+  .grid { display:flex; flex-wrap:wrap; gap:10px; padding:0 12px 12px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:6px; text-align:center; }
+  .card .n { font-size:12px; margin-top:3px; color:#dfe7ff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .card .s { font-size:10px; color:var(--dim); }
+  .bust { background:radial-gradient(circle at 50% 40%, #26357a, #0f1838 70%); border-radius:8px; display:block; }
+  .av { border-radius:50%; background:#1d2b63; display:inline-block; vertical-align:middle; }
+  .sq { display:inline-block; vertical-align:middle; }
+  .row { display:flex; gap:6px; align-items:center; justify-content:center; flex-wrap:wrap; }
+  .err { color:#ff6b6b; }
+  #stat { margin-left:auto; color:var(--dim); }
+</style>
+</head>
+<body>
+<header id="nav"></header>
+<div id="out"></div>
+
+<script src="js/core.js"></script>
+<script src="tools/roster.js"></script>
+<script>
+  // load every data file named in the roster's `file` column (tolerate missing ones via onerror)
+  (function () {
+    var FILES = ['konoha_main', 'konoha_rookies', 'konoha_elders', 'uchiha_oto', 'akatsuki', 'suna_kiri', 'kumo_iwa', 'bijuu'];
+    if (window.NG_ROSTER && NG_ROSTER.length) {
+      var seen = {}; FILES = [];
+      NG_ROSTER.forEach(function (r) { if (r.file && !seen[r.file]) { seen[r.file] = 1; FILES.push(r.file); } });
+    }
+    window.__dataLoaded = []; window.__dataMissing = [];
+    FILES.forEach(function (f) {
+      document.write('<script src="js/data/' + f + '.js" onload="__dataLoaded.push(\'' + f + '\')" onerror="__dataMissing.push(\'' + f + '\')"><\/script>');
+    });
+  })();
+</script>
+<script src="js/art.js"></script>
+<script>
+(function () {
+  var Q = {}; location.search.replace(/^\?/, '').split('&').forEach(function (kv) { if (!kv) return; var p = kv.split('='); Q[decodeURIComponent(p[0])] = decodeURIComponent(p[1] || ''); });
+  var view = Q.view || 'real';
+  var out = document.getElementById('out');
+  var nav = document.getElementById('nav');
+  var VIEWS = ['real', 'busts', 'avatars', 'icons', 'vocab', 'eyes', 'iris', 'edge', 'combo', 'beasts', 'emblems', 'bg', 'frames'];
+  nav.innerHTML = '<b style="color:#ffd25a">NG.art gallery</b> ' + VIEWS.map(function (v) { return '<a href="?view=' + v + '" class="' + (v === view ? 'on' : '') + '">' + v + '</a>'; }).join('') + '<span id="stat"></span>';
+
+  var ART = NG.ART;
+  function el(html) { var d = document.createElement('div'); d.innerHTML = html; return d.firstChild; }
+  function section(title) { out.appendChild(el('<h2>' + title + '</h2>')); var g = el('<div class="grid"></div>'); out.appendChild(g); return g; }
+  function img(src, w, h, cls) { return '<img class="' + (cls || '') + '" src="' + src + '" width="' + w + '" height="' + h + '" loading="eager">'; }
+  function safe(fn) { try { return fn(); } catch (e) { console.error(e); return '<span class="err">ERR ' + e.message + '</span>'; } }
+
+  // ---------- synthetic test characters (cover every vocabulary value) ----------
+  var BASE = { type: 'human', skin: '#f3d2b4', hair: 'spiky', hairColor: '#3a3f8a', eyes: 'normal', eyeColor: '#3b6fd6', outfit: 'shirt', outfitColor: '#3d5a99', accentColor: '#d14b3c',
+    headband: 'konoha', headbandSlash: false, headbandPos: 'forehead', marks: [], mask: 'none', hat: 'none', accessory: 'none', aura: '#5aa0ff' };
+  var HAIRC = ['#f7c600', '#d8dde3', '#1d2340', '#c0392b', '#f7a8c8', '#6a3a1a', '#2c2f5c', '#e8cd6e', '#111', '#7a9a3a', '#5b4a8a', '#e86a2b'];
+  function synth(key, val, i, extra) {
+    var a = JSON.parse(JSON.stringify(BASE));
+    a[key] = val;
+    if (key === 'hair') { a.hairColor = HAIRC[i % HAIRC.length]; a.headband = 'none'; }
+    if (key === 'headband') { a.hair = 'short'; }
+    if (key === 'headbandPos') { a.hair = 'short'; }
+    if (key === 'hat') { a.hair = 'spiky'; a.headband = 'none'; }
+    if (key === 'mask') { a.headband = 'none'; a.hair = 'short'; }
+    if (key === 'marks') { a.marks = [val]; a.headband = 'none'; a.hair = 'short'; }
+    if (key === 'outfit') { a.headband = 'none'; a.hair = 'short'; }
+    if (key === 'accessory') { a.headband = 'none'; a.hair = 'short'; }
+    if (extra) for (var k in extra) a[k] = extra[k];
+    return { id: '_t_' + key + '_' + val + (extra ? '_' + i : ''), name: key + ':' + val, faction: 'konoha', element: ['fire', 'wind', 'lightning', 'earth', 'water', 'yin', 'yang'][i % 7], art: a, skills: {} };
+  }
+  function synthBeast(b, i) {
+    var tails = { tanuki: 1, cat: 2, turtle: 3, monkey: 4, horse: 5, slug: 6, beetle: 7, ox: 8, fox: 9, juubi: 10, toad: 0, snake: 0 }[b];
+    var colr = { tanuki: '#d8b57a', cat: '#3b6fe0', turtle: '#8a9aa6', monkey: '#c0392b', horse: '#f0ece2', slug: '#e6efe9', beetle: '#5fb0a0', ox: '#6a4a6a', fox: '#ff7a1a', juubi: '#8a8aa0', toad: '#d9622b', snake: '#7e57c2' }[b];
+    return { id: '_b_' + b, name: 'beast:' + b, faction: 'bijuu', element: 'yin', art: { type: 'beast', beast: b, tails: tails, bodyColor: colr, accentColor: '#3b1200', eyes: 'beast', aura: '#ff5a00' }, skills: {} };
+  }
+
+  function charCard(c, opts) {
+    opts = opts || {};
+    var h = '<div class="card" style="width:' + (opts.w || 300) + 'px">';
+    if (opts.bust !== false) h += safe(function () { return img(NG.art.bustURL(c, 560, 640), opts.bw || 280, (opts.bw || 280) * 640 / 560, 'bust'); });
+    h += '<div class="row" style="margin-top:4px">' + safe(function () { return img(NG.art.avatarURL(c, 64), 64, 64, 'av') + img(NG.art.avatarURL(c, 128), 128, 128, 'av'); });
+    if (opts.icons !== false && NG.art.skillIconURL) {
+      h += '<div class="row" style="width:100%">' + NG.SKILL_KEYS.map(function (k) { return safe(function () { return img(NG.art.skillIconURL(c, k, 48), 48, 48, 'sq'); }); }).join('') + '</div>';
+    }
+    h += '</div><div class="n">' + (c.name || '') + (c.form ? '·' + c.form : '') + '</div><div class="s">' + (c.id || '') + '</div></div>';
+    return h;
+  }
+
+  var t0 = performance.now();
+  var chars = NG.CHARS.filter(function (c) { return c._file !== '_example'; });
+  if (Q.ids) { var want = Q.ids.split(','); chars = want.map(function (id) { return NG.CHAR_MAP[id]; }).filter(Boolean); }
+  if (Q.file) chars = chars.filter(function (c) { return c._file === Q.file; });
+  // the full roster is ~1,400 images: page the heavy views (real/busts) by default, ?n=999 shows everything
+  var total = chars.length, from = +Q.from || 0, n = +Q.n || ((view === 'real' || view === 'busts') && !Q.ids && !Q.file ? 30 : 9999);
+  chars = chars.slice(from, from + n);
+  if (total > n && (view === 'real' || view === 'busts')) {
+    var pg = '<div class="grid" style="padding-top:8px">';
+    for (var pf = 0; pf < total; pf += n) pg += '<a style="color:#9fc3ff;margin-right:8px" href="?view=' + view + '&from=' + pf + '&n=' + n + '">' + (pf + 1) + '–' + Math.min(total, pf + n) + '</a>';
+    out.appendChild(el(pg + '</div>'));
+  }
+
+  if (view === 'real' || view === 'busts') {
+    var noData = (window.NG_ROSTER || []).filter(function (r) { return !NG.CHAR_MAP[r.id]; }).map(function (r) { return r.id; });
+    var g = section('Real characters (' + chars.length + ' of ' + NG.CHARS.length + ') · data loaded: ' + __dataLoaded.join(', ') + (__dataMissing.length ? ' · missing: ' + __dataMissing.join(', ') : '') +
+      (window.NG_ROSTER ? ' · roster ids without data: ' + noData.length : ''));
+    g.innerHTML = chars.map(function (c) { return charCard(c, { bw: +Q.bw || 280, w: (+Q.bw || 280) + 20, icons: view === 'real' }); }).join('');
+  }
+  if (view === 'avatars') {
+    var ga = section('Avatars 64 / 128');
+    ga.innerHTML = chars.map(function (c) { return '<div class="card" style="width:150px">' + safe(function () { return '<div class="row">' + img(NG.art.avatarURL(c, 64), 64, 64, 'av') + img(NG.art.avatarURL(c, 128), 128, 128, 'av') + '</div>'; }) + '<div class="n">' + c.name + (c.form ? '·' + c.form : '') + '</div></div>'; }).join('');
+  }
+  if (view === 'icons') {
+    var gi = section('Skill icons (fx) — every NG.FX key');
+    var fxk = Object.keys(NG.FX);
+    gi.innerHTML = fxk.map(function (k) {
+      var fake = { id: '_fx_' + k, art: BASE, skills: { s1: { fx: k, name: k } } };
+      return '<div class="card" style="width:104px">' + safe(function () { return img(NG.art.skillIconURL(fake, 's1', 96), 88, 88, 'sq'); }) + '<div class="n">' + k + ' ' + NG.FX[k].n + '</div></div>';
+    }).join('');
+    var gi2 = section('Real skill icons');
+    gi2.innerHTML = chars.slice(0, +Q.n || 40).map(function (c) { return '<div class="card" style="width:300px"><div class="row">' + NG.SKILL_KEYS.map(function (k) { return safe(function () { return img(NG.art.skillIconURL(c, k, 96), 54, 54, 'sq'); }); }).join('') + '</div><div class="n">' + c.name + (c.form ? '·' + c.form : '') + '</div></div>'; }).join('');
+  }
+  if (view === 'vocab') {
+    var keys = Q.k ? Q.k.split(',') : ['hair', 'outfit', 'headband', 'headbandPos', 'marks', 'mask', 'hat', 'accessory'];
+    keys.forEach(function (key) {
+      var gv = section('vocab: ' + key);
+      gv.innerHTML = ART[key].map(function (v, i) { var c = synth(key, v, i);
+        if (Q.av) return '<div class="card" style="width:' + ((+Q.av) + 12) + 'px">' + img(NG.art.avatarURL(c, +Q.av), +Q.av, +Q.av, 'av') + '<div class="n">' + v + '</div></div>';
+        return charCard(c, { bw: +Q.bw || 200, w: (+Q.bw || 200) + 20, icons: false }); }).join('');
+    });
+  }
+  if (view === 'eyes') {
+    var ge = section('eyes (avatar 256)');
+    ge.innerHTML = ART.eyes.map(function (v, i) { var c = synth('eyes', v, i, { hair: 'short', headband: 'none', hairColor: '#2a2a3a' }); return '<div class="card" style="width:270px">' + img(NG.art.avatarURL(c, 256), 256, 256, 'av') + '<div class="n">' + v + '</div></div>'; }).join('');
+  }
+  if (view === 'edge') {
+    var gx = section('edge cases: missing art, unknown vocab values, tail counts');
+    var cases = [
+      { id: '_e_noart', name: 'no art' },
+      { id: '_e_bogus', name: 'all bogus', art: { type: 'human', hair: 'xx', eyes: 'yy', outfit: 'zz', headband: 'qq', headbandPos: 'ww', marks: ['nope', 'whiskers'], mask: 'm?', hat: 'h?', accessory: 'a?', skin: 'red', hairColor: 12 } },
+      { id: '_e_beastbogus', name: 'beast bogus', art: { type: 'beast', beast: 'dragon', bodyColor: 'nope' } }
+    ];
+    [0, 1, 3, 5, 7, 10].forEach(function (t) { cases.push({ id: '_e_fox' + t, name: 'fox tails ' + t, faction: 'bijuu', art: { type: 'beast', beast: 'fox', tails: t, bodyColor: '#ff7a1a', accentColor: '#3b1200', eyes: 'beast' } }); });
+    gx.innerHTML = cases.map(function (c) { return charCard(c, { bw: 220, w: 240, icons: true }); }).join('');
+  }
+  if (view === 'combo') { // hand-picked synthetic combos for close inspection
+    var combos = [
+      { hat: 'straw', outfit: 'akatsuki', hair: 'low_ponytail', hairColor: '#1a1a24', eyes: 'sharingan', marks: ['tear_lines'], headbandSlash: true },
+      { hat: 'samurai_helm', outfit: 'samurai', hair: 'short', hairColor: '#cfd3d8', marks: ['beard'], accessory: 'sword', outfitColor: '#5a6678', accentColor: '#8a2a2a', headband: 'none' },
+      { outfit: 'anbu', mask: 'anbu', hair: 'spiky_up', hairColor: '#d8dde3', accessory: 'tanto', headband: 'none', outfitColor: '#d6d9de', accentColor: '#22252e' },
+      { hat: 'raikage', outfit: 'kage', hair: 'slick_back', hairColor: '#f0ead8', skin: '#a86a44', marks: ['mustache', 'goatee'], headband: 'none', outfitColor: '#f4f2ec', accentColor: '#e0b020' },
+      { hat: 'tsuchikage', outfit: 'kage', hair: 'bald', skin: '#e8c4a0', marks: ['wrinkles', 'mustache'], headband: 'none', outfitColor: '#c8a878', accentColor: '#6a4a2a' },
+      { outfit: 'flak', hair: 'buzz', hairColor: '#f2f2f2', skin: '#8a5a3a', marks: ['sunglasses', 'b_tattoo', 'goatee'], headband: 'kumo', accessory: 'sword', outfitColor: '#e8e4dc', accentColor: '#3a3a3a' }
+    ];
+    var gc = section('synthetic combos');
+    gc.innerHTML = combos.map(function (o, i) { var c = synth('hair', o.hair || 'short', i, o); c.id = i === 5 ? 'killer_b_synth' : c.id; if (i === 5) c.art.swords = 7; c.role = 'atk'; return charCard(c, { bw: 300, w: 320, icons: false }); }).join('');
+  }
+  if (view === 'iris') {
+    var gz = section('iris patterns (unit circle, dev)');
+    gz.innerHTML = ART.eyes.map(function (v) { return '<div class="card" style="width:180px">' + safe(function () { return img('data:image/svg+xml;charset=utf-8,' + encodeURIComponent(NG.art._irisSVG(v, '#3b6fd6', 160)), 160, 160, 'sq'); }) + '<div class="n">' + v + '</div></div>'; }).join('');
+  }
+  if (view === 'beasts') {
+    var gb = section('Beasts');
+    gb.innerHTML = ART.beast.map(function (b, i) { return charCard(synthBeast(b, i), { bw: 280, w: 300, icons: false }); }).join('');
+  }
+  if (view === 'emblems') {
+    var gm = section('Emblems 64 / 128 + element badges');
+    gm.innerHTML = Object.keys(NG.FACTIONS).concat(['taki', 'allied', 'uchiha', 'senju', 'uzumaki', '???']).map(function (k) { return '<div class="card" style="width:210px"><div class="row">' + safe(function () { return img(NG.art.emblemURL(k, 64), 64, 64, 'sq') + img(NG.art.emblemURL(k, 128), 128, 128, 'sq'); }) + '</div><div class="n">' + k + '</div></div>'; }).join('') +
+      Object.keys(NG.ELEMENTS).concat(['???']).map(function (k) { return '<div class="card" style="width:90px">' + safe(function () { return img('data:image/svg+xml;charset=utf-8,' + encodeURIComponent(NG.art.element(k, 32)), 32, 32, 'sq') + ' ' + img('data:image/svg+xml;charset=utf-8,' + encodeURIComponent(NG.art.element(k, 64)), 64, 64, 'sq'); }) + '<div class="n">' + k + '</div></div>'; }).join('');
+  }
+  if (view === 'frames') {
+    var gf = section('Frames');
+    var demo = chars[0] || synth('hair', 'spiky', 0);
+    gf.innerHTML = NG.RARITY_ORDER.concat(['??']).map(function (r) { return '<div class="card" style="width:150px;position:relative">' + safe(function () { return '<div style="position:relative;width:128px;height:128px;margin:auto"><img src="' + NG.art.avatarURL(demo, 128) + '" width="104" height="104" style="position:absolute;left:12px;top:12px;border-radius:50%;background:#1d2b63"><img src="data:image/svg+xml;charset=utf-8,' + encodeURIComponent(NG.art.frame(r, 128)) + '" width="128" height="128" style="position:absolute;left:0;top:0"></div>'; }) + '<div class="n">' + r + '</div></div>'; }).join('');
+  }
+  if (view === 'bg') {
+    var gk = section('Backgrounds 1280×720');
+    gk.innerHTML = ['city_night', 'village', 'forest', 'valley', 'desert', 'mist', 'rain', 'battlefield', 'summon', 'moon', 'unknown'].map(function (k) { return '<div class="card" style="width:' + ((+Q.bw || 620) + 12) + 'px">' + safe(function () { return img(NG.art.backgroundURL(k, 1280, 720), +Q.bw || 620, (+Q.bw || 620) * 720 / 1280, 'sq'); }) + '<div class="n">' + k + '</div></div>'; }).join('');
+  }
+  document.getElementById('stat').textContent = 'render ' + Math.round(performance.now() - t0) + ' ms · cache ' + (NG.art._cacheSize ? NG.art._cacheSize() : '?');
+  window.__galleryDone = true;
+})();
+</script>
+</body>
+</html>

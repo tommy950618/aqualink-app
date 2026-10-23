@@ -99,7 +99,7 @@
           effects: [{ type: 'dmg', mult: 1.5 }, { type: 'status', status: 'stun', turns: 1 }, { type: 'drain', value: 40 }]
         },
         awaken: {
-          name: '新·猪鹿蝶', tags: ['增益', '回能'],
+          name: '猪鹿蝶阵', tags: ['增益', '回能'],
           desc: '攻击力+10%；战斗开始时以心传身之术连接同伴意识，使全体友方获得15点查克拉。',
           stats: { atk: 0.10 },
           triggers: [{ on: 'battle_start', effects: [{ type: 'chakra', value: 15, to: 'ally_all' }] }]
@@ -314,12 +314,12 @@
           effects: [{ type: 'shield', mult: 0.5, turns: 2 }, { type: 'counter', mult: 0.5, turns: 2, to: 'self' }]
         },
         ult: {
-          name: '柔步双狮拳', tags: ['爆发', '控制', '减益'], fx: 'chakra', target: 'single',
-          desc: '双手凝聚成狮首形状的查克拉连续猛击，造成3段共300%攻击力伤害，吸散目标50点查克拉，并降低其攻击力20%（2回合）。',
+          name: '柔步双狮拳', tags: ['爆发', '封印', '减益'], fx: 'chakra', target: 'single',
+          desc: '双手凝聚成狮首形状的查克拉连续猛击，造成3段共300%攻击力伤害，吸散目标50点查克拉，并封印其1回合（只能使用技能1）。',
           effects: [
             { type: 'dmg', mult: 1.0, hits: 3 },
             { type: 'drain', value: 50 },
-            { type: 'debuff', stat: 'atk', value: 0.2, turns: 2 }
+            { type: 'status', status: 'silence', turns: 1 }
           ]
         },
         awaken: {
@@ -347,7 +347,7 @@
       }),
       skills: {
         passive: {
-          name: '寄坏虫之体', tags: ['持续', '反击'],
+          name: '寄坏虫之体', tags: ['持续', '减益'],
           desc: '防御+5%；受到攻击时有30%概率令寄坏虫反噬攻击者，使其中毒2回合（每回合25%攻击力）。',
           stats: { def: 0.05 },
           triggers: [{ on: 'on_hit', effects: [{ type: 'status', status: 'poison', turns: 2, chance: 0.3, value: 0.25, to: 'attacker' }] }]
@@ -1020,7 +1020,7 @@
           triggers: [{ on: 'on_attack', chance: 0.3, effects: [{ type: 'status', status: 'bleed', turns: 2, value: 0.25, to: 'target' }] }]
         },
         s1: {
-          name: '通牙', tags: ['消耗', '斩杀'], fx: 'beast', target: 'lowest', cd: 0,
+          name: '通牙', tags: ['消耗', '单体'], fx: 'beast', target: 'lowest', cd: 0,
           desc: '嗅出最虚弱的猎物，高速旋转冲撞生命比例最低的敌人，造成2段共100%攻击力伤害。',
           effects: [{ type: 'dmg', mult: 0.5, hits: 2 }]
         },
