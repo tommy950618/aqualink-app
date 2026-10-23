@@ -468,6 +468,20 @@
       if (res.playerLvUp > 0) setTimeout(function () { U.toast('忍者等级提升！当前 Lv.' + ((U.state().player || {}).lv || ''), 'ok'); }, 900);
     }, B.skip ? 250 : 700);
   }
+  /* per-unit damage summary (record.summary is an optional engine extra) */
+  function statsHTML() {
+    var sum = B.rec && B.rec.summary; if (!sum) return '';
+    var list = Object.keys(B.units || {}).map(function (k) { return B.units[k]; }).filter(function (u) { return u.side === 'A' && sum[u.uid]; });
+    if (!list.length) return '';
+    var top = 0, mvp = null;
+    list.forEach(function (u) { var d = sum[u.uid].dmg || 0; if (d > top) { top = d; mvp = u; } });
+    return '<div class="res-stats">' + list.map(function (u) {
+      var s = sum[u.uid], d = s.dmg || 0, h = s.heal || 0;
+      return '<div class="rs' + (u === mvp ? ' mvp' : '') + '">' + (u === mvp ? '<span class="mv">MVP</span>' : '') + U.avatarHTML(u.c, { size: 54, off: u.dead }) +
+        '<div class="bar"><i style="width:' + (top ? Math.max(4, d / top * 100) : 0) + '%"></i></div><div class="v">' + U.fmt(d) + '</div>' +
+        (h > 0 ? '<div class="h">治疗 ' + U.fmt(h) + '</div>' : '<div class="h">' + (s.kills ? '击杀 ' + s.kills : '　') + '</div>') + '</div>';
+    }).join('') + '</div>';
+  }
   function showResult(res, sid) {
     var win = !!res.win, stars = win ? (res.stars || 0) : 0, rw = res.rewards || {};
     var next = win && U.nextStageId ? U.nextStageId(sid) : null;
@@ -481,6 +495,7 @@
     var btns = [{ html: '返 回', cls: 'dark', fn: function () { U.go('campaign', { stage: win && nextOk ? next : sid }, { replace: true }); } },
       { html: '重 试', cls: 'blue', fn: function () { U.go('battle', { stage: sid, t: Date.now() }, { replace: true }); } }];
     if (win && nextOk) btns.push({ html: '下一关', cls: 'red shine', fn: function () { U.go('battle', { stage: next, t: Date.now() }, { replace: true }); } });
+    html += statsHTML();
     var m = U.modal({ cls: 'res ' + (win ? 'win' : 'lose'), close: false, maskClose: false, html: html, buttons: btns });
     U.$$('.rstars img', m.el).forEach(function (im, i) { if (i < stars) setTimeout(function () { im.classList.add('pop'); }, 350 + i * 220); });
     U.$$('[data-go]', m.el).forEach(function (b) { b.addEventListener('click', function () { var g = b.getAttribute('data-go'); m.close(); U.go(g); }); });
