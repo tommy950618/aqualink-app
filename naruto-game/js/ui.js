@@ -58,7 +58,7 @@
   };
   U.rarity = function (c) { var r = c && c.rarity; return NG.RARITIES && NG.RARITIES[r] ? r : 'R'; };
   U.rcolor = function (c) { var r = NG.RARITIES && NG.RARITIES[U.rarity(c)]; return (r && r.color) || '#3d9bff'; };
-  U.charName = function (c) { return (c && c.name) || '???'; };
+  U.charName = function (c) { return (c && c.name) || '神秘忍者'; };
   U.charForm = function (c) { return (c && (c.form || c.title)) || ''; };
   U.skill = function (c, key) { return (c && c.skills && c.skills[key]) || null; };
 
@@ -224,15 +224,25 @@
   }
   /* SVG <img>s are parsed on the main thread when they load, so visible images are fed in a few per
    * frame instead of all at once — keeps the 181-card grids from janking when a screen opens. */
-  var loadQ = [], pumping = false, PER_FRAME = 5;
+  /* Assigning a data:image/svg+xml src parses the whole SVG document synchronously (~5–10ms per portrait on
+   * a phone, 4× that on low-end CPUs), so the queue works to a per-frame time budget instead of a fixed count:
+   * at least one image per frame, then stop once ~6ms have been spent. */
+  var loadQ = [], pumping = false, BUDGET = 6;
   function pump() {
-    var n = 0;
-    while (loadQ.length && n < PER_FRAME) { var im = loadQ.shift(); if (im.isConnected && im.getAttribute('data-src')) { ioLoad(im); n++; } }
+    var t0 = performance.now();
+    while (loadQ.length) {
+      var im = loadQ.shift();
+      if (!im.getAttribute('data-src')) continue;
+      if (!im.isConnected) { im.removeAttribute('data-lz'); continue; }   // detached before its turn: re-observe when re-added
+      ioLoad(im); if (performance.now() - t0 > BUDGET) break;
+    }
     if (loadQ.length) requestAnimationFrame(pump); else pumping = false;
   }
   function enqueue(img) { loadQ.push(img); if (!pumping) { pumping = true; requestAnimationFrame(pump); } }
   U.lazy = function (root) {
-    var imgs = U.$$('img[data-src]', root);
+    // only images not handed to the observer yet (chunked lists call this once per chunk)
+    var imgs = U.$$('img[data-src]:not([data-lz])', root);
+    imgs.forEach(function (im) { im.setAttribute('data-lz', ''); });
     if (!('IntersectionObserver' in window)) { imgs.forEach(enqueue); return; }
     if (!io) io = new IntersectionObserver(function (ents) {
       ents.forEach(function (en) { if (en.isIntersecting) { io.unobserve(en.target); enqueue(en.target); } });
@@ -240,15 +250,17 @@
     imgs.forEach(function (im) { io.observe(im); });
   };
   /* render a long list in chunks (keeps first paint fast) */
+  /* opts.size = first (on-screen) chunk, opts.later = following chunks (usually off-screen, cheap with
+   * content-visibility:auto); container._chunkDone flags completion */
   U.chunked = function (container, items, renderFn, opts) {
     opts = opts || {}; var size = opts.size || 30, i = 0, token = {};
-    container._chunkToken = token;
+    container._chunkToken = token; container._chunkDone = false;
     function step() {
       if (container._chunkToken !== token) return;
-      var frag = document.createDocumentFragment(), end = Math.min(items.length, i + size);
+      var frag = document.createDocumentFragment(), end = Math.min(items.length, i + (i ? opts.later || size : size));
       for (; i < end; i++) { var el = renderFn(items[i], i); if (el) frag.appendChild(el); }
       container.appendChild(frag); U.lazy(container);
-      if (i < items.length) requestAnimationFrame(step); else if (opts.done) opts.done();
+      if (i < items.length) requestAnimationFrame(step); else { container._chunkDone = true; if (opts.done) opts.done(); }
     }
     step();
   };
@@ -282,18 +294,29 @@
   };
 
   /* ============================== drag scrolling (works rotated, touch & mouse) ============================== */
-  var dragSuppressUntil = 0;
+  var dragSuppressUntil = 0, tapGuardUntil = 0;
   U.wasDrag = function () { return performance.now() < dragSuppressUntil; };
+  U.guardTaps = function (ms) { tapGuardUntil = Math.max(tapGuardUntil, performance.now() + (ms || 320)); };
   U.scroller = function (el, axis) {
     axis = axis || 'y';
     el.classList.add('scroller');
     var prop = axis === 'y' ? 'scrollTop' : 'scrollLeft';
     var st = null, vel = 0, raf = 0;
     function pos(e) { var p = U.toStage(e.clientX, e.clientY); return axis === 'y' ? p.y : p.x; }
+    // window listeners live only for the duration of one drag, so scrollers created inside popups
+    // (codex detail, rates list…) don't leak listeners + their DOM after the popup closes
+    function bind(on) {
+      var f = on ? 'addEventListener' : 'removeEventListener';
+      window[f]('pointermove', move, { passive: false });
+      window[f]('pointerup', up);
+      window[f]('pointercancel', up);
+    }
     el.addEventListener('pointerdown', function (e) {
       if (e.button) return;
       cancelAnimationFrame(raf); vel = 0;
+      if (st) bind(false);
       st = { p0: pos(e), s0: el[prop], moved: false, lp: pos(e), lt: performance.now(), id: e.pointerId };
+      bind(true);
     });
     function move(e) {
       if (!st || e.pointerId !== st.id) return;
@@ -309,19 +332,19 @@
     }
     function up(e) {
       if (!st || e.pointerId !== st.id) return;
-      var moved = st.moved; st = null;
+      var moved = st.moved; st = null; bind(false);
       if (moved) {
         dragSuppressUntil = performance.now() + 60;
         var v = vel * 16;
         (function glide() {
-          if (Math.abs(v) < 0.4) return;
-          el[prop] += v; v *= 0.94; raf = requestAnimationFrame(glide);
+          if (Math.abs(v) < 0.4 || !el.isConnected) return;
+          var before = el[prop];
+          el[prop] += v; v *= 0.94;
+          if (el[prop] === before) return;          // hit the end: stop instead of spinning rAFs
+          raf = requestAnimationFrame(glide);
         })();
       }
     }
-    window.addEventListener('pointermove', move, { passive: false });
-    window.addEventListener('pointerup', up);
-    window.addEventListener('pointercancel', up);
     return el;
   };
 
@@ -372,21 +395,23 @@
     var modal = mask.firstElementChild, body = U.$('.modal-body', modal), btns = U.$('.modal-btns', modal);
     if (o.html != null) body.innerHTML = o.html;
     if (o.el) body.appendChild(o.el);
-    var api = { mask: mask, el: modal, body: body, closed: false, closable: o.close !== false };
+    var api = { mask: mask, el: modal, body: body, closed: false, closable: o.close !== false, onBack: o.onBack || null };
     api.close = function (why) {
       if (api.closed) return; api.closed = true;
       mask.classList.add('out');
+      if (why !== 'nav') U.guardTaps(320);
       modalStack = modalStack.filter(function (m) { return m !== api; });
       setTimeout(function () { if (mask.parentNode) mask.parentNode.removeChild(mask); }, 200);
       if (o.onClose) try { o.onClose(why); } catch (e) { U.warn('modal onClose', e); }
     };
     (o.buttons || []).forEach(function (b) {
       var bt = U.h('<button class="btn ' + (b.cls || '') + '">' + b.html + '</button>');
-      bt.addEventListener('click', function () { if (U.wasDrag()) return; var r = b.fn ? b.fn(api) : null; if (!b.keep && r !== false) api.close('btn'); });
+      // ignore taps on a popup that is already closing (double-tap on 下一关 / 领取 / 确定 …)
+      bt.addEventListener('click', function () { if (U.wasDrag() || api.closed) return; var r = b.fn ? b.fn(api) : null; if (!b.keep && r !== false) api.close('btn'); });
       btns.appendChild(bt);
     });
     if (!btns.children.length) btns.style.display = 'none';
-    var x = U.$('.modal-x', modal); if (x) x.addEventListener('click', function () { api.close('x'); });
+    var x = U.$('.modal-x', modal); if (x) x.addEventListener('click', function () { if (!api.closed) api.close('x'); });
     mask.addEventListener('click', function (e) { if (e.target === mask && o.close !== false && o.maskClose !== false) api.close('mask'); });
     U.$('#modals').appendChild(mask);
     modalStack.push(api);
@@ -430,6 +455,7 @@
       if (def.build) try { def.build(def.el); } catch (e) { console.error(e); }
     }
     cur = { name: name, params: params || {} };
+    memScreen(name, params);
     if (name !== 'home') armBack();
     stage.setAttribute('data-scr', name);
     U.setBg(typeof def.bg === 'function' ? def.bg(params || {}) : (def.bg || 'village'));
@@ -531,16 +557,23 @@
     document.addEventListener('keydown', function (e) {
       if (e.key !== 'Escape') return;
       var top = modalStack[modalStack.length - 1];
-      if (top) { if (top.closable) top.close('esc'); return; }
+      if (top) { if (top.closable) top.close('esc'); else if (top.onBack) top.onBack(top); return; }
       if (!U.$('#fx .rv, #fx .ur-show') && U.current() && U.current() !== 'home') U.back();
     });
-    // swallow clicks that end a drag-scroll
-    stage.addEventListener('click', function (e) { if (U.wasDrag()) { e.stopPropagation(); e.preventDefault(); } }, true);
+    // swallow clicks that end a drag-scroll, and stray second taps of a double-tap that would land on
+    // whatever sits under a popup / summon overlay that just closed (e.g. 确定 ×2 → 十连 underneath)
+    stage.addEventListener('click', function (e) {
+      if (U.wasDrag()) { e.stopPropagation(); e.preventDefault(); return; }
+      if (performance.now() < tapGuardUntil && !(e.target && e.target.closest && e.target.closest('#modals .mask:not(.out), #fx > .rv:not(.closing), #fx > .ur-show'))) { e.stopPropagation(); e.preventDefault(); }
+    }, true);
     // Android back button / browser back → in-game back (on 主城 with nothing open the browser may leave)
     window.addEventListener('popstate', function () {
       backArmed = false;
       if (U.$('#fx .rv, #fx .ur-show')) { armBack(); return; }
-      if (U.$('#modals .mask')) { U.closeModals(); armBack(); }
+      // top popup first: closable ones close; mandatory ones (welcome, battle result) run their own back
+      // action if they have one, otherwise the back press is ignored instead of leaving a dead screen
+      var top = modalStack[modalStack.length - 1];
+      if (top) { if (top.closable) top.close('back'); else if (top.onBack) top.onBack(top); armBack(); }
       else if (U.current() && U.current() !== 'home') { U.back(); armBack(); }
     });
     armBack();
@@ -600,7 +633,7 @@
       U.$('.home-afk', el).addEventListener('click', afkModal);
       U.$('.hp-name .n', el).addEventListener('click', renameModal);
       U.$('.home-hero', el).addEventListener('click', function () { var id = leaderId(); if (id) U.go('train', { id: id }); else U.go('summon'); });
-      var thumb = U.$('.hm-btn.big .thumb img', el); thumb.src = U.bgURL('valley', 560, 180);
+      var thumb = U.$('.hm-btn.big .thumb img', el); thumb.src = U.bgURL('valley');
     },
     show: function (el) {
       var st = U.state(), id = leaderId(), c = id ? U.char(id) : featuredUR();
@@ -671,11 +704,12 @@
 
   /* ============================== 欢迎 Welcome ============================== */
   U.welcome = function () {
+    if (U.$('#modals .welcome')) return null;     // reset + boot timers can both ask for it
     var urs = ['naruto_sixpaths', 'sasuke_rinnegan', 'madara_sixpaths', 'itachi_edo', 'kakashi_susanoo'].map(U.char).filter(Boolean);
     if (urs.length < 3) urs = U.chars().filter(function (c) { return c.rarity === 'UR'; }).slice(0, 5);
     var m = U.modal({
       cls: 'welcome', close: false, maskClose: false,
-      html: '<div class="wl-rays"></div><div class="wl-busts">' + urs.slice(0, 5).map(function (c) { return '<img src="' + U.bustURL(c) + '" alt="">'; }).join('') + '</div>' +
+      html: '<div class="wl-rays"></div><div class="wl-busts">' + urs.slice(0, 5).map(function (c) { return '<img data-src="' + U.bustURL(c) + '" alt="">'; }).join('') + '</div>' +
         '<div class="wl-sub">欢迎来到忍界传说</div>' +
         '<div class="wl-big"><span class="gold-text">开局送</span><em>1000</em><span class="gold-text">连抽！</span></div>' +
         '<div class="wl-sub" style="color:#ffe9a6">抽到满意再开局！</div>' +
@@ -687,6 +721,7 @@
         U.go('summon');
       } }]
     });
+    U.lazy(m.el);      // five big busts: parse them over a few frames instead of one long task
     return m;
   };
 
@@ -731,14 +766,39 @@
   });
 
   /* ============================== boot ============================== */
+  /* web fonts: the <link> starts as media=print (non-blocking); switch it on once it has loaded */
+  (function () {
+    var l = document.getElementById('ng-fonts'); if (!l) return;
+    var on = function () { l.media = 'all'; };
+    try { if (l.sheet) on(); else l.addEventListener('load', on); } catch (e) { l.addEventListener('load', on); }
+  })();
+
+  /* last open screen survives a reload / artifact hot-reload (per-tab convenience only; storage may throw) */
+  var RESTORABLE = { summon: 1, train: 1, team: 1, codex: 1, campaign: 1, settings: 1 };
+  function memScreen(name, params) {
+    try { window.sessionStorage.setItem('ng_scr', JSON.stringify({ n: name, id: params && params.id || null })); } catch (e) {}
+  }
+  function recallScreen() {
+    try { var v = JSON.parse(window.sessionStorage.getItem('ng_scr') || 'null'); return v && RESTORABLE[v.n] ? v : null; } catch (e) { return null; }
+  }
+  U.memScreen = memScreen;
+
+  var fitQ = 0;
+  function queueFit() { if (fitQ) return; fitQ = requestAnimationFrame(function () { fitQ = 0; fit(); }); }
   function boot() {
     stage = U.$('#stage'); app = U.$('#app');
     if (!stage) return;
+    // attributes on <html>/<body> may be stripped when the page is embedded: set what we need from JS
+    try { document.documentElement.lang = 'zh-CN'; document.documentElement.classList.add('ng'); } catch (e) {}
     harden();
     fit();
-    window.addEventListener('resize', function () { requestAnimationFrame(fit); });
-    window.addEventListener('orientationchange', function () { setTimeout(fit, 120); });
-    if (window.visualViewport) window.visualViewport.addEventListener('resize', function () { requestAnimationFrame(fit); });
+    window.addEventListener('resize', queueFit);
+    window.addEventListener('orientationchange', function () { queueFit(); setTimeout(fit, 150); setTimeout(fit, 500); });
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', queueFit);
+    // embedded in an iframe whose size the host changes: resize events are not guaranteed everywhere
+    if (typeof ResizeObserver === 'function') { try { new ResizeObserver(queueFit).observe(document.documentElement); } catch (e) {} }
+    // never let the document itself scroll (focus / scrollIntoView inside the stage could otherwise shift it)
+    window.addEventListener('scroll', function () { if (window.scrollX || window.scrollY) window.scrollTo(0, 0); });
     var ok = true;
     if (!NG.game || typeof NG.game.init !== 'function') { ok = false; }
     else { try { NG.game.init(); } catch (e) { ok = false; console.error(e); } }
@@ -747,11 +807,13 @@
     if (typeof NG.on === 'function') NG.on('change', onChange);
     var bootEl = U.$('#boot');
     if (!ok) { U.$('.boot-tip', bootEl).textContent = '游戏引擎加载失败，请刷新重试'; return; }
+    var st = U.state(), welcomed = !!(st.flags && st.flags.welcomed);
+    var back = welcomed && recallScreen();
     U.go('home');
+    if (back && back.n !== 'home') U.go(back.n, back.id ? { id: back.id } : {});
     stage.classList.remove('booting');
     setTimeout(function () { bootEl.classList.add('gone'); setTimeout(function () { if (bootEl.parentNode) bootEl.parentNode.removeChild(bootEl); }, 600); }, 250);
-    var st = U.state();
-    if (!st.flags || !st.flags.welcomed) setTimeout(U.welcome, 500);
+    if (!welcomed) setTimeout(function () { var s2 = U.state(); if (!s2.flags || !s2.flags.welcomed) U.welcome(); }, 500);
   }
   U.boot = boot;
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else setTimeout(boot, 0);

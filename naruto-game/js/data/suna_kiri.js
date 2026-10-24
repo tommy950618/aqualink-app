@@ -24,7 +24,7 @@
         type: 'human', skin: '#f2dcc6', hair: 'messy', hairColor: '#b3241f',
         eyes: 'normal', eyeColor: '#4ab3a4', outfit: 'coat', outfitColor: '#5a2420', accentColor: '#cdb68c',
         headband: 'suna', headbandSlash: false, headbandPos: 'belt',
-        marks: ['ai_tattoo'], mask: 'none', hat: 'none', accessory: 'gourd', aura: '#d4a85a'
+        marks: ['ai_tattoo', 'eye_rings'], mask: 'none', hat: 'none', accessory: 'gourd', aura: '#d4a85a'
       },
       skills: {
         passive: {
@@ -72,44 +72,44 @@
     {
       id: 'gaara_kazekage', name: '我爱罗', form: '五代目风影', en: 'Gaara', title: '联军总大将',
       faction: 'suna', rarity: 'SSR', role: 'ctrl', element: 'earth', tags: ['控制', '护盾', '群攻'],
-      stats: { hp: 1.05, atk: 1.0, def: 1.0, spd: 100 },
+      stats: { hp: 1.05, atk: 1.0, def: 1.0, spd: 96 },
       bio: '成为第五代风影的我爱罗，被晓组织抽走守鹤后，经千代的己生转生复活。第四次忍界大战中担任忍者联军总大将，以砂守护了各国的忍者。',
       quote: '我是风影，要守护这个村子。',
       art: {
         type: 'human', skin: '#f2dcc6', hair: 'short', hairColor: '#b3241f',
         eyes: 'normal', eyeColor: '#4ab3a4', outfit: 'kage', outfitColor: '#f1ede4', accentColor: KAZE_GREEN,
-        headband: 'none', marks: ['ai_tattoo'], mask: 'none', hat: 'none', accessory: 'gourd', aura: '#f0c060'
+        headband: 'none', marks: ['ai_tattoo', 'eye_rings'], mask: 'none', hat: 'none', accessory: 'gourd', aura: '#f0c060'
       },
       skills: {
         passive: {
           name: '砂之盾', tags: ['护盾'],
-          desc: '以砂之盾守护身边的同伴：受到的伤害-8%；战斗开始时为全体友方附加12%最大生命值的护盾，持续2回合。',
+          desc: '以砂之盾守护身边的同伴：受到的伤害-8%；战斗开始时为全体友方附加8%最大生命值的护盾，持续2回合。',
           stats: { dr: 0.08 },
-          triggers: [{ on: 'battle_start', effects: [{ type: 'shield', pct: 0.12, turns: 2, to: 'ally_all' }] }]
+          triggers: [{ on: 'battle_start', effects: [{ type: 'shield', pct: 0.08, turns: 2, to: 'ally_all' }] }]
         },
         s1: {
           name: '砂手里剑', tags: ['消耗', '减益'], fx: 'sand', target: 'single', cd: 0,
-          desc: '将砂凝成手里剑连续射出，造成3段共114%攻击力伤害，并降低目标15%速度，持续2回合。',
+          desc: '将砂凝成手里剑连续射出，造成3段共114%攻击力伤害，并降低目标10%速度，持续2回合。',
           effects: [
             { type: 'dmg', mult: 0.38, hits: 3 },
-            { type: 'debuff', stat: 'spd', value: 0.15, turns: 2 }
+            { type: 'debuff', stat: 'spd', value: 0.1, turns: 2 }
           ]
         },
         s2: {
           name: '流砂瀑流', tags: ['群攻', '控制', '减益'], fx: 'sand', target: 'all', cd: 3,
-          desc: '从地底涌出如瀑布般的大量流砂吞没敌阵，对全体敌人造成95%攻击力伤害，降低其20%速度（持续2回合），并有25%概率使其束缚1回合。',
+          desc: '从地底涌出如瀑布般的大量流砂吞没敌阵，对全体敌人造成95%攻击力伤害，降低其10%速度（持续2回合），并有20%概率使其束缚1回合。',
           effects: [
             { type: 'dmg', mult: 0.95 },
-            { type: 'debuff', stat: 'spd', value: 0.2, turns: 2 },
-            { type: 'status', status: 'bind', turns: 1, chance: 0.25 }
+            { type: 'debuff', stat: 'spd', value: 0.1, turns: 2 },
+            { type: 'status', status: 'bind', turns: 1, chance: 0.2 }
           ]
         },
         ult: {
           name: '砂瀑大葬', tags: ['群攻', '控制', '爆发'], fx: 'sand', target: 'all',
-          desc: '以海啸般的砂浪包裹并压碎整片区域，对全体敌人造成2段共190%攻击力伤害，并有60%概率使其束缚1回合。',
+          desc: '以海啸般的砂浪包裹并压碎整片区域，对全体敌人造成2段共180%攻击力伤害，并有35%概率使其束缚1回合。',
           effects: [
-            { type: 'dmg', mult: 0.95, hits: 2 },
-            { type: 'status', status: 'bind', turns: 1, chance: 0.6 }
+            { type: 'dmg', mult: 0.9, hits: 2 },
+            { type: 'status', status: 'bind', turns: 1, chance: 0.35 }
           ]
         },
         awaken: {
@@ -125,7 +125,7 @@
       id: 'kankuro', name: '勘九郎', form: '', en: 'Kankuro', title: '傀儡师',
       faction: 'suna', rarity: 'SR', role: 'ctrl', element: 'none', tags: ['控制', '持续', '减益'],
       stats: { hp: 1.0, atk: 1.05, def: 0.95, spd: 104 },
-      bio: '我爱罗的哥哥，砂隐的傀儡师，操纵乌鸦、黑蚁、山椒鱼三具傀儡作战。第四次忍界大战中，他驱使以蝎的身体制成的傀儡“蝎”，与秽土转生的蝎正面对决并将其封印。',
+      bio: '我爱罗的哥哥，砂隐的傀儡师，操纵乌鸦、黑蚁、山椒鱼三具傀儡作战。第四次忍界大战中，他驱使以蝎的身体制成的傀儡“蝎”，与秽土转生的蝎正面对决并将其制服，令蝎释然离世。',
       quote: '傀儡师的战斗，可是要动脑子的。',
       art: {
         type: 'human', skin: '#efd3b5', hair: 'hood', hairColor: '#4a3a2e',
@@ -157,7 +157,7 @@
           ]
         },
         ult: {
-          name: '赤秘技·机关演舞', tags: ['群攻', '持续'], fx: 'puppet', target: 'all',
+          name: '傀儡术·蝎', tags: ['群攻', '持续'], fx: 'puppet', target: 'all',
           desc: '操纵傀儡“蝎”喷射毒雾与机关暗器，对全体敌人造成3段共165%攻击力伤害，并使其中毒2回合（每回合35%攻击力）。',
           effects: [
             { type: 'dmg', mult: 0.55, hits: 3 },
@@ -180,7 +180,7 @@
       bio: '我爱罗与勘九郎的姐姐，挥舞巨大铁扇的风遁高手。中忍考试后担任砂隐与木叶的联络人，曾在佐助夺还战中出手救下奈良鹿丸。',
       quote: '风会把一切都吹散！',
       art: {
-        type: 'human', skin: '#f4dcc0', hair: 'quad', hairColor: '#e3c06a',
+        type: 'human', gender: 'f', skin: '#f4dcc0', hair: 'quad', hairColor: '#e3c06a',
         eyes: 'normal', eyeColor: '#2f8f84', outfit: 'kimono', outfitColor: '#2a2a36', accentColor: '#c0392b',
         headband: 'suna', headbandSlash: false, headbandPos: 'neck',
         marks: [], mask: 'none', hat: 'none', accessory: 'fan', aura: '#6fe0b8'
@@ -188,9 +188,9 @@
       skills: {
         passive: {
           name: '巨大铁扇', tags: ['增益', '回能'],
-          desc: '挥舞巨大的铁扇卷起狂风：暴击率+10%，速度+6%；战斗开始时获得20点查克拉。',
+          desc: '挥舞巨大的铁扇卷起狂风：暴击率+10%，速度+6%；战斗开始时获得10点查克拉。',
           stats: { crit: 0.10, spd: 0.06 },
-          triggers: [{ on: 'battle_start', effects: [{ type: 'chakra', value: 20 }] }]
+          triggers: [{ on: 'battle_start', effects: [{ type: 'chakra', value: 10 }] }]
         },
         s1: {
           name: '风遁·镰鼬之术', tags: ['输出', '持续'], fx: 'wind', target: 'single', cd: 0,
@@ -202,17 +202,17 @@
         },
         s2: {
           name: '风遁·大镰鼬之术', tags: ['群攻', '减益'], fx: 'wind', target: 'all', cd: 3,
-          desc: '全力挥扇卷起巨型镰鼬，对全体敌人造成3段共96%攻击力伤害，并降低其15%速度，持续2回合。',
+          desc: '全力挥扇卷起巨型镰鼬，对全体敌人造成3段共96%攻击力伤害，并降低其10%速度，持续2回合。',
           effects: [
             { type: 'dmg', mult: 0.32, hits: 3 },
-            { type: 'debuff', stat: 'spd', value: 0.15, turns: 2 }
+            { type: 'debuff', stat: 'spd', value: 0.1, turns: 2 }
           ]
         },
         ult: {
-          name: '口寄·斩斩舞', tags: ['群攻', '爆发', '持续'], fx: 'summon', target: 'all',
-          desc: '通灵出手持镰刀的鼬，随狂风斩断一切：对全体敌人造成2段共180%攻击力伤害，并使其流血2回合（每回合30%攻击力）。',
+          name: '通灵之术·斩斩舞', tags: ['群攻', '爆发', '持续'], fx: 'summon', target: 'all',
+          desc: '通灵出手持镰刀的鼬，随狂风斩断一切：对全体敌人造成2段共170%攻击力伤害，并使其流血2回合（每回合30%攻击力）。',
           effects: [
-            { type: 'dmg', mult: 0.9, hits: 2 },
+            { type: 'dmg', mult: 0.85, hits: 2 },
             { type: 'status', status: 'bleed', turns: 2, value: 0.3 }
           ]
         },
@@ -262,10 +262,10 @@
         },
         ult: {
           name: '木叶崩溃计划', tags: ['群攻', '增益'], fx: 'wind', target: 'all',
-          desc: '指挥砂隐部队发动木叶崩溃作战：对全体敌人造成2段共140%攻击力伤害，并使全体友方攻击力提升20%，持续2回合。',
+          desc: '指挥砂隐部队发动木叶崩溃作战：对全体敌人造成2段共130%攻击力伤害，并使全体友方攻击力提升15%，持续2回合。',
           effects: [
-            { type: 'dmg', mult: 0.7, hits: 2 },
-            { type: 'buff', stat: 'atk', value: 0.2, turns: 2, to: 'ally_all' }
+            { type: 'dmg', mult: 0.65, hits: 2 },
+            { type: 'buff', stat: 'atk', value: 0.15, turns: 2, to: 'ally_all' }
           ]
         },
         awaken: {
@@ -284,7 +284,7 @@
       bio: '砂隐的顾问长老，傀儡术与毒术的大师，也是蝎的祖母。与春野樱联手击败了蝎，最后以己生转生之术献出生命，复活了我爱罗。',
       quote: '这个世界的未来，就交给你们了。',
       art: {
-        type: 'human', skin: '#e9cfb2', hair: 'buns', hairColor: '#b9b9be',
+        type: 'human', gender: 'f', skin: '#e9cfb2', hair: 'buns', hairColor: '#b9b9be',
         eyes: 'normal', eyeColor: '#3b3b3b', outfit: 'robe', outfitColor: '#6d6a7e', accentColor: '#8c2f39',
         headband: 'none', marks: ['wrinkles'], mask: 'none', hat: 'none', accessory: 'puppet', aura: '#d9d9e8'
       },
@@ -322,9 +322,9 @@
         },
         awaken: {
           name: '解毒剂', tags: ['净化', '治疗'],
-          desc: '生命值+10%，攻击力+10%；每次自身回合开始时，有30%概率以特制解毒剂为全体友方解除减益与异常状态，并恢复其5%最大生命值。',
+          desc: '生命值+10%，攻击力+10%；每次自身回合开始时，有20%概率以特制解毒剂为全体友方解除减益与异常状态，并恢复其5%最大生命值。',
           stats: { hp: 0.10, atk: 0.10 },
-          triggers: [{ on: 'turn_start', chance: 0.3, effects: [
+          triggers: [{ on: 'turn_start', chance: 0.2, effects: [
             { type: 'cleanse', to: 'ally_all' },
             { type: 'heal', pct: 0.05, to: 'ally_all' }
           ] }]
@@ -345,7 +345,7 @@
       },
       skills: {
         passive: {
-          name: '砂隐相谈役', tags: ['增益'],
+          name: '砂隐顾问', tags: ['增益'],
           desc: '以长老的经验指引同伴：自身防御力+8%；战斗开始时使全体友方防御力提升12%，持续2回合。',
           stats: { def: 0.08 },
           triggers: [{ on: 'battle_start', effects: [{ type: 'buff', stat: 'def', value: 0.12, turns: 2, to: 'ally_all' }] }]
@@ -396,7 +396,7 @@
       art: {
         type: 'human', skin: '#e8c9a8', hair: 'short', hairColor: '#8b3a1e',
         eyes: 'normal', eyeColor: '#33475b', outfit: 'kage', outfitColor: '#f0ece2', accentColor: KAZE_GREEN,
-        headband: 'none', marks: [], mask: 'none', hat: 'kazekage', accessory: 'none', aura: '#e6c14a'
+        headband: 'none', marks: ['edo_cracks'], mask: 'none', hat: 'kazekage', accessory: 'none', aura: '#e6c14a'
       },
       skills: {
         passive: {
@@ -442,7 +442,7 @@
     {
       id: 'kazekage_3', name: '三代目风影', form: '', en: 'Sandaime Kazekage', title: '史上最强风影',
       faction: 'suna', rarity: 'SSR', role: 'atk', element: 'earth', tags: ['输出', '群攻', '持续'],
-      stats: { hp: 0.95, atk: 1.15, def: 0.92, spd: 106 },
+      stats: { hp: 0.95, atk: 1.15, def: 0.92, spd: 110 },
       bio: '被誉为砂隐史上最强的风影，以磁遁操纵砂铁作战。被蝎暗杀后制成了人傀儡，第四次忍界大战中又被秽土转生召唤，与我爱罗交手。',
       quote: '砂铁的锋芒，无人能挡。',
       art: {
@@ -471,9 +471,9 @@
         },
         ult: {
           name: '砂铁界法', tags: ['群攻', '爆发', '持续'], fx: 'magnet', target: 'all',
-          desc: '令砂铁以自身为中心向四面八方伸出无数尖刺，对全体敌人造成3段共195%攻击力伤害，并使其流血2回合（每回合35%攻击力）。',
+          desc: '令砂铁以自身为中心向四面八方伸出无数尖刺，对全体敌人造成3段共210%攻击力伤害，并使其流血2回合（每回合35%攻击力）。',
           effects: [
-            { type: 'dmg', mult: 0.65, hits: 3 },
+            { type: 'dmg', mult: 0.7, hits: 3 },
             { type: 'status', status: 'bleed', turns: 2, value: 0.35 }
           ]
         },
@@ -504,9 +504,9 @@
       skills: {
         passive: {
           name: '医疗忍者', tags: ['治疗'],
-          desc: '精通医疗忍术：自身防御力+5%；每次自身回合开始时，为生命值最低的友方恢复5%最大生命值。',
+          desc: '精通医疗忍术：自身防御力+5%；每次自身回合开始时，为生命值最低的友方恢复3%最大生命值。',
           stats: { def: 0.05 },
-          triggers: [{ on: 'turn_start', effects: [{ type: 'heal', pct: 0.05, to: 'ally_lowest' }] }]
+          triggers: [{ on: 'turn_start', effects: [{ type: 'heal', pct: 0.03, to: 'ally_lowest' }] }]
         },
         s1: {
           name: '苦无投掷', tags: ['消耗', '治疗'], fx: 'shuriken', target: 'single', cd: 0,
@@ -518,14 +518,14 @@
         },
         s2: {
           name: '医疗忍术', tags: ['治疗'], fx: 'heal', target: 'ally_all', cd: 3,
-          desc: '以医疗忍术治疗同伴，为全体友方恢复相当于110%攻击力的生命值。',
-          effects: [{ type: 'heal', mult: 1.1 }]
+          desc: '以医疗忍术治疗同伴，为全体友方恢复相当于100%攻击力的生命值。',
+          effects: [{ type: 'heal', mult: 1.0 }]
         },
         ult: {
           name: '心之伤药', tags: ['治疗', '净化'], fx: 'heal', target: 'ally_all',
-          desc: '以温柔的伤药抚平同伴的伤痛：为全体友方恢复相当于150%攻击力的生命值，并解除其减益与异常状态。',
+          desc: '以温柔的伤药抚平同伴的伤痛：为全体友方恢复相当于120%攻击力的生命值，并解除其减益与异常状态。',
           effects: [
-            { type: 'heal', mult: 1.5 },
+            { type: 'heal', mult: 1.2 },
             { type: 'cleanse', to: 'ally_all' }
           ]
         },
@@ -548,7 +548,7 @@
       bio: '砂隐的下忍，我爱罗的第一位弟子。因害怕刀刃而使用我爱罗为她挑选的绳镖，对老师怀有深深的敬慕。',
       quote: '我爱罗老师，我一定会变强的！',
       art: {
-        type: 'human', skin: '#f1d3b5', hair: 'short', hairColor: '#4a3328',
+        type: 'human', gender: 'f', skin: '#f1d3b5', hair: 'short', hairColor: '#4a3328',
         eyes: 'normal', eyeColor: '#3a2a22', outfit: 'shirt', outfitColor: '#efe7d6', accentColor: '#5f86b0',
         headband: 'suna', headbandSlash: false, headbandPos: 'forehead',
         marks: [], mask: 'none', hat: 'none', accessory: 'kunai', aura: '#19b5c9'
@@ -600,7 +600,7 @@
       bio: '掌握血继限界“灼遁”的砂隐女忍者，被誉为“砂隐的英雄”。因村子高层的出卖遭雾隐忍者伏击身亡，第四次忍界大战中被秽土转生，与昔日的弟子重逢。',
       quote: '我的灼遁，会蒸干一切。',
       art: {
-        type: 'human', skin: '#efd2b4', hair: 'long_straight', hairColor: '#2f5a55',
+        type: 'human', gender: 'f', skin: '#efd2b4', hair: 'long_straight', hairColor: '#2f5a55',
         eyes: 'normal', eyeColor: '#7a5a2a', outfit: 'robe', outfitColor: '#f0e8da', accentColor: '#c0392b',
         headband: 'suna', headbandSlash: false, headbandPos: 'forehead',
         marks: [], mask: 'none', hat: 'none', accessory: 'none', aura: '#ff9100'
@@ -667,18 +667,18 @@
         },
         s1: {
           name: '斩首大刀', tags: ['输出', '持续'], fx: 'blade', target: 'single', cd: 0,
-          desc: '挥舞巨大的斩首大刀劈砍，造成120%攻击力伤害，并有30%概率使目标流血2回合（每回合30%攻击力）。',
+          desc: '挥舞巨大的斩首大刀劈砍，造成125%攻击力伤害，并有30%概率使目标流血2回合（每回合30%攻击力）。',
           effects: [
-            { type: 'dmg', mult: 1.2 },
+            { type: 'dmg', mult: 1.25 },
             { type: 'status', status: 'bleed', turns: 2, chance: 0.3, value: 0.3 }
           ]
         },
         s2: {
           name: '水遁·水龙弹之术', tags: ['爆发', '减益'], fx: 'water', target: 'single', cd: 3,
-          desc: '结出大量手印召出水龙冲击敌人，造成190%攻击力伤害，并降低其15%防御，持续2回合。',
+          desc: '结出大量手印召出水龙冲击敌人，造成190%攻击力伤害，并使其受到的伤害提高12%，持续2回合。',
           effects: [
             { type: 'dmg', mult: 1.9 },
-            { type: 'debuff', stat: 'def', value: 0.15, turns: 2 }
+            { type: 'debuff', stat: 'dr', value: 0.12, turns: 2 }
           ]
         },
         ult: {
@@ -710,7 +710,7 @@
       art: {
         type: 'human', skin: '#f6e3d3', hair: 'long_straight', hairColor: '#1a1b24',
         eyes: 'normal', eyeColor: '#4a3426', outfit: 'kimono', outfitColor: '#3d5c54', accentColor: '#c8b48c',
-        headband: 'none', marks: [], mask: 'anbu', hat: 'none', accessory: 'none', aura: '#9fdcff'
+        headband: 'none', marks: [], mask: 'anbu', hat: 'none', accessory: 'senbon', senbonPos: 'hand', aura: '#9fdcff'
       },
       skills: {
         passive: {
@@ -759,7 +759,7 @@
       bio: '第五代水影，同时拥有熔遁与沸遁两种血继限界，终结了雾隐“血雾之里”的黑暗时代。五影会谈中与佐助交手，第四次忍界大战中与其他四影并肩对抗宇智波斑。',
       quote: '敢挡我的路，就让你化为熔浆。',
       art: {
-        type: 'human', skin: '#f6e0cc', hair: 'long_bang', hairColor: '#b4502a',
+        type: 'human', gender: 'f', skin: '#f6e0cc', hair: 'long_bang', hairColor: '#b4502a',
         eyes: 'normal', eyeColor: '#3b8a5c', outfit: 'qipao', outfitColor: '#1f3a7a', accentColor: '#6b7fa3',
         headband: 'none', marks: ['red_lips'], mask: 'none', hat: 'none', accessory: 'none', aura: '#ff6a2b'
       },
@@ -793,8 +793,8 @@
           ]
         },
         awaken: {
-          name: '熔遁·石灰凝之术', tags: ['控制'],
-          desc: '攻击力+12%；攻击命中后有20%概率喷出迅速凝固的石灰，使目标束缚1回合。',
+          name: '五代目水影', tags: ['控制'],
+          desc: '攻击力+12%；攻击命中后有20%概率以迅速冷却凝固的熔岩封住目标的行动，使其束缚1回合。',
           stats: { atk: 0.12 },
           triggers: [{ on: 'on_attack', chance: 0.2, effects: [{ type: 'status', status: 'bind', turns: 1 }] }]
         }
@@ -804,44 +804,44 @@
     {
       id: 'chojuro', name: '长十郎', form: '', en: 'Chojuro', title: '水影护卫',
       faction: 'kiri', rarity: 'SR', role: 'atk', element: 'water', tags: ['输出', '穿透', '护盾'],
-      stats: { hp: 1.0, atk: 1.1, def: 0.95, spd: 108 },
+      stats: { hp: 1.0, atk: 1.15, def: 0.9, spd: 114 },
       bio: '雾隐年轻一代的忍刀七人众，手持双刀·鲆鲽。性格腼腆、缺乏自信，作为水影照美冥的护卫出席五影会谈，并随水影一同迎战宇智波佐助。',
       quote: '我、我会尽力的……',
       art: {
         type: 'human', skin: '#f1ddca', hair: 'shaggy', hairColor: '#7fb0de',
         eyes: 'normal', eyeColor: '#3a3550', outfit: 'highcollar', outfitColor: '#aab9cf', accentColor: '#2f4f7f',
         headband: 'kiri', headbandSlash: false, headbandPos: 'forehead',
-        marks: ['glasses', 'fangs'], mask: 'none', hat: 'none', accessory: 'big_sword', aura: '#3a8dff'
+        marks: ['glasses', 'sharp_teeth'], mask: 'none', hat: 'none', accessory: 'big_sword', aura: '#3a8dff'
       },
       skills: {
         passive: {
           name: '查克拉蓄积', tags: ['回能', '增益'],
-          desc: '鲆鲽能储存使用者的查克拉：防御力+8%；受到攻击时获得8点查克拉。',
+          desc: '鲆鲽能储存使用者的查克拉：防御力+8%；受到攻击时获得10点查克拉。',
           stats: { def: 0.08 },
-          triggers: [{ on: 'on_hit', effects: [{ type: 'chakra', value: 8 }] }]
+          triggers: [{ on: 'on_hit', effects: [{ type: 'chakra', value: 10 }] }]
         },
         s1: {
           name: '双刀·鲆鲽', tags: ['输出', '护盾'], fx: 'blade', target: 'single', cd: 0,
-          desc: '挥动双刀·鲆鲽斩击，造成115%攻击力伤害，并获得相当于10%攻击力的护盾。',
+          desc: '挥动双刀·鲆鲽斩击，造成120%攻击力伤害，并获得相当于15%攻击力的护盾，持续2回合。',
           effects: [
-            { type: 'dmg', mult: 1.15 },
-            { type: 'shield', mult: 0.1, to: 'self' }
+            { type: 'dmg', mult: 1.2 },
+            { type: 'shield', mult: 0.15, to: 'self' }
           ]
         },
         s2: {
-          name: '鲆鲽·解放', tags: ['爆发', '穿透', '控制'], fx: 'blade', target: 'single', cd: 3,
-          desc: '释放鲆鲽中储存的查克拉，化作巨锤砸向敌人：造成190%攻击力伤害（无视35%防御），并有40%概率使其眩晕1回合。',
+          name: '鲆鲽·解放', tags: ['爆发', '穿透', '控制'], fx: 'blade', target: 'single', cd: 2,
+          desc: '释放鲆鲽中储存的查克拉，化作巨锤砸向敌人：造成190%攻击力伤害（无视35%防御），并有50%概率使其眩晕1回合。',
           effects: [
             { type: 'dmg', mult: 1.9, pierce: 0.35 },
-            { type: 'status', status: 'stun', turns: 1, chance: 0.4 }
+            { type: 'status', status: 'stun', turns: 1, chance: 0.5 }
           ]
         },
         ult: {
           name: '鲆鲽·全力解放', tags: ['爆发', '穿透', '单体'], fx: 'blade', target: 'single',
-          desc: '将查克拉完全灌入鲆鲽化作巨刃，斩开一切防御：先清除目标的所有增益与护盾，再造成320%攻击力伤害（无视40%防御）。',
+          desc: '将查克拉完全灌入鲆鲽化作巨刃，斩开一切防御：先清除目标的所有增益与护盾，再造成340%攻击力伤害（无视40%防御）。',
           effects: [
             { type: 'dispel' },
-            { type: 'dmg', mult: 3.2, pierce: 0.4 }
+            { type: 'dmg', mult: 3.4, pierce: 0.4 }
           ]
         },
         awaken: {
@@ -967,7 +967,7 @@
       art: {
         type: 'human', skin: '#efdccb', hair: 'spiky_up', hairColor: '#d6e0e6',
         eyes: 'normal', eyeColor: '#2f3a4a', outfit: 'kage', outfitColor: '#e8eef2', accentColor: KIRI_BLUE,
-        headband: 'none', marks: ['fangs'], mask: 'none', hat: 'none', accessory: 'none', aura: '#4fc3f7'
+        headband: 'none', marks: ['sharp_teeth', 'edo_cracks'], mask: 'none', hat: 'none', accessory: 'none', aura: '#4fc3f7'
       },
       skills: {
         passive: {
@@ -997,7 +997,7 @@
           ]
         },
         awaken: {
-          name: '口寄·蒸危暴威', tags: ['召唤', '持续'],
+          name: '通灵之术·蒸危暴威', tags: ['召唤', '持续'],
           desc: '攻击力+12%；施放必杀技后，通灵出体内充满高温蒸汽的巨人“蒸危暴威”扑向一名敌人，造成120%攻击力伤害，并使其灼烧2回合（每回合35%攻击力）。',
           stats: { atk: 0.12 },
           triggers: [{ on: 'on_ult', effects: [
@@ -1018,7 +1018,7 @@
         type: 'human', skin: '#f0dfd0', hair: 'shaggy', hairColor: '#e6eef2',
         eyes: 'normal', eyeColor: '#6b4aa0', outfit: 'sleeveless', outfitColor: '#34465a', accentColor: '#8fa3b5',
         headband: 'kiri', headbandSlash: false, headbandPos: 'forehead',
-        marks: ['fangs'], mask: 'none', hat: 'none', accessory: 'big_sword', aura: '#4fc3f7'
+        marks: ['sharp_teeth'], mask: 'none', hat: 'none', accessory: 'big_sword', aura: '#4fc3f7'
       },
       skills: {
         passive: {
@@ -1112,7 +1112,7 @@
     {
       id: 'jinin', name: '通草野饵人', form: '', en: 'Akebino Jinin', title: '破甲之鬼',
       faction: 'kiri', rarity: 'SR', role: 'atk', element: 'none', tags: ['穿透', '减益', '爆发'],
-      stats: { hp: 1.05, atk: 1.1, def: 0.9, spd: 100 },
+      stats: { hp: 1.05, atk: 1.18, def: 0.85, spd: 106 },
       bio: '忍刀七人众之一，钝刀·兜割的持有者。兜割由斧刃与铁锤组成，号称能击碎任何防御，大战中被秽土转生召唤，与忍者联军交战。',
       quote: '没有我砸不碎的防御！',
       art: {
@@ -1123,30 +1123,32 @@
       },
       skills: {
         passive: {
-          name: '无坚不摧', tags: ['穿透', '减益'],
-          desc: '兜割号称能击碎任何防御：攻击力+6%；攻击命中后有30%概率降低目标15%防御，持续2回合。',
+          name: '无坚不摧', tags: ['减益', '增益'],
+          desc: '兜割号称能击碎任何防御：攻击力+6%；攻击命中后有40%概率砸裂目标的护甲，使其受到的伤害提高10%，持续2回合。',
           stats: { atk: 0.06 },
-          triggers: [{ on: 'on_attack', chance: 0.3, effects: [{ type: 'debuff', stat: 'def', value: 0.15, turns: 2 }] }]
+          triggers: [{ on: 'on_attack', chance: 0.4, effects: [{ type: 'debuff', stat: 'dr', value: 0.1, turns: 2 }] }]
         },
         s1: {
           name: '钝刀·兜割', tags: ['穿透', '消耗'], fx: 'blade', target: 'single', cd: 0,
-          desc: '以兜割的斧刃劈砍敌人，造成115%攻击力伤害（无视25%防御）。',
-          effects: [{ type: 'dmg', mult: 1.15, pierce: 0.25 }]
+          desc: '以兜割的斧刃劈砍敌人，造成120%攻击力伤害（无视25%防御）。',
+          effects: [{ type: 'dmg', mult: 1.2, pierce: 0.25 }]
         },
         s2: {
           name: '兜割·破盾', tags: ['爆发', '减益'], fx: 'blade', target: 'single', cd: 3,
-          desc: '先以斧刃劈开防御，再用铁锤猛砸：清除目标的所有增益与护盾，并造成180%攻击力伤害。',
+          desc: '先以斧刃劈开防御，再用铁锤猛砸：清除目标的所有增益与护盾，造成190%攻击力伤害，并使其受到的伤害提高15%，持续2回合。',
           effects: [
             { type: 'dispel' },
-            { type: 'dmg', mult: 1.8 }
+            { type: 'dmg', mult: 1.9 },
+            { type: 'debuff', stat: 'dr', value: 0.15, turns: 2 }
           ]
         },
         ult: {
-          name: '兜割·粉碎一击', tags: ['爆发', '穿透', '单体'], fx: 'earth', target: 'single',
-          desc: '将全身力量灌入钝刀全力砸下，造成320%攻击力伤害（无视50%防御），并降低目标25%防御，持续2回合。',
+          name: '兜割·粉碎一击', tags: ['爆发', '穿透', '减益'], fx: 'earth', target: 'single',
+          desc: '将全身力量灌入钝刀全力砸下，造成350%攻击力伤害（无视50%防御），并使目标受到的伤害提高20%，持续2回合；砸击的冲击波还会波及全体敌人，各造成50%攻击力伤害。',
           effects: [
-            { type: 'dmg', mult: 3.2, pierce: 0.5 },
-            { type: 'debuff', stat: 'def', value: 0.25, turns: 2 }
+            { type: 'dmg', mult: 3.5, pierce: 0.5 },
+            { type: 'debuff', stat: 'dr', value: 0.2, turns: 2 },
+            { type: 'dmg', mult: 0.5, to: 'enemy_all' }
           ]
         },
         awaken: {
@@ -1211,10 +1213,10 @@
       bio: '忍刀七人众中的女剑士，雷刀·牙的持有者。牙是一对能导引雷遁查克拉的双刀，被誉为忍刀中最锋利的刀，大战中被秽土转生召唤。',
       quote: '我的雷刀，可是会咬人的哦。',
       art: {
-        type: 'human', skin: '#f2d8c2', hair: 'messy', hairColor: '#c8502a',
+        type: 'human', gender: 'f', skin: '#f2d8c2', hair: 'messy', hairColor: '#c8502a',
         eyes: 'normal', eyeColor: '#3b5a3b', outfit: 'sleeveless', outfitColor: '#363b52', accentColor: '#7fb8ff',
         headband: 'kiri', headbandSlash: false, headbandPos: 'forehead',
-        marks: ['fangs'], mask: 'none', hat: 'none', accessory: 'sword', aura: '#6ec6ff'
+        marks: ['sharp_teeth'], mask: 'none', hat: 'none', accessory: 'sword', aura: '#6ec6ff'
       },
       skills: {
         passive: {
@@ -1266,7 +1268,7 @@
       },
       skills: {
         passive: {
-          name: '查克拉吞噬', tags: ['吸血', '回能'],
+          name: '查克拉吞噬', tags: ['吸血', '消耗'],
           desc: '与鲛肌心意相通：吸血+12%；受到攻击时有30%概率吸取攻击者10点查克拉。',
           stats: { lifesteal: 0.12 },
           triggers: [{ on: 'on_hit', chance: 0.3, effects: [{ type: 'drain', value: 10, to: 'attacker' }] }]
@@ -1280,15 +1282,15 @@
           ]
         },
         s2: {
-          name: '鲛肌之壁', tags: ['嘲讽', '护盾'], fx: 'shield', target: 'self', cd: 3,
-          desc: '竖起鲛肌挡在队伍前方：嘲讽全体敌人2回合，并获得15%最大生命值的护盾，持续2回合。',
+          name: '忍法·针地藏', tags: ['嘲讽', '护盾'], fx: 'shield', target: 'self', cd: 3,
+          desc: '让头发硬化成无数钢针包裹全身，挡在队伍前方：嘲讽全体敌人2回合，并获得15%最大生命值的护盾，持续2回合。',
           effects: [
             { type: 'taunt', turns: 2 },
             { type: 'shield', pct: 0.15, turns: 2 }
           ]
         },
         ult: {
-          name: '鲛肌·大吞噬', tags: ['群攻', '吸血', '回能'], fx: 'blade', target: 'all',
+          name: '鲛肌·大吞噬', tags: ['群攻', '吸血', '消耗'], fx: 'blade', target: 'all',
           desc: '鲛肌张开利齿扫过敌阵，对全体敌人造成150%攻击力伤害并吸取每人20点查克拉，自身恢复相当于造成伤害40%的生命值。',
           effects: [
             { type: 'dmg', mult: 1.5 },
@@ -1297,7 +1299,7 @@
           ]
         },
         awaken: {
-          name: '鲛肌之主', tags: ['治疗', '回能'],
+          name: '鲛肌之主', tags: ['治疗', '消耗'],
           desc: '生命值+10%，攻击力+8%；生命值首次低于30%时，鲛肌吞噬查克拉为主人疗伤：恢复25%最大生命值，并吸取全体敌人15点查克拉。',
           stats: { hp: 0.10, atk: 0.08 },
           triggers: [{ on: 'low_hp', effects: [

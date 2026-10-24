@@ -50,7 +50,7 @@
     var box = U.$('.cp-chs', el), chs = chapters(), html = '';
     chs.forEach(function (ch, i) {
       var s = chState(ch);
-      html += '<button class="cp-ch' + (ch.id === C.ch ? ' on' : '') + (s.unlocked ? '' : ' lock') + '" data-id="' + U.esc(ch.id) + '"><div class="th"><img src="' + U.bgURL(ch.bg || 'forest', 320, 180) + '" alt=""></div>' +
+      html += '<button class="cp-ch' + (ch.id === C.ch ? ' on' : '') + (s.unlocked ? '' : ' lock') + '" data-id="' + U.esc(ch.id) + '"><div class="th"><img src="' + U.bgURL(ch.bg || 'forest') + '" alt=""></div>' +
         '<div class="tx"><div class="n">第' + (i + 1) + '章</div><div class="t">' + U.esc(ch.name || '') + '</div><div class="s"><img src="' + U.iconURL('starOn') + '" alt="">' + s.stars + '/' + s.max + (s.done ? '　<span style="color:#7dff9a">已通关</span>' : '') + '</div></div>' +
         (s.unlocked ? '' : '<img class="lk" src="' + U.iconURL('lock') + '" alt="">') + '</button>';
     });
@@ -83,8 +83,10 @@
   function renderMap(el) {
     var ch = curCh(), map = U.$('.cp-map', el); if (!ch) { U.$('.mt .t', map).textContent = '暂无章节'; return; }
     var idx = chapters().indexOf(ch);
-    U.$('.mbg img', map).src = U.bgURL(ch.bg || 'forest', 600, 636);
-    U.$('.mt .t', map).textContent = '第' + (idx + 1) + '章 · ' + (ch.name || '');
+    // same 1280×720 scene URL as the full-screen background (object-fit:cover crops it): one SVG parse, not two
+    var mb = U.$('.mbg img', map), mu = U.bgURL(ch.bg || 'forest'); if (mb.getAttribute('src') !== mu) mb.src = mu;
+    var ttl = '第' + (idx + 1) + '章 · ' + (ch.name || ''), te = U.$('.mt .t', map);
+    te.textContent = ttl; te.className = 't' + (ttl.length > 15 ? ' xlong' : ttl.length > 11 ? ' long' : '');
     U.$('.mt .d', map).textContent = ch.desc || '';
     var pts = nodePos(ch.stages.length), path = '', done = '';
     pts.forEach(function (p, i) {

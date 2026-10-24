@@ -28,7 +28,7 @@
     if (!el) {
       el = U.h('<button class="cx-card r-' + U.rarity(c) + '" style="--rc:' + U.rcolor(c) + '" data-id="' + U.esc(c.id) + '">' +
         '<div class="pic"><img data-av="' + U.esc(c.id) + '" data-src="lazy" alt=""></div>' + U.rarHTML(U.rarity(c)) +
-        '<img class="emb" data-src="' + U.emblemURL(c.faction, 64) + '" alt=""><span class="st"></span>' +
+        '<img class="emb" src="' + U.emblemURL(c.faction, 64) + '" alt=""><span class="st"></span>' +
         '<div class="nm"><b>' + U.esc(U.charName(c)) + '</b><i>' + U.esc(c.form || c.title || '　') + '</i></div></button>');
       el.addEventListener('click', function () { U.codexDetail(c.id); });
       cards[c.id] = el;
@@ -69,8 +69,9 @@
     var grid = U.$('.cx-grid', el), st = grid.scrollTop;
     var list = sortedChars().filter(pass);
     grid.innerHTML = '';
-    if (!list.length) { grid.innerHTML = '<div class="cx-empty">没有符合条件的忍者</div>'; return; }
-    U.chunked(grid, list, function (c) { return cardEl(c); }, { size: 40 });
+    // stop a previous filter's chunked render before showing the empty state (it would keep appending cards)
+    if (!list.length) { grid._chunkToken = null; grid._chunkDone = true; grid.innerHTML = '<div class="cx-empty">没有符合条件的忍者</div>'; syncPills(el); return; }
+    U.chunked(grid, list, function (c) { return cardEl(c); }, { size: 20, later: 28 });
     if (keepScroll) grid.scrollTop = st; else grid.scrollTop = 0;
     syncPills(el);
   }
@@ -124,13 +125,21 @@
   var POS = ['1号位 · 前排', '2号位', '3号位', '4号位', '5号位 · 后排'];
   function renderTeam(el, anim) {
     var t = team(), box = U.$('.tm-slots', el), html = '';
+    // the engine's 'team' change event re-renders right after the tap handler did: skip identical
+    // re-renders so the slot pop-in animation doesn't restart on every add/remove
+    var sig = t.map(function (id) { var e = U.owned(id) || {}; return id + ':' + e.lv + ':' + e.star; }).join(',');
+    U.$('.tm-power .v', el).textContent = U.fmt(U.call('teamPower') || 0);
+    if (box._sig === sig && box.children.length) return;
+    var prevIds = box._ids || [];
+    box._sig = sig; box._ids = t.slice();
     for (var i = 0; i < 5; i++) {
       var id = t[i], c = id && U.char(id), e = id && U.owned(id);
-      if (c) html += '<button class="tm-slot filled r-' + U.rarity(c) + '" style="--rc:' + U.rcolor(c) + (anim ? '' : ';animation:none') + '" data-i="' + i + '"><div class="pos">' + POS[i] + '</div><div class="art"><img src="' + U.avatarURL(c, 256) + '" alt=""></div>' + U.rarHTML(U.rarity(c)) +
-        '<div class="inf"><b>' + U.esc(U.charName(c)) + '</b><div class="s">Lv.' + e.lv + U.starsHTML(e.star || 1, e.star || 1) + '</div><div class="s" style="color:#ffe9a6">战力 ' + U.fmt(U.call('power', id) || 0) + '</div></div></button>';
+      var pop = anim || (box._built && prevIds.indexOf(id) < 0);    // only newly placed ninjas pop in
+      if (c) html += '<button class="tm-slot filled r-' + U.rarity(c) + '" style="--rc:' + U.rcolor(c) + (pop ? '' : ';animation:none') + '" data-i="' + i + '"><div class="pos">' + POS[i] + '</div><div class="art"><img src="' + U.avatarURL(c, 128) + '" alt=""></div>' + U.rarHTML(U.rarity(c)) +
+        (c.form ? '<div class="fmr">' + U.esc(c.form) + '</div>' : '') + '<div class="inf"><b>' + U.esc(U.charName(c)) + '</b><div class="s">Lv.' + e.lv + U.starsHTML(e.star || 1, e.star || 1) + '</div><div class="s" style="color:#ffe9a6">战力 ' + U.fmt(U.call('power', id) || 0) + '</div></div></button>';
       else html += '<button class="tm-slot" data-i="' + i + '"><div class="pos">' + POS[i] + '</div><div class="plus"><i></i>点击下方忍者上阵</div></button>';
     }
-    box.innerHTML = html;
+    box.innerHTML = html; box._built = true;
     U.$$('.tm-slot.filled', box).forEach(function (b) {
       b.addEventListener('click', function () { var i = Number(b.getAttribute('data-i')), cur = team(); cur.splice(i, 1); setTeam(cur); renderTeam(el); syncList(el); });
     });
@@ -139,9 +148,9 @@
   function renderList(el) {
     var box = U.$('.tm-list', el); box.innerHTML = ''; TM.items = {};
     var list = U.ownedList();
-    if (!list.length) { box.innerHTML = '<div class="cx-empty" style="grid-column:1/-1">还没有忍者，快去召唤吧！</div>'; return; }
+    if (!list.length) { box._chunkToken = null; box.innerHTML = '<div class="cx-empty" style="grid-column:1/-1">还没有忍者，快去召唤吧！</div>'; return; }
     U.chunked(box, list, function (x) {
-      var b = U.h('<button class="tm-it" data-id="' + U.esc(x.id) + '">' + U.avatarHTML(x.c, { size: 82, lv: (x.e && x.e.lv) || 1, lazy: true }) + '<div class="nm">' + U.esc(U.charName(x.c)) + '</div></button>');
+      var b = U.h('<button class="tm-it" data-id="' + U.esc(x.id) + '">' + U.avatarHTML(x.c, { size: 82, lv: (x.e && x.e.lv) || 1, lazy: true }) + '<div class="nm">' + U.esc(U.charName(x.c)) + '</div><div class="fm">' + U.esc(x.c.form || x.c.title || '') + '</div></button>');
       b.addEventListener('click', function () {
         var cur = team(), i = cur.indexOf(x.id);
         if (i >= 0) cur.splice(i, 1);
@@ -149,7 +158,7 @@
         setTeam(cur); renderTeam(el); syncList(el);
       });
       TM.items[x.id] = b; return b;
-    }, { size: 33, done: function () { syncList(el); } });
+    }, { size: 22, done: function () { syncList(el); } });
     syncList(el);
   }
   function syncList(el) {

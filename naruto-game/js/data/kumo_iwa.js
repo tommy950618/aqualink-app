@@ -128,7 +128,7 @@
       art: {
         type: 'human', skin: '#76472c', hair: 'wild_long', hairColor: '#f3f0e6',
         eyes: 'dark', eyeColor: '#3a2a1a', outfit: 'kage', outfitColor: '#f2f2f0', accentColor: '#d9a82a',
-        headband: 'none', marks: ['beard', 'mustache'], beardColor: '#f3f0e6',
+        headband: 'none', marks: ['beard', 'mustache', 'edo_cracks'], beardColor: '#f3f0e6',
         mask: 'none', hat: 'none', accessory: 'none', aura: '#5b4ed6'
       },
       skills: {
@@ -278,7 +278,7 @@
       art: {
         type: 'human', skin: LIGHT_SKIN, hair: 'short', hairColor: '#f0d88a',
         eyes: 'normal', eyeColor: '#4a3a2a', outfit: 'flak', outfitColor: KUMO_VEST, accentColor: '#4a5566',
-        headband: 'kumo', headbandSlash: false, headbandPos: 'forehead',
+        headband: 'kumo', headbandSlash: false, headbandPos: 'hair',
         marks: [], mask: 'none', hat: 'none', accessory: 'none', aura: '#ffe066'
       },
       skills: {
@@ -325,7 +325,7 @@
       bio: '四代目雷影的秘书，掌握能以光速传送物体的天送之术。四战中不幸遇害，又被药师兜以秽土转生召唤，被迫与昔日同伴为敌。',
       quote: '雷影大人，我立刻送过去。',
       art: {
-        type: 'human', skin: '#7a4a30', hair: 'long_straight', hairColor: '#ececf2',
+        type: 'human', gender: 'f', skin: '#7a4a30', hair: 'long_straight', hairColor: '#ececf2',
         eyes: 'normal', eyeColor: '#2a6a8a', outfit: 'flak', outfitColor: KUMO_VEST, accentColor: '#4a5a6a',
         headband: 'kumo', headbandSlash: false, headbandPos: 'forehead',
         marks: ['red_lips'], mask: 'none', hat: 'none', accessory: 'scroll', aura: '#ffe8a0'
@@ -333,9 +333,9 @@
       skills: {
         passive: {
           name: '雷影秘书', tags: ['回能'],
-          desc: '干练的雷影秘书，办事雷厉风行：速度+8%；战斗开始时为全体友方送去补给，使其各获得10点查克拉。',
+          desc: '干练的雷影秘书，办事雷厉风行：速度+8%；战斗开始时为全体友方送去补给，使其各获得5点查克拉。',
           stats: { spd: 0.08 },
-          triggers: [{ on: 'battle_start', effects: [{ type: 'chakra', value: 10, to: 'ally_all' }] }]
+          triggers: [{ on: 'battle_start', effects: [{ type: 'chakra', value: 5, to: 'ally_all' }] }]
         },
         s1: {
           name: '手里剑之术', tags: ['输出', '回能'], fx: 'shuriken', target: 'single', cd: 0,
@@ -344,22 +344,22 @@
         },
         s2: {
           name: '天送之术', tags: ['回能', '增益'], fx: 'yang', target: 'ally_all', cd: 3,
-          desc: '以天送之术将查克拉与物资以光速送达全队：全体友方获得15点查克拉，速度+15%，持续2回合。',
+          desc: '以天送之术将查克拉与物资以光速送达全队：全体友方获得10点查克拉，速度+10%，持续2回合。',
           effects: [
-            { type: 'chakra', value: 15, to: 'ally_all' },
-            { type: 'buff', stat: 'spd', value: 0.15, turns: 2 }
+            { type: 'chakra', value: 10, to: 'ally_all' },
+            { type: 'buff', stat: 'spd', value: 0.1, turns: 2 }
           ]
         },
         ult: {
-          name: '天送之术·光速奇袭', tags: ['群攻', '减益'], fx: 'space', target: 'all',
-          desc: '以天送之术将大量苦无与岩石以光速送入敌阵，对全体敌人造成130%攻击力伤害，并削减其15点查克拉。',
-          effects: [{ type: 'dmg', mult: 1.3 }, { type: 'drain', value: 15 }]
+          name: '天送之术·光速奇袭', tags: ['群攻', '消耗'], fx: 'space', target: 'all',
+          desc: '以天送之术将大量苦无与岩石以光速送入敌阵，对全体敌人造成120%攻击力伤害，并削减其15点查克拉。',
+          effects: [{ type: 'dmg', mult: 1.2 }, { type: 'drain', value: 15 }]
         },
         awaken: {
           name: '光速传送', tags: ['增益'],
-          desc: '攻击力+10%；释放必杀技后以天送之术为全队补给武器，使全体友方攻击力+15%，持续2回合。',
+          desc: '攻击力+10%；释放必杀技后以天送之术为全队补给武器，使全体友方攻击力+10%，持续2回合。',
           stats: { atk: 0.10 },
-          triggers: [{ on: 'on_ult', effects: [{ type: 'buff', stat: 'atk', value: 0.15, turns: 2, to: 'ally_all' }] }]
+          triggers: [{ on: 'on_ult', effects: [{ type: 'buff', stat: 'atk', value: 0.1, turns: 2, to: 'ally_all' }] }]
         }
       }
     },
@@ -373,8 +373,8 @@
       art: {
         type: 'human', skin: '#7a5034', hair: 'slick_back', hairColor: '#f0f0f0',
         eyes: 'normal', eyeColor: '#2a2a2a', outfit: 'flak', outfitColor: KUMO_VEST, accentColor: '#5a4a3a',
-        headband: 'kumo', headbandSlash: false, headbandPos: 'forehead',
-        marks: ['goatee'], beardColor: '#f0f0f0', mask: 'none', hat: 'none', accessory: 'none', aura: '#c8a2ff'
+        headband: 'kumo', headbandSlash: false, headbandPos: 'bandana', headbandColor: '#ece6d8', build: 1.2,
+        marks: ['goatee', 'wrinkles'], beardColor: '#f0f0f0', mask: 'none', hat: 'none', accessory: 'none', aura: '#c8a2ff'
       },
       skills: {
         passive: {
@@ -421,7 +421,7 @@
       bio: '云隐村的上忍，萨姆依小队的队长，阿兹伊的姐姐。无论何时都保持冷静、讲求效率；四战中与弟弟及达鲁伊等人一同对抗秽土转生的金银兄弟。',
       quote: '冷静点，先分析情况。',
       art: {
-        type: 'human', skin: LIGHT_SKIN, hair: 'bob', hairColor: '#f3d77a',
+        type: 'human', gender: 'f', skin: LIGHT_SKIN, hair: 'bob', hairColor: '#f3d77a',
         eyes: 'normal', eyeColor: '#4a7fb0', outfit: 'flak', outfitColor: '#f0ede6', accentColor: '#6a7a8a',
         headband: 'kumo', headbandSlash: false, headbandPos: 'forehead',
         marks: [], mask: 'none', hat: 'none', accessory: 'tanto', aura: '#bfe3ff'
@@ -447,7 +447,7 @@
           ]
         },
         ult: {
-          name: '琥珀净瓶', tags: ['封印', '减益', '单体'], fx: 'seal', target: 'single',
+          name: '琥珀净瓶', tags: ['封印', '单体'], fx: 'seal', target: 'single',
           desc: '打开六道宝具琥珀净瓶，以言灵将敌人吸入：先驱散目标的增益与护盾，再造成220%攻击力伤害，并使其封印2回合（只能使用技能1）。',
           effects: [
             { type: 'dispel' },
@@ -474,7 +474,7 @@
         type: 'human', skin: '#f0d2b6', hair: 'spiky_up', hairColor: '#f2c94c',
         eyes: 'normal', eyeColor: '#5a3a2a', outfit: 'flak', outfitColor: KUMO_VEST, accentColor: '#c0462a',
         headband: 'kumo', headbandSlash: false, headbandPos: 'forehead',
-        marks: [], mask: 'none', hat: 'none', accessory: 'sword', aura: '#ff7a2b'
+        marks: [], mask: 'none', hat: 'none', accessory: 'sword', mood: 'grin', aura: '#ff7a2b'
       },
       skills: {
         passive: {
@@ -526,7 +526,7 @@
       bio: '云隐村的女忍者，萨姆依小队成员，红发褐肤，脾气火爆、好胜心强。擅长剑术与体术，曾因佐助袭击奇拉比一事迁怒于鸣人，而鸣人始终没有还手。',
       quote: '少啰嗦！吃我一刀！',
       art: {
-        type: 'human', skin: '#7a4a30', hair: 'short', hairColor: '#c0302b',
+        type: 'human', gender: 'f', skin: '#7a4a30', hair: 'bob', hairColor: '#c0302b',
         eyes: 'normal', eyeColor: '#e0a030', outfit: 'flak', outfitColor: KUMO_VEST, accentColor: '#3b2c2c',
         headband: 'kumo', headbandSlash: false, headbandPos: 'forehead',
         marks: [], mask: 'none', hat: 'none', accessory: 'sword', aura: '#ff7055'
@@ -578,10 +578,10 @@
       bio: '云隐村的忍者，萨姆依小队成员，嘴里总叼着棒棒糖，凡事都会往最坏的方向想。擅长雷遁与剑术，出手前总会预想各种可能。',
       quote: '万一……要是变成那样可怎么办？',
       art: {
-        type: 'human', skin: '#5e3a26', hair: 'short', hairColor: '#efefef',
+        type: 'human', skin: '#5e3a26', hair: 'buzz', hairColor: '#efefef',
         eyes: 'normal', eyeColor: '#2a2a2a', outfit: 'flak', outfitColor: '#dcd8cf', accentColor: KUMO_DARK,
         headband: 'kumo', headbandSlash: false, headbandPos: 'forehead',
-        marks: [], mask: 'none', hat: 'none', accessory: 'sword', aura: '#9fd2ff'
+        marks: [], mask: 'none', hat: 'none', accessory: 'sword', accessory2: 'lollipop', aura: '#9fd2ff'
       },
       skills: {
         passive: {
@@ -628,7 +628,7 @@
       bio: '云隐村的上忍，二尾又旅的人柱力，能熟练地控制尾兽之力。在与晓组织的飞段、角都交战时落败被捕，二尾被抽离后身亡；四战中被秽土转生召回战场。',
       quote: '我体内的二尾，可不是好惹的。',
       art: {
-        type: 'human', skin: LIGHT_SKIN, hair: 'low_ponytail', hairColor: '#f1d36b',
+        type: 'human', gender: 'f', skin: LIGHT_SKIN, hair: 'low_ponytail', hairColor: '#f1d36b',
         eyes: 'normal', eyeColor: '#3a2a3a', outfit: 'highcollar', outfitColor: '#3c2a4d', accentColor: '#5ab0ff',
         headband: 'kumo', headbandSlash: false, headbandPos: 'forehead',
         marks: [], mask: 'none', hat: 'none', accessory: 'none', aura: '#3b8bff'
@@ -731,7 +731,7 @@
     {
       id: 'ginkaku', name: '银角', form: '', en: 'Ginkaku', title: '言灵封印者',
       faction: 'kumo', rarity: 'SR', role: 'ctrl', element: 'yin', tags: ['封印', '控制'],
-      stats: { hp: 1.0, atk: 1.08, def: 0.93, spd: 116 },
+      stats: { hp: 1.0, atk: 1.08, def: 0.93, spd: 122 },
       bio: '金角的弟弟，同样因吃下九尾的血肉而拥有九尾的查克拉。善用六道宝具七星剑与幌金绳夺取对手的“言灵”，再以红葫芦将其封印；四战中被秽土转生召唤，最终被达鲁伊以宝具反过来封印。',
       quote: '只要你开口，就逃不掉了。',
       art: {
@@ -747,7 +747,7 @@
           triggers: [{ on: 'on_attack', chance: 0.25, effects: [{ type: 'status', status: 'silence', turns: 1 }] }]
         },
         s1: {
-          name: '七星剑', tags: ['输出', '减益'], fx: 'blade', target: 'single', cd: 0,
+          name: '七星剑', tags: ['输出', '消耗'], fx: 'blade', target: 'single', cd: 0,
           desc: '挥动六道宝具七星剑斩击，造成110%攻击力伤害，并削减目标10点查克拉。',
           effects: [{ type: 'dmg', mult: 1.1 }, { type: 'drain', value: 10 }]
         },
@@ -760,7 +760,7 @@
           ]
         },
         ult: {
-          name: '六道宝具·红葫芦', tags: ['封印', '减益', '单体'], fx: 'seal', target: 'single',
+          name: '六道宝具·红葫芦', tags: ['封印', '消耗', '单体'], fx: 'seal', target: 'single',
           desc: '以红葫芦吸入被夺去言灵的敌人：先驱散目标的增益与护盾，再造成290%攻击力伤害，使其封印2回合（只能使用技能1），并削减其30点查克拉。',
           effects: [
             { type: 'dispel' },
@@ -841,7 +841,7 @@
       art: {
         type: 'human', skin: '#e8e0cc', hair: 'none', hairColor: '#d9cfb8',
         eyes: 'dark', eyeColor: '#9e9e9e', outfit: 'cloak', outfitColor: '#6b5a44', accentColor: '#cfc4ad',
-        headband: 'none', marks: ['bandage_face'], mask: 'cloth', maskColor: '#d9cfb8',
+        headband: 'none', marks: ['bandage_face', 'edo_cracks'], mask: 'cloth', maskColor: '#d9cfb8',
         hat: 'none', accessory: 'none', aura: '#e8e8e8'
       },
       skills: {
@@ -889,7 +889,7 @@
       bio: '三代目土影大野木的孙女、黄土的女儿，与赤土一同担任土影的护卫。性格直爽好强，擅长以熔遁·石灰凝之术喷出迅速凝固的石灰封锁敌人行动。',
       quote: '爷爷，你就在后面看着吧！',
       art: {
-        type: 'human', skin: '#f2d6bc', hair: 'bob', hairColor: '#1c1c22',
+        type: 'human', gender: 'f', skin: '#f2d6bc', hair: 'bob', hairColor: '#1c1c22',
         eyes: 'normal', eyeColor: '#5a3a4a', outfit: 'sleeveless', outfitColor: IWA_RED, accentColor: '#6b6b6b',
         headband: 'iwa', headbandSlash: false, headbandPos: 'forehead',
         marks: [], mask: 'none', hat: 'none', accessory: 'kunai', aura: '#ff9a3a'
@@ -959,18 +959,18 @@
         },
         s2: {
           name: '土遁·土流壁', tags: ['护盾', '嘲讽'], fx: 'shield', target: 'ally_all', cd: 3,
-          desc: '结印拉起一道厚实的土墙，为全体友方提供10%最大生命值的护盾，持续2回合，并嘲讽敌人2回合。',
+          desc: '结印拉起一道厚实的土墙，为全体友方提供7%最大生命值的护盾，持续2回合，并嘲讽敌人2回合。',
           effects: [
-            { type: 'shield', pct: 0.1, turns: 2 },
+            { type: 'shield', pct: 0.07, turns: 2 },
             { type: 'taunt', turns: 2 }
           ]
         },
         ult: {
           name: '土遁·魔像之术', tags: ['群攻', '嘲讽', '控制'], fx: 'earth', target: 'all',
-          desc: '召唤岩石魔像抡起巨拳砸向敌阵，对全体敌人造成130%攻击力伤害，并有30%概率使其眩晕1回合；同时嘲讽敌人2回合。',
+          desc: '召唤岩石魔像抡起巨拳砸向敌阵，对全体敌人造成130%攻击力伤害，并有20%概率使其眩晕1回合；同时嘲讽敌人2回合。',
           effects: [
             { type: 'dmg', mult: 1.3 },
-            { type: 'status', status: 'stun', turns: 1, chance: 0.3 },
+            { type: 'status', status: 'stun', turns: 1, chance: 0.2 },
             { type: 'taunt', turns: 2 }
           ]
         },
@@ -1047,7 +1047,7 @@
       },
       skills: {
         passive: {
-          name: '熔遁查克拉模式', tags: ['持续', '反击'],
+          name: '熔遁查克拉模式', tags: ['持续', '增益'],
           desc: '以熔岩般的查克拉包覆全身：攻击力+6%，防御+6%；受到攻击时有30%概率使攻击者被熔岩灼烧2回合（每回合30%攻击力）。',
           stats: { atk: 0.06, def: 0.06 },
           triggers: [{ on: 'on_hit', chance: 0.3, effects: [{ type: 'status', status: 'burn', turns: 2, value: 0.3 }] }]
@@ -1117,7 +1117,7 @@
           ]
         },
         s2: {
-          name: '沸遁·蒸危暴威', tags: ['爆发', '嘲讽'], fx: 'boil', target: 'single', cd: 3,
+          name: '沸遁·怪力无双', tags: ['爆发', '嘲讽'], fx: 'boil', target: 'single', cd: 3,
           desc: '以全身蒸汽驱动的强力一击猛撞敌人，造成170%攻击力伤害；同时嘲讽敌人2回合，自身受到的伤害-15%，持续2回合。',
           effects: [
             { type: 'dmg', mult: 1.7 },
@@ -1151,7 +1151,7 @@
       bio: '泷隐村的七尾重明的人柱力，性格开朗、渴望交到朋友。能借七尾之力展翅飞行，并以秘术·鳞粉隐之术散布发光的鳞粉；被晓组织捕获后身亡，四战中以秽土转生之身被操纵参战。',
       quote: '我们来交朋友吧！先打一场再说！',
       art: {
-        type: 'human', skin: '#c98f5e', hair: 'short', hairColor: '#7ad7a2',
+        type: 'human', gender: 'f', skin: '#c98f5e', hair: 'short', hairColor: '#7ad7a2',
         eyes: 'normal', eyeColor: '#ff9a1a', outfit: 'sleeveless', outfitColor: '#f0f0f0', accentColor: '#d84a3a',
         headband: 'taki', headbandSlash: false, headbandPos: 'arm',
         marks: [], mask: 'none', hat: 'none', accessory: 'none', aura: '#c6ff5a'

@@ -2,7 +2,11 @@
 /* Engine test harness (CONTRACT §6).
  *   node tools/test-engine.js            -> all tests + quick balance report
  *   node tools/test-engine.js --fast     -> smaller sample sizes
- *   node tools/test-engine.js --sim 4    -> also run N greedy-player progression simulations (slow)
+ *   node tools/test-engine.js --sim 4    -> also run N realistic-player progression simulations (per-chapter time report)
+ *   node tools/test-engine.js --sim-only 8 [--afk 2] [--econ '{"coinsFirst":1.2}'] [--chp '[25000,…]'] [--sim-verbose]
+ *                                        -> only the progression sims (econ / CH_END_POWER overrides for experiments)
+ *   node tools/test-engine.js --calibrate 6 [--calib-n 120]  -> refit STAGE_ADJ (paste the printed block into engine.js)
+ *   Performance: the battle-performance section prints ms per 5v5 simulate().
  * Loads core.js + every js/data/*.js (names starting with "_" skipped) + engine.js into a node vm with a
  * fake localStorage. Works with whatever data files exist: if a rarity has no characters yet, synthetic
  * "_fx_*" stand-ins are added (only for that rarity) so gacha tests stay meaningful.
@@ -17,8 +21,11 @@ var ROOT = path.resolve(__dirname, '..');
 var ROSTER = require('./roster.js');
 var ARGS = process.argv.slice(2);
 var FAST = ARGS.indexOf('--fast') >= 0;
-var SIM_N = ARGS.indexOf('--sim') >= 0 ? (parseInt(ARGS[ARGS.indexOf('--sim') + 1], 10) || 3) : 0;
+var SIM_ONLY = ARGS.indexOf('--sim-only') >= 0;
+var SIM_N = SIM_ONLY ? (parseInt(ARGS[ARGS.indexOf('--sim-only') + 1], 10) || 6) :
+  ARGS.indexOf('--sim') >= 0 ? (parseInt(ARGS[ARGS.indexOf('--sim') + 1], 10) || 3) : 0;
 var t0 = Date.now();
+if (SIM_ONLY) { progressionSim(SIM_N); process.exit(0); }
 
 /* ------------------------------------------------------------------ harness */
 var passed = 0, failed = 0, warnings = [];
@@ -421,6 +428,20 @@ section('campaign');
   var c2 = G.state.coins, cl = G.claimIdle();
   ok(cl.ok && G.state.coins - c2 === cl.coins, 'claimIdle grants coins');
   eq(G.idle().seconds, 0, 'claimIdle resets timer');
+  // enemies whose data is missing are filtered out (a stage left empty gets deterministic stand-ins)
+  var cm = makeContext({ quiet: true }), N2 = cm.NG;
+  ['manda', 'gamabunta'].forEach(function (id) { var c = N2.CHAR_MAP[id]; if (c) { N2.CHARS.splice(N2.CHARS.indexOf(c), 1); delete N2.CHAR_MAP[id]; } });
+  var s48 = N2.game.stage('4-8'), s28 = N2.game.stage('2-8');
+  ok(s48 && s48.enemies.length === 2 && s48.enemies.every(function (e) { return N2.CHAR_MAP[e.id]; }) && s48.enemies.some(function (e) { return e.boss; }), 'missing enemy ids are filtered out of a lineup');
+  ok(s28 && s28.enemies.length >= 1 && s28.enemies.every(function (e) { return N2.CHAR_MAP[e.id]; }), 'a stage whose enemies are all missing gets stand-ins');
+  ok(N2.game.battleStage('4-8', 1).winner !== undefined, 'filtered stage still battles');
+  // old saves from before a stage was inserted: gaps in front of the frontier are filled on load
+  var cg = makeContext({ quiet: true }), sv = JSON.parse(ctx._store[NG.SAVE_KEY]);
+  sv.progress = { '1-1': 3, '1-2': 2, '1-4': 3, '1-5': 1 };
+  cg._store[cg.NG.SAVE_KEY] = JSON.stringify(sv);
+  var sg = cg.NG.game.init();
+  ok(sg.progress['1-3'] === 1 && sg.progress['1-4'] === 3 && !sg.progress['1-6'], 'progress gaps from older stage layouts are filled (1★) on load');
+  eq(cg.NG.game.nextStage(), '1-6', 'nextStage after gap fill is the real frontier');
   var rateEarly = G.idleRate().coins;
   chs.slice(0, 6).forEach(function (ch) { ch.stages.forEach(function (st) { G.state.progress[st.id] = 3; }); });
   ok(G.idleRate().coins > rateEarly, 'idle rate scales with progress');
@@ -743,6 +764,45 @@ var fuzzStats = { battles: 0, acts: 0, ults: 0, dmg: 0, crit: 0, skips: 0, reviv
   ok(fuzzStats.timeouts / Math.max(1, fuzzStats.battles) < 0.05, 'timeouts < 5% (' + fuzzStats.timeouts + '/' + fuzzStats.battles + ')');
 })();
 
+/* ------------------------------------------------------------------ 7b. every character at the extremes + perf */
+section('every character: finite stats, solo/boss battles, cross-instance determinism, performance');
+(function () {
+  var all = NG.CHARS.map(function (c) { return c.id; }), badStats = [], errs = [], threw = [], R = rng(31);
+  all.forEach(function (id, i) {
+    [[1, 1, 1], [100, 2, 3], [221, 4, 6], [400, 6, 10]].forEach(function (p) {
+      var s = G.stats(id, entry(id, p[0], p[1], p[2]));
+      Object.keys(s).forEach(function (k) { if (!finite(s[k])) badStats.push(id + '@' + p[0] + '.' + k); });
+      if (!(s.power > 0 && s.hp > 0 && s.atk > 0 && s.spd > 0)) badStats.push(id + '@' + p[0] + ' non-positive');
+    });
+    try {
+      errs = errs.concat(checkRecord(B.simulate([entry(id, 400, 6, 10)], [entry(id, 400, 6, 10)], { seed: i }), id + ' mirror'));
+      var boss = entry(id, 400, 6, 10); boss.boss = true; boss.hpMult = 3; boss.mult = 3;
+      var foes = pickN(all, 5, R).map(function (x) { return entry(x, 400, 6, 10); });
+      errs = errs.concat(checkRecord(B.simulate(foes, [boss], { seed: i + 1 }), id + ' boss'));
+    } catch (e) { threw.push(id + ': ' + e.message); }
+  });
+  ok(badStats.length === 0, 'every character has finite, positive stats at Lv1★1 … Lv400★6' + (badStats.length ? ': ' + badStats.slice(0, 5).join(', ') : ''));
+  ok(threw.length === 0 && errs.length === 0, 'every character fights solo (mirror) and as an elite boss without NaN/Infinity or format errors' +
+    (threw.length || errs.length ? ': ' + threw.concat(errs).slice(0, 4).join(' | ') : ''));
+  // the same battle in a separately loaded engine instance is byte-identical
+  var ids = pickN(all, 10, R), A = ids.slice(0, 5).map(function (x) { return entry(x, 300, 5, 7); }), Bt = ids.slice(5).map(function (x) { return entry(x, 300, 5, 7); });
+  var other = makeContext({ quiet: true });
+  eq(JSON.stringify(other.NG.battle.simulate(A, Bt, { seed: 77 })), JSON.stringify(B.simulate(A, Bt, { seed: 77 })), 'cross-instance determinism');
+  var st0 = G.stages(), same = st0.every(function (s) { return JSON.stringify(G.battleStage(s.id, 11).events) === JSON.stringify(G.battleStage(s.id, 11).events); });
+  ok(same, 'battleStage deterministic on all ' + st0.length + ' stages');
+  // performance
+  var M = FAST ? 200 : 600, teams = [];
+  for (var k = 0; k < M; k++) teams.push([pickN(all, 5, R).map(function (x) { return entry(x, 150, 2, 5); }), pickN(all, 5, R).map(function (x) { return entry(x, 150, 2, 5); })]);
+  for (var w = 0; w < 30; w++) B.simulate(teams[w][0], teams[w][1], { seed: w });
+  var tp = Date.now(), evn = 0;
+  teams.forEach(function (tm, j) { evn += B.simulate(tm[0], tm[1], { seed: j }).events.length; });
+  var ms = (Date.now() - tp) / M;
+  console.log('  info: simulate() 5v5 Lv150 ≈ ' + ms.toFixed(2) + ' ms/battle (' + (evn / M).toFixed(0) + ' events avg, ' + M + ' battles)');
+  ok(ms < 25, 'simulate() is fast enough for instant replays (< 25 ms per battle)');
+  var tc = Date.now(); G._internal.invalidate(); G.chapters();
+  console.log('  info: campaign build ' + (Date.now() - tc) + ' ms (cached afterwards)');
+})();
+
 /* ------------------------------------------------------------------ 8. campaign battles with real save flow */
 section('campaign smoke: auto team after opening pulls');
 (function () {
@@ -817,44 +877,64 @@ section('balance report');
 })();
 
 /* ------------------------------------------------------------------ 9b. per-stage difficulty at recommended power */
+/* Teams look like what players actually field: after the 1000-pull opening the best five are URs (UR+SSR only
+ * if the pool has fewer than 5 URs), stars run 0–2 ahead of the level (shards from dupes; ★4 awakens matter a
+ * lot), skill levels ≈ 1 + lv/38. The level is the highest whose team power ≤ the stage's recommended power. */
 function stageWinRates(g, nb, sims, seedBase) {
-  var strong = nb.CHARS.filter(function (c) { return c.rarity === 'UR' || c.rarity === 'SSR'; }).map(function (c) { return c.id; });
+  var urs = nb.CHARS.filter(function (c) { return c.rarity === 'UR'; }).map(function (c) { return c.id; });
+  var strong = urs.length >= 5 ? urs : nb.CHARS.filter(function (c) { return c.rarity === 'UR' || c.rarity === 'SSR'; }).map(function (c) { return c.id; });
   if (strong.length < 5) return null;
-  function sk(lv) { return Math.min(10, 1 + Math.floor(lv / 45)); }
-  function mk(ids, lv) { var k = sk(lv); return ids.map(function (id) { return { id: id, lv: lv, star: starFor(lv), skills: { passive: k, s1: k, s2: k, ult: k, awaken: k } }; }); }
+  function sk(lv) { return Math.min(10, 1 + Math.floor(lv / 38)); }
+  function mk(ids, lv, dst) { var k = sk(lv); return ids.map(function (id, i) { return { id: id, lv: lv, star: Math.min(6, starFor(lv) + dst[i]), skills: { passive: k, s1: k, s2: k, ult: k, awaken: k } }; }); }
   function pw(t) { return t.reduce(function (a, e) { return a + g.power(e.id, e); }, 0); }
   return g.stages().map(function (st) {
     var R = nb.battle.rng((seedBase || 0) + st.index + 1), w = 0, rounds = 0;
     for (var i = 0; i < sims; i++) {
-      var ids = pickN(strong, 5, R), lo = 1, hi = 400;
-      while (lo < hi) { var m = (lo + hi + 1) >> 1; if (pw(mk(ids, m)) <= st.power) lo = m; else hi = m - 1; }
-      var rec = nb.battle.simulate(mk(ids, lo), JSON.parse(JSON.stringify(st.enemies)), { seed: (seedBase || 0) * 1000 + i });
+      var ids = pickN(strong, 5, R), lo = 1, hi = 400, dst = [];
+      for (var d = 0; d < 5; d++) { var x = R(); dst.push(x < 0.3 ? 0 : x < 0.8 ? 1 : 2); }
+      while (lo < hi) { var m = (lo + hi + 1) >> 1; if (pw(mk(ids, m, dst)) <= st.power) lo = m; else hi = m - 1; }
+      var rec = nb.battle.simulate(mk(ids, lo, dst), JSON.parse(JSON.stringify(st.enemies)), { seed: (seedBase || 0) * 1000 + i });
       if (rec.winner === 'A') w++; rounds += rec.rounds;
     }
     return { id: st.id, w: w / sims, r: rounds / sims };
   });
 }
+/* --calibrate [iters=6] [--calib-n N=120]: per-stage root finding on ln(STAGE_ADJ) so that a player-like team (above) at
+ * exactly the recommended power wins CAL_TARGET of the time. Common random numbers (the same teams & battle seeds
+ * every iteration) keep successive measurements comparable; the step is a secant/Newton step on the measured
+ * slope (win% falls ~1.5–3.5 points per 1% of enemy strength), falling back to a conservative fixed slope. */
+var CAL_TARGET = 0.78;
 if (ARGS.indexOf('--calibrate') >= 0) {
-  section('calibrating per-stage STAGE_ADJ (target 78% win at recommended power)');
-  var I = G._internal, adj = JSON.parse(JSON.stringify(I.getStageAdj())), iters = parseInt(ARGS[ARGS.indexOf('--calibrate') + 1], 10) || 4;
+  section('calibrating per-stage STAGE_ADJ (target ' + CAL_TARGET * 100 + '% win at recommended power)');
+  var I = G._internal, adj = JSON.parse(JSON.stringify(I.getStageAdj())), iters = parseInt(ARGS[ARGS.indexOf('--calibrate') + 1], 10) || 6;
+  var calN = ARGS.indexOf('--calib-n') >= 0 ? parseInt(ARGS[ARGS.indexOf('--calib-n') + 1], 10) || 120 : 120;
+  var hist = {};
   for (var it = 0; it < iters; it++) {
     I.setStageAdj(adj);
-    var rows = stageWinRates(G, NG, 60 + it * 20, it * 7);
+    var rows = stageWinRates(G, NG, calN, 4242);
     rows.forEach(function (x) {
-      var f = Math.exp((x.w - 0.78) / 1.2);
-      adj[x.id] = Math.round(Math.min(2, Math.max(0.5, (adj[x.id] || 1) * Math.min(1.3, Math.max(0.75, f)))) * 100) / 100;
+      var la = Math.log(adj[x.id] || 1), h = hist[x.id], slope = -2.2;
+      if (h && Math.abs(la - h.la) > 0.005 && Math.abs(x.w - h.w) > 0.02) slope = Math.max(-6, Math.min(-0.8, (x.w - h.w) / (la - h.la)));
+      hist[x.id] = { la: la, w: x.w };
+      var step = Math.max(-0.2, Math.min(0.2, (x.w - CAL_TARGET) / -slope));
+      if (Math.abs(x.w - CAL_TARGET) < 0.025) step = 0;            // within sampling noise: leave it
+      adj[x.id] = Math.round(Math.min(2, Math.max(0.5, Math.exp(la + step))) * 100) / 100;
     });
     var ws = rows.map(function (x) { return x.w; }).sort(function (a, b) { return a - b; });
-    console.log('  iter ' + (it + 1) + ': win% min ' + (ws[0] * 100).toFixed(0) + ' p10 ' + (ws[Math.floor(ws.length * 0.1)] * 100).toFixed(0) + ' median ' + (ws[ws.length >> 1] * 100).toFixed(0) + ' p90 ' + (ws[Math.floor(ws.length * 0.9)] * 100).toFixed(0));
+    var mad = rows.reduce(function (a, x) { return a + Math.abs(x.w - CAL_TARGET); }, 0) / rows.length;
+    console.log('  iter ' + (it + 1) + ' (n=' + calN + '): win% min ' + (ws[0] * 100).toFixed(0) + ' p10 ' + (ws[Math.floor(ws.length * 0.1)] * 100).toFixed(0) + ' median ' + (ws[ws.length >> 1] * 100).toFixed(0) +
+      ' p90 ' + (ws[Math.floor(ws.length * 0.9)] * 100).toFixed(0) + ', mean |win−target| ' + (mad * 100).toFixed(1));
   }
-  var keys = Object.keys(adj).filter(function (k) { return adj[k] !== 1; });
+  var keys = Object.keys(adj).filter(function (k) { return adj[k] !== 1; }).sort(function (a, b) {
+    var x = a.split('-').map(Number), y = b.split('-').map(Number); return (x[0] - y[0]) || (x[1] - y[1]);
+  });
   console.log('\n  var STAGE_ADJ = {');
   var line = '   ';
   keys.forEach(function (k, i) { var t = " '" + k + "': " + adj[k] + (i < keys.length - 1 ? ',' : ''); if (line.length + t.length > 110) { console.log(line); line = '   '; } line += t; });
   console.log(line + '\n  };');
 }
 
-section('per-stage difficulty (UR/SSR team at exactly the recommended power)');
+section('per-stage difficulty (player-like UR team at exactly the recommended power)');
 (function () {
   var rows = stageWinRates(G, NG, FAST ? 12 : 30, 99);
   if (!rows) { console.log('  skipped (fewer than 5 UR/SSR characters)'); return; }
@@ -868,57 +948,105 @@ section('per-stage difficulty (UR/SSR team at exactly the recommended power)');
 })();
 
 /* ------------------------------------------------------------------ 10. optional progression sim */
-if (SIM_N) {
-  section('progression simulation (' + SIM_N + ' greedy players)');
-  for (var sd = 1; sd <= SIM_N; sd++) {
-    var c = makeContext({ quiet: true }), g = c.NG.game, T = 1.8e12;
+/* A "realistic" player: fresh save → 10 × 100-pull → autoTeam → spend everything on the best five (star-ups,
+ * cheap skill levels, then levels evenly) → play the campaign in order. Time model (active play): a first
+ * attempt is watched at ×2 (10 s intro/result + 0.55 s per action + 1 s per ult cut-in), retries are skipped
+ * (12 s), each spending session costs a few seconds of taps. After 3 losses in a row the player goes away for
+ * --afk hours (default 2, offline: AFK income keeps accruing, it is not active time), claims the chest,
+ * spends and tries again. Reports active/wall-clock time per chapter. */
+function progressionSim(n) {
+  var afkH = ARGS.indexOf('--afk') >= 0 ? parseFloat(ARGS[ARGS.indexOf('--afk') + 1]) || 2 : 2;
+  var econ = ARGS.indexOf('--econ') >= 0 ? JSON.parse(ARGS[ARGS.indexOf('--econ') + 1]) : null;
+  var verbose = ARGS.indexOf('--sim-verbose') >= 0;
+  var chp = ARGS.indexOf('--chp') >= 0 ? JSON.parse(ARGS[ARGS.indexOf('--chp') + 1]) : null;   // CH_END_POWER override (experiments)
+  console.log('\n== progression simulation (' + n + ' players, AFK break ' + afkH + 'h when stuck' + (econ ? ', econ ' + JSON.stringify(econ) : '') + ')');
+  var agg = {}, totals = [], stageLoss = {};
+  function med(a) { var s = a.slice().sort(function (x, y) { return x - y; }); return s.length ? s[s.length >> 1] : 0; }
+  function mean(a) { return a.length ? a.reduce(function (x, y) { return x + y; }, 0) / a.length : 0; }
+  for (var sd = 1; sd <= n; sd++) {
+    var c = makeContext({ quiet: true }), g = c.NG.game, NGc = c.NG, T0 = 1.8e12, T = T0;
+    if (econ) Object.keys(econ).forEach(function (k) { g.econ[k] = econ[k]; });
+    if (chp) chp.forEach(function (v, i) { if (v) g._internal.CH_END_POWER[i] = v; });
     g._setClock(function () { return T; });
-    g.reset(); g.state.rng = sd;
-    var R = c.NG.battle.rng(sd), fights = 0, losses = 0;
+    g.reset(); g.state.rng = sd * 7919;
+    var R = NGc.battle.rng(sd), active = 0, afk = 0, fights = 0, losses = 0, attempts = 0, seen = {};
+    var play = function (sec) { active += sec; T += sec * 1000; };
+    var battleSecs = function (rec, watched) {
+      if (!watched) return 12;
+      var acts = 0, ults = 0;
+      rec.events.forEach(function (e) { if (e.t === 'act') { acts++; if (e.skill === 'ult') ults++; } });
+      return 10 + acts * 0.55 + ults;
+    };
     var spend = function () {
-      var s = g.state;
-      while (s.tickets >= 100) g.summon(100);
-      while (s.tickets >= 10) g.summon(10);
-      while (s.gems >= 1500) g.summon(10);
-      Object.keys(s.roster).forEach(function (id) { while (g.starUp(id).ok); });
+      var s = g.state, t = 0, q;
+      while (s.tickets >= 100) { g.summon(100); t += 15; }
+      while (s.tickets >= 10) { g.summon(10); t += 6; }
+      while (s.gems >= 1500) { g.summon(10); t += 6; }
+      Object.keys(s.roster).forEach(function (id) { while (g.starUp(id).ok) t += 2; });
       var top = Math.max.apply(null, s.team.map(function (id) { return g.owned(id) ? g.owned(id).lv : 1; }).concat([1]));
       var ranked = g.ownedList().map(function (x) { var lv = Math.min(g.maxLevel(x.id), Math.max(x.e.lv, top)); return { id: x.id, p: g.power(x.id, { lv: lv, star: x.e.star, skills: x.e.skills }) }; })
         .sort(function (a, b) { return b.p - a.p; }).slice(0, 5).map(function (x) { return x.id; });
-      g.setTeam(ranked);
-      for (var q = 0; q < 300; q++) {
+      if (ranked.join() !== s.team.join()) { g.setTeam(ranked); t += 10; }
+      for (q = 0; q < 300; q++) {
         var best = null;
         s.team.forEach(function (id) { ['ult', 's2', 's1', 'passive', 'awaken'].forEach(function (k) { if (!g.skillUnlocked(id, k)) return; var cc = g.skillCost(id, k); if (cc && cc.scrolls <= s.scrolls && cc.coins <= s.coins * 0.1 && (!best || cc.scrolls < best.c.scrolls)) best = { id: id, k: k, c: cc }; }); });
-        if (!best) break; g.skillUp(best.id, best.k);
+        if (!best) break; g.skillUp(best.id, best.k); t += 1;
       }
-      for (var q2 = 0; q2 < 3000; q2++) {
+      var lv0 = s.team.reduce(function (a, id) { return a + g.owned(id).lv; }, 0);
+      for (q = 0; q < 3000; q++) {
         var cand = s.team.map(function (id) { return { id: id, e: g.owned(id) }; }).filter(function (x) { return x.e.lv < g.maxLevel(x.id); }).sort(function (a, b) { return a.e.lv - b.e.lv; })[0];
         if (!cand || !g.levelUp(cand.id, 1).ok) break;
       }
+      if (s.team.reduce(function (a, id) { return a + g.owned(id).lv; }, 0) > lv0) t += 8;
+      return t;
     };
-    spend();
-    var consecutive = 0, reachedFinal = null;
-    for (var step = 0; step < 1500; step++) {
+    for (var i = 0; i < 10; i++) g.summon(100);
+    g.autoTeam(); spend();
+    var openPower = g.teamPower(), ch = {}, cur = 0, chStart = 0, chAfk = 0, chLoss = 0, chFirst = 0, chWin1 = 0, chRatio = 0;
+    var close = function () { if (cur) ch[cur] = { act: active - chStart, cum: active, wall: (T - T0) / 1000, afk: chAfk, loss: chLoss, win1: chFirst ? chWin1 / chFirst : 1, ratio: chRatio }; };
+    for (var step = 0; step < 5000; step++) {
       var sid = g.nextStage(); if (!sid) break;
       var stg = g.stage(sid);
-      if (stg.ch === 14 && reachedFinal === null) reachedFinal = (T - 1.8e12) / 3600e3;
+      if (stg.ch !== cur && verbose) console.log('    ' + sid + ' reco ' + NGc.fmt(stg.power) + ' team ' + NGc.fmt(g.teamPower()) + ' coins ' + NGc.fmt(g.state.coins) + ' [' +
+        g.state.team.map(function (id) { var e = g.owned(id); return 'Lv' + e.lv + '/' + g.maxLevel(id) + '★' + e.star + ' ' + e.shards + '/' + (g.starCost(id) || '-'); }).join(', ') + '] ' + (active / 3600).toFixed(2) + 'h, AFK so far ' + afk);
+      if (stg.ch !== cur) { close(); cur = stg.ch; chStart = active; chAfk = 0; chLoss = 0; chFirst = 0; chWin1 = 0; chRatio = g.teamPower() / stg.power; }
+      var watched = !seen[sid]; seen[sid] = 1;
       var rec = g.battleStage(sid, Math.floor(R() * 1e9)); fights++;
-      T += (15 + rec.rounds * 4) * 1000 + 10000;
-      if (g.finishStage(sid, rec).win) consecutive = 0;
+      play(battleSecs(rec, watched));
+      var fin = g.finishStage(sid, rec);
+      if (watched) { chFirst++; if (fin.win) chWin1++; }
+      if (fin.win) attempts = 0;
       else {
-        losses++; consecutive++;
-        if (consecutive >= 2) {
-          var prev = g.stages()[stg.index - 1];
-          for (var f = 0; f < 3 && prev; f++) { var r2 = g.battleStage(prev.id, Math.floor(R() * 1e9)); T += (15 + r2.rounds * 4) * 1000 + 5000; g.finishStage(prev.id, r2); }
-        }
+        losses++; chLoss++; stageLoss[sid] = (stageLoss[sid] || 0) + 1;
+        if (++attempts >= 3) { afk++; chAfk++; T += afkH * 3600e3; attempts = 0; }
       }
-      g.claimIdle(); spend();
+      if ((g.idle().seconds >= 600 || !fin.win) && g.claimIdle().ok) play(3);
+      play(spend());
     }
-    var hours = (T - 1.8e12) / 3600e3;
-    console.log('  player ' + sd + ': reached ch14 after ' + (reachedFinal === null ? '—' : reachedFinal.toFixed(2) + 'h') + ', ' +
-      (g.nextStage() ? 'stopped at ' + g.nextStage() : 'cleared everything') + ' after ' + hours.toFixed(2) + 'h; ' + fights + ' fights, ' + losses + ' losses, ' +
-      g.state.totalPulls + ' pulls, final power ' + c.NG.fmt(g.teamPower()) + ' [' + g.state.team.map(function (id) { var e = g.owned(id); return c.NG.CHAR_MAP[id].rarity + ' Lv' + e.lv + '★' + e.star; }).join(', ') + ']');
+    close();
+    var done = !g.nextStage();
+    totals.push({ act: active, wall: (T - T0) / 1000, done: done });
+    console.log('  player ' + sd + ': opening power ' + NGc.fmt(openPower) + ' → ' + (done ? 'cleared everything' : 'stuck at ' + g.nextStage()) + ' after ' + (active / 3600).toFixed(2) + 'h active / ' +
+      ((T - T0) / 3600e3).toFixed(1) + 'h wall-clock; ' + fights + ' fights, ' + losses + ' losses, ' + afk + ' AFK breaks, ' + g.state.totalPulls + ' pulls; team [' +
+      g.state.team.map(function (id) { var e = g.owned(id); return NGc.CHAR_MAP[id].rarity + ' Lv' + e.lv + '★' + e.star; }).join(', ') + '] ' + NGc.fmt(g.teamPower()));
+    Object.keys(ch).forEach(function (k) {
+      var x = ch[k], a = agg[k] = agg[k] || { act: [], cum: [], wall: [], afk: [], loss: [], win1: [], ratio: [] };
+      Object.keys(a).forEach(function (q) { a[q].push(x[q]); });
+    });
   }
+  console.log('  chapter          active min  cum active h  cum wall h  1st-try win  AFK breaks  losses  power/reco at start   (medians; breaks & losses are means)');
+  Object.keys(agg).sort(function (a, b) { return a - b; }).forEach(function (k) {
+    var a = agg[k];
+    console.log('  ' + ('ch' + k).padEnd(15) + (med(a.act) / 60).toFixed(1).padStart(10) + (med(a.cum) / 3600).toFixed(2).padStart(14) + (med(a.wall) / 3600).toFixed(1).padStart(12) +
+      ((med(a.win1) * 100).toFixed(0) + '%').padStart(13) + mean(a.afk).toFixed(1).padStart(12) + mean(a.loss).toFixed(1).padStart(8) + med(a.ratio).toFixed(2).padStart(12));
+  });
+  var worst = Object.keys(stageLoss).sort(function (a, b) { return stageLoss[b] - stageLoss[a]; }).slice(0, 10);
+  console.log('  most losses: ' + worst.map(function (k) { return k + ' ×' + stageLoss[k]; }).join(', '));
+  var cleared = totals.filter(function (x) { return x.done; });
+  console.log('  → ' + cleared.length + '/' + totals.length + ' players cleared the campaign; median ' + (med(cleared.map(function (x) { return x.act; })) / 3600).toFixed(2) + 'h active, ' +
+    (med(cleared.map(function (x) { return x.wall; })) / 3600).toFixed(1) + 'h wall-clock');
 }
+if (SIM_N) progressionSim(SIM_N);
 
 /* ------------------------------------------------------------------ summary */
 console.log('\n' + (failed ? 'FAILED' : 'OK') + ': ' + passed + ' passed, ' + failed + ' failed (' + ((Date.now() - t0) / 1000).toFixed(1) + 's)');

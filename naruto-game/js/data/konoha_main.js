@@ -120,7 +120,7 @@
       art: {
         type: 'human', skin: '#f5cfa8', hair: 'spiky', hairColor: '#ffcf1a',
         eyes: 'kurama', eyeColor: '#ff8a00',
-        outfit: 'cloak', outfitColor: '#ffb300', accentColor: '#1b1b1b',
+        outfit: 'chakra_cloak', outfitColor: '#ffb300', accentColor: '#1b1b1b',
         headband: 'allied', headbandSlash: false, headbandPos: 'forehead',
         marks: ['kurama_marks'], mask: 'none', hat: 'none', accessory: 'none', aura: '#ffcc00'
       },
@@ -173,11 +173,11 @@
       },
       skills: {
         passive: {
-          name: '六道仙术', tags: ['增益', '反击'],
-          desc: '攻击力+10%，伤害减免+10%；战斗开始时免疫控制2回合；受到攻击时有25%概率以求道玉反击，对攻击者造成50%攻击力伤害。',
+          name: '六道仙术', tags: ['增益', '反击', '回能'],
+          desc: '攻击力+10%，伤害减免+10%；战斗开始时获得20点查克拉，并免疫控制2回合；受到攻击时有25%概率以求道玉反击，对攻击者造成50%攻击力伤害。',
           stats: { atk: 0.1, dr: 0.1 },
           triggers: [
-            { on: 'battle_start', effects: [{ type: 'immune', turns: 2 }] },
+            { on: 'battle_start', effects: [{ type: 'chakra', value: 20 }, { type: 'immune', turns: 2 }] },
             { on: 'on_hit', chance: 0.25, effects: [{ type: 'dmg', mult: 0.5 }] }
           ]
         },
@@ -187,16 +187,17 @@
           effects: [{ type: 'dmg', mult: 1.25, pierce: 0.3 }]
         },
         s2: {
-          name: '仙法·熔遁螺旋手里剑', tags: ['群攻', '持续'], fx: 'lava', target: 'all', cd: 3,
-          desc: '借孙悟空的熔遁查克拉投出熔遁螺旋手里剑，对全体敌人造成110%攻击力伤害，并使其灼烧2回合（每回合30%攻击力）。',
+          name: '仙法·熔遁螺旋手里剑', tags: ['群攻', '持续', '控制'], fx: 'lava', target: 'all', cd: 3,
+          desc: '借孙悟空的熔遁查克拉投出熔遁螺旋手里剑，对全体敌人造成110%攻击力伤害，使其灼烧2回合（每回合30%攻击力），并有20%概率使其眩晕1回合。',
           effects: [
             { type: 'dmg', mult: 1.1 },
-            { type: 'status', status: 'burn', turns: 2, value: 0.3 }
+            { type: 'status', status: 'burn', turns: 2, value: 0.3 },
+            { type: 'status', status: 'stun', turns: 1, chance: 0.2 }
           ]
         },
         ult: {
-          name: '六道·超大玉螺旋多连手里剑', tags: ['群攻', '爆发'], fx: 'rasengan', target: 'all',
-          desc: '以六道之力同时凝聚多颗超大玉螺旋手里剑轰击敌阵：先驱散全体敌人的所有增益与护盾，再造成4段共224%攻击力伤害。',
+          name: '六道·超大玉螺旋手里剑', tags: ['群攻', '爆发'], fx: 'rasengan', target: 'all',
+          desc: '以六道之力凝聚出巨大的超大玉螺旋手里剑轰击敌阵：先驱散全体敌人的所有增益与护盾，再造成4段共224%攻击力伤害。',
           effects: [
             { type: 'dispel' },
             { type: 'dmg', mult: 0.56, hits: 4 }
@@ -218,7 +219,7 @@
     {
       id: 'sasuke', name: '宇智波佐助', form: '少年篇', en: 'Uchiha Sasuke', title: '宇智波的遗孤',
       faction: 'konoha', rarity: 'SR', role: 'atk', element: 'lightning', tags: ['输出', '爆发'],
-      stats: { hp: 0.92, atk: 1.15, def: 0.9, spd: 122 },
+      stats: { hp: 0.92, atk: 1.15, def: 0.9, spd: 126 },
       bio: '宇智波一族灭族之夜唯一的幸存者，立志向哥哥宇智波鼬复仇。作为第七班的一员开启了写轮眼，并跟随卡卡西学会了千鸟。',
       quote: '我要复兴一族，并杀掉某个男人。',
       art: {
@@ -231,8 +232,8 @@
       skills: {
         passive: {
           name: '写轮眼', tags: ['增益', '闪避'],
-          desc: '三勾玉写轮眼看穿对手的动作：暴击率+10%，闪避率+8%。',
-          stats: { crit: 0.1, dodge: 0.08 }
+          desc: '三勾玉写轮眼看穿对手的动作：攻击力+8%，暴击率+10%，闪避率+8%。',
+          stats: { atk: 0.08, crit: 0.1, dodge: 0.08 }
         },
         s1: {
           name: '火遁·豪火球之术', tags: ['输出', '持续'], fx: 'fire', target: 'single', cd: 0,
@@ -259,10 +260,10 @@
           ]
         },
         awaken: {
-          name: '天之咒印', tags: ['增益', '爆发'],
-          desc: '攻击力+12%；生命首次低于30%时咒印扩散至状态二，攻击力提升35%、暴击率提升15%，持续3回合。',
+          name: '天之咒印', tags: ['增益', '爆发', '回能'],
+          desc: '攻击力+12%；战斗开始时咒印之力涌出，获得20点查克拉；生命首次低于30%时咒印扩散至状态二，攻击力提升35%、暴击率提升15%，持续3回合。',
           stats: { atk: 0.12 },
-          triggers: [{ on: 'low_hp', effects: [
+          triggers: [{ on: 'battle_start', effects: [{ type: 'chakra', value: 20 }] }, { on: 'low_hp', effects: [
             { type: 'buff', stat: 'atk', value: 0.35, turns: 3 },
             { type: 'buff', stat: 'crit', value: 0.15, turns: 3 }
           ] }]
@@ -316,7 +317,7 @@
     {
       id: 'sasuke_rinnegan', name: '宇智波佐助', form: '轮回眼', en: 'Uchiha Sasuke', title: '因陀罗转世',
       faction: 'konoha', rarity: 'UR', role: 'atk', element: 'yin', tags: ['输出', '爆发', '斩杀'],
-      stats: { hp: 0.95, atk: 1.18, def: 0.9, spd: 126 },
+      stats: { hp: 0.95, atk: 1.18, def: 0.9, spd: 132 },
       bio: '获得六道仙人赐予的阴之力，左眼开启轮回眼，能以天手力瞬间交换物体的位置。大战后他在终结之谷与鸣人决战，失去左臂后终于放下仇恨，踏上赎罪之旅。',
       quote: '鸣人……你是我唯一的朋友。',
       art: {
@@ -327,10 +328,13 @@
       },
       skills: {
         passive: {
-          name: '轮回眼·天手力', tags: ['闪避', '反击'],
-          desc: '暴击率+12%，闪避率+12%；受到攻击时有25%概率发动天手力与攻击者瞬间换位并反击，造成80%攻击力伤害。',
-          stats: { crit: 0.12, dodge: 0.12 },
-          triggers: [{ on: 'on_hit', chance: 0.25, effects: [{ type: 'dmg', mult: 0.8 }] }]
+          name: '轮回眼·天手力', tags: ['闪避', '反击', '回能'],
+          desc: '攻击力+8%，暴击率+12%，闪避率+12%；战斗开始时获得20点查克拉；受到攻击时有25%概率发动天手力与攻击者瞬间换位并反击，造成80%攻击力伤害。',
+          stats: { atk: 0.08, crit: 0.12, dodge: 0.12 },
+          triggers: [
+            { on: 'battle_start', effects: [{ type: 'chakra', value: 20 }] },
+            { on: 'on_hit', chance: 0.25, effects: [{ type: 'dmg', mult: 0.8 }] }
+          ]
         },
         s1: {
           name: '千鸟锐枪', tags: ['输出', '穿透'], fx: 'chidori', target: 'single', cd: 0,
@@ -338,10 +342,11 @@
           effects: [{ type: 'dmg', mult: 1.25, pierce: 0.25 }]
         },
         s2: {
-          name: '完成体须佐能乎', tags: ['群攻', '护盾'], fx: 'susanoo', target: 'all', cd: 3,
-          desc: '召唤完成体须佐能乎挥刀斩向敌阵，对全体敌人造成110%攻击力伤害，并获得相当于自身攻击力80%的护盾，持续2回合。',
+          name: '完成体须佐能乎', tags: ['群攻', '护盾', '控制'], fx: 'susanoo', target: 'all', cd: 3,
+          desc: '召唤完成体须佐能乎挥刀斩向敌阵，对全体敌人造成110%攻击力伤害，并有30%概率使其眩晕1回合；同时获得相当于自身攻击力80%的护盾，持续2回合。',
           effects: [
             { type: 'dmg', mult: 1.1 },
+            { type: 'status', status: 'stun', turns: 1, chance: 0.3 },
             { type: 'shield', mult: 0.8, turns: 2, to: 'self' }
           ]
         },
@@ -370,7 +375,7 @@
       bio: '第七班的成员，忍校理论成绩优秀，擅长精密的查克拉控制，一心喜欢着佐助。中忍考试的死亡森林里，她剪断长发独自守护昏迷的同伴，第一部结尾拜纲手为师。',
       quote: '这次换我来保护你们！',
       art: {
-        type: 'human', skin: '#f8dcc4', hair: 'long_straight', hairColor: '#f7a8c8',
+        type: 'human', gender: 'f', skin: '#f8dcc4', hair: 'long_straight', hairColor: '#f7a8c8',
         eyes: 'normal', eyeColor: '#5fbf6a',
         outfit: 'qipao', outfitColor: '#d9334a', accentColor: '#f5e6d3',
         headband: 'konoha', headbandSlash: false, headbandPos: 'hair',
@@ -393,10 +398,10 @@
         },
         s2: {
           name: '幻术·解', tags: ['净化', '护盾'], fx: 'genjutsu', target: 'ally_all', cd: 3,
-          desc: '看穿并解除幻术：净化全体友方的减益与异常状态，并为其提供相当于春野樱攻击力50%的护盾，持续2回合。',
+          desc: '看穿并解除幻术：净化全体友方的减益与异常状态，并为其提供相当于春野樱攻击力80%的护盾，持续2回合。',
           effects: [
             { type: 'cleanse', to: 'ally_all' },
-            { type: 'shield', mult: 0.5, turns: 2 }
+            { type: 'shield', mult: 0.8, turns: 2 }
           ]
         },
         ult: {
@@ -423,7 +428,7 @@
       bio: '师从五代目火影纲手，成为顶尖的医疗忍者，拥有一拳碎地的怪力。第四次忍界大战中她解放了额头积蓄三年查克拉的百豪之印，在战场上救治同伴，并与鸣人、佐助并肩作战。',
       quote: '我不会再被你们甩在身后了！',
       art: {
-        type: 'human', skin: '#f8dcc4', hair: 'bob', hairColor: '#f49ac1',
+        type: 'human', gender: 'f', skin: '#f8dcc4', hair: 'bob', hairColor: '#f49ac1',
         eyes: 'normal', eyeColor: '#4fb36a',
         outfit: 'sleeveless', outfitColor: '#c8233c', accentColor: '#f3d3e0',
         headband: 'allied', headbandSlash: false, headbandPos: 'hair',
@@ -541,10 +546,10 @@
       },
       skills: {
         passive: {
-          name: '拷贝忍者', tags: ['增益', '回能'],
-          desc: '掌握一千种以上的忍术：暴击率+10%，攻击力+8%；攻击命中后有20%概率回复10点查克拉。',
-          stats: { crit: 0.1, atk: 0.08 },
-          triggers: [{ on: 'on_attack', chance: 0.2, effects: [{ type: 'chakra', value: 10 }] }]
+          name: '拷贝忍者', tags: ['增益', '闪避', '回能'],
+          desc: '掌握一千种以上的忍术，写轮眼看穿对手的招式：暴击率+10%，攻击力+8%，闪避率+10%；战斗开始时获得30点查克拉。',
+          stats: { crit: 0.1, atk: 0.08, dodge: 0.1 },
+          triggers: [{ on: 'battle_start', effects: [{ type: 'chakra', value: 30 }] }]
         },
         s1: {
           name: '雷切', tags: ['输出', '穿透'], fx: 'chidori', target: 'single', cd: 0,
@@ -560,19 +565,20 @@
           ]
         },
         ult: {
-          name: '神威', tags: ['爆发', '穿透'], fx: 'kamui', target: 'single',
-          desc: '以万花筒写轮眼扭曲目标周围的空间：先驱散其所有增益与护盾，再造成280%攻击力伤害（无视50%防御），并额外造成目标最大生命值12%的真实伤害。',
+          name: '神威', tags: ['爆发', '穿透', '控制'], fx: 'kamui', target: 'single',
+          desc: '以万花筒写轮眼扭曲目标周围的空间：先驱散其所有增益与护盾，再造成280%攻击力伤害（无视50%防御），额外造成目标最大生命值12%的真实伤害，并将其半身吸入异空间，使其束缚1回合。',
           effects: [
             { type: 'dispel' },
             { type: 'dmg', mult: 2.8, pierce: 0.5 },
-            { type: 'true_dmg', pct: 0.12 }
+            { type: 'true_dmg', pct: 0.12 },
+            { type: 'status', status: 'bind', turns: 1 }
           ]
         },
         awaken: {
           name: '万花筒写轮眼', tags: ['增益', '穿透'],
-          desc: '攻击力+12%；攻击命中后有15%概率以神威扭曲目标所在的空间，额外造成其最大生命值6%的真实伤害。',
-          stats: { atk: 0.12 },
-          triggers: [{ on: 'on_attack', chance: 0.15, effects: [{ type: 'true_dmg', pct: 0.06 }] }]
+          desc: '攻击力+12%，闪避率+8%；攻击命中后有25%概率以神威扭曲目标所在的空间，额外造成其最大生命值8%的真实伤害。',
+          stats: { atk: 0.12, dodge: 0.08 },
+          triggers: [{ on: 'on_attack', chance: 0.25, effects: [{ type: 'true_dmg', pct: 0.08 }] }]
         }
       }
     },
@@ -580,7 +586,7 @@
     {
       id: 'kakashi_susanoo', name: '旗木卡卡西', form: '完成体须佐能乎', en: 'Hatake Kakashi', title: '六代目火影',
       faction: 'konoha', rarity: 'UR', role: 'atk', element: 'lightning', tags: ['输出', '群攻', '护盾'],
-      stats: { hp: 1.0, atk: 1.12, def: 0.95, spd: 128 },
+      stats: { hp: 1.0, atk: 1.12, def: 0.95, spd: 134 },
       bio: '与大筒木辉夜决战时，已逝的带土以灵魂之姿将双眼万花筒写轮眼的瞳力借给卡卡西。短暂拥有双万花筒的卡卡西开启了完成体须佐能乎，以神威手里剑守护第七班。',
       quote: '带土，借你的力量一用！',
       art: {
@@ -604,14 +610,15 @@
         },
         s2: {
           name: '神威手里剑', tags: ['群攻', '穿透'], fx: 'kamui', target: 'random', count: 3, cd: 3,
-          desc: '须佐能乎掷出附带神威之力的手里剑，随机攻击3名敌人，各造成85%攻击力伤害并无视其40%防御。',
-          effects: [{ type: 'dmg', mult: 0.85, pierce: 0.4 }]
+          desc: '须佐能乎掷出附带神威之力的手里剑，随机攻击3名敌人，各造成85%攻击力伤害并无视其40%防御，命中处的空间被神威扭曲，额外造成其最大生命值6%的真实伤害。',
+          effects: [{ type: 'dmg', mult: 0.85, pierce: 0.4 }, { type: 'true_dmg', pct: 0.06 }]
         },
         ult: {
-          name: '完成体须佐能乎', tags: ['群攻', '护盾', '爆发'], fx: 'susanoo', target: 'all',
-          desc: '以双万花筒写轮眼开启完成体须佐能乎，挥刃斩向全体敌人，造成3段共225%攻击力伤害，并使全体友方受到的伤害降低20%，持续2回合。',
+          name: '完成体须佐能乎', tags: ['群攻', '增益', '控制'], fx: 'susanoo', target: 'all',
+          desc: '以双万花筒写轮眼开启完成体须佐能乎，挥刃斩向全体敌人，造成3段共225%攻击力伤害，并有30%概率使其眩晕1回合，同时使全体友方受到的伤害降低20%，持续2回合。',
           effects: [
             { type: 'dmg', mult: 0.75, hits: 3 },
+            { type: 'status', status: 'stun', turns: 1, chance: 0.3 },
             { type: 'buff', stat: 'dr', value: 0.2, turns: 2, to: 'ally_all' }
           ]
         },
@@ -798,24 +805,25 @@
         eyes: 'normal', eyeColor: '#3a2a1a',
         outfit: 'shirt', outfitColor: '#e3c34d', accentColor: '#2f5fb3',
         headband: 'konoha', headbandSlash: false, headbandPos: 'forehead',
-        marks: [], mask: 'none', hat: 'none', accessory: 'none', aura: '#ff9a3c'
+        marks: [], mask: 'none', hat: 'none', accessory: 'scarf', scarfColor: '#2f5fb3', aura: '#ff9a3c'
       },
       skills: {
         passive: {
           name: '木叶丸军团', tags: ['增益', '回能'],
-          desc: '攻击力+5%，闪避率+5%；战斗开始时获得20点查克拉。',
+          desc: '攻击力+5%，闪避率+5%；战斗开始时获得30点查克拉。',
           stats: { atk: 0.05, dodge: 0.05 },
-          triggers: [{ on: 'battle_start', effects: [{ type: 'chakra', value: 20 }] }]
+          triggers: [{ on: 'battle_start', effects: [{ type: 'chakra', value: 30 }] }]
         },
         s1: {
           name: '影分身之术', tags: ['输出'], fx: 'clone', target: 'single', cd: 0,
-          desc: '和影分身一起扑向敌人，造成2段共100%攻击力伤害。',
-          effects: [{ type: 'dmg', mult: 0.5, hits: 2 }]
+          desc: '和影分身一起扑向敌人，造成2段共110%攻击力伤害。',
+          effects: [{ type: 'dmg', mult: 0.55, hits: 2 }]
         },
         s2: {
           name: '色诱术', tags: ['控制', '减益'], fx: 'genjutsu', target: 'single', cd: 3,
-          desc: '变身成性感美女让敌人看呆：有60%概率使目标眩晕1回合，并使其防御力降低20%，持续2回合。',
+          desc: '变身成性感美女让敌人看呆，再趁机偷袭：造成80%攻击力伤害，有60%概率使目标眩晕1回合，并使其防御力降低20%，持续2回合。',
           effects: [
+            { type: 'dmg', mult: 0.8 },
             { type: 'status', status: 'stun', turns: 1, chance: 0.6 },
             { type: 'debuff', stat: 'def', value: 0.2, turns: 2 }
           ]
@@ -847,7 +855,7 @@
       bio: '木叶丸军团中唯一的女孩，扎着两个冲天辫，性格活泼要强。她和木叶丸、乌冬一起追随鸣人的脚步努力修行，梦想成为出色的女忍者。',
       quote: '我可不会输给男孩子！',
       art: {
-        type: 'human', skin: '#f8dcc4', hair: 'twin_tails', hairColor: '#e86a2b',
+        type: 'human', gender: 'f', skin: '#f8dcc4', hair: 'twin_tails', hairColor: '#e86a2b',
         eyes: 'normal', eyeColor: '#3a2a1a',
         outfit: 'shirt', outfitColor: '#e45a6a', accentColor: '#f2e2c2',
         headband: 'konoha', headbandSlash: false, headbandPos: 'forehead',
@@ -869,11 +877,12 @@
           ]
         },
         s2: {
-          name: '起爆符', tags: ['输出', '持续'], fx: 'explosion', target: 'single', cd: 3,
-          desc: '将贴着起爆符的苦无掷向敌人，造成155%攻击力伤害，并有30%概率使其灼烧2回合（每回合30%攻击力）。',
+          name: '起爆符', tags: ['输出', '持续', '控制'], fx: 'explosion', target: 'single', cd: 3,
+          desc: '将贴着起爆符的苦无掷向敌人，造成155%攻击力伤害，并有30%概率使其灼烧2回合（每回合30%攻击力），爆炸的冲击还有30%概率使其眩晕1回合。',
           effects: [
             { type: 'dmg', mult: 1.55 },
-            { type: 'status', status: 'burn', turns: 2, chance: 0.3, value: 0.3 }
+            { type: 'status', status: 'burn', turns: 2, chance: 0.3, value: 0.3 },
+            { type: 'status', status: 'stun', turns: 1, chance: 0.3 }
           ]
         },
         ult: {
@@ -897,7 +906,7 @@
     {
       id: 'udon', name: '乌冬', form: '', en: 'Udon', title: '军团参谋',
       faction: 'konoha', rarity: 'R', role: 'ctrl', element: 'none', tags: ['控制', '减益'],
-      stats: { hp: 1.0, atk: 0.95, def: 1.05, spd: 92 },
+      stats: { hp: 1.0, atk: 0.95, def: 1.05, spd: 100 },
       bio: '木叶丸军团的成员，戴着圆眼镜、总是挂着鼻涕的少年，性格沉稳、擅长计算。他和木叶丸、萌黄一起修行，梦想成为独当一面的忍者。',
       quote: '我、我也会努力的……',
       art: {
@@ -928,11 +937,12 @@
           ]
         },
         ult: {
-          name: '撒菱之术', tags: ['群攻', '减益'], fx: 'shuriken', target: 'all',
-          desc: '在敌阵中撒满撒菱，对全体敌人造成130%攻击力伤害，并使其速度降低30%，持续2回合。',
+          name: '撒菱之术', tags: ['群攻', '减益', '控制'], fx: 'shuriken', target: 'all',
+          desc: '在敌阵中撒满撒菱，对全体敌人造成130%攻击力伤害，使其速度降低30%，持续2回合，并有30%概率扎住其脚步使其束缚1回合。',
           effects: [
             { type: 'dmg', mult: 1.3 },
-            { type: 'debuff', stat: 'spd', value: 0.3, turns: 2 }
+            { type: 'debuff', stat: 'spd', value: 0.3, turns: 2 },
+            { type: 'status', status: 'bind', turns: 1, chance: 0.3 }
           ]
         },
         awaken: {
@@ -974,8 +984,8 @@
         },
         s2: {
           name: '精英式特训', tags: ['增益'], fx: 'yang', target: 'ally_all', cd: 3,
-          desc: '以精英教学法指导同伴，使全体友方攻击力提升20%，持续2回合。',
-          effects: [{ type: 'buff', stat: 'atk', value: 0.2, turns: 2 }]
+          desc: '以精英教学法指导同伴，使全体友方攻击力提升30%，持续2回合。',
+          effects: [{ type: 'buff', stat: 'atk', value: 0.3, turns: 2 }]
         },
         ult: {
           name: '杀手锏', tags: ['爆发', '减益'], fx: 'blade', target: 'single',
@@ -1005,7 +1015,7 @@
         eyes: 'normal', eyeColor: '#4a4a4a',
         outfit: 'flak', outfitColor: '#6b8e3d', accentColor: '#2a3550',
         headband: 'konoha', headbandSlash: false, headbandPos: 'forehead',
-        marks: [], mask: 'none', hat: 'none', accessory: 'kunai', aura: '#7e57c2'
+        marks: [], mask: 'none', hat: 'none', accessory: 'fuma_shuriken', aura: '#7e57c2'
       },
       skills: {
         passive: {
@@ -1020,7 +1030,7 @@
           effects: [{ type: 'dmg', mult: 1.0 }]
         },
         s2: {
-          name: '风魔手里剑', tags: ['斩杀', '持续'], fx: 'shuriken', target: 'lowest', cd: 3,
+          name: '风魔手里剑', tags: ['输出', '持续'], fx: 'shuriken', target: 'lowest', cd: 3,
           desc: '将巨大的风魔手里剑掷向生命比例最低的敌人，造成175%攻击力伤害，并使其流血2回合（每回合30%攻击力）。',
           effects: [
             { type: 'dmg', mult: 1.75 },
@@ -1057,7 +1067,8 @@
       quote: '仙术修行，可容不得偷懒哦。',
       art: {
         type: 'beast', beast: 'toad', tails: 0,
-        bodyColor: '#8a9d6b', accentColor: '#f2ead6', eyes: 'sage', aura: '#ff9800'
+        bodyColor: '#8a9d6b', accentColor: '#f2ead6', eyes: 'sage', aura: '#ff9800',
+        brows: '#f4f2ea', cape: '#3a3346', wrinkles: true
       },
       skills: {
         passive: {

@@ -5,7 +5,18 @@
   'use strict';
   var NG = window.NG, U = NG.ui;
   var B = { token: 0 };
-  var SLOTS = [[538, 462], [388, 332], [388, 598], [226, 450], [226, 646], [538, 262]];
+  /* Formation slots (x for the LEFT team, mirrored for the right team; y = feet line), chosen by how many
+   * units a side fields so every line-up reads as a clear left-vs-right formation: pos 0 always stands in
+   * front, columns are ≥160px apart and same-column units ≥290px apart so HP bars never sit under another
+   * unit, and the two front lines keep a ~130px no-man's-land in the middle of the field. */
+  var FORM = {
+    1: [[480, 488]],
+    2: [[480, 372], [480, 632]],
+    3: [[490, 488], [330, 345], [330, 632]],
+    4: [[490, 488], [330, 345], [330, 632], [170, 488]],
+    5: [[490, 488], [330, 345], [330, 632], [170, 345], [170, 632]]
+  };
+  function slotOf(rank, n) { var f = FORM[Math.min(5, Math.max(1, n))]; return f[rank] || [120 + (rank - 5) * 60, 200]; }
   var ST_LABEL = { stun: '晕', freeze: '冰', sleep: '睡', bind: '缚', silence: '封', burn: '灼', poison: '毒', bleed: '血', taunt: '嘲', counter: '反', immune: '免' };
   var STAT_CN = { atk: '攻', def: '防', spd: '速', crit: '暴', critDmg: '爆', dmg: '伤', dr: '免', dodge: '闪' };
   var STAT_FULL = { atk: '攻击', def: '防御', spd: '速度', crit: '暴击', critDmg: '暴伤', dmg: '伤害', dr: '减伤', dodge: '闪避' };
@@ -78,39 +89,54 @@
 
   function start(sid) {
     abort();
-    B.stage = sid; B.finished = false; B.skip = false; B.wakers = []; B.anims = []; B.speed = U.settings().speed || 1;
+    B.stage = sid; B.finished = false; B.skip = false; B.wakers = []; B.anims = []; B.rec = null; B.units = {}; B.boss = null; B.speed = U.settings().speed || 1;
     syncSpeed();
-    var el = B.el;
+    var el = B.el, tk = B.token;
     U.$('.bt-units', el).innerHTML = ''; U.$('.bt-fx', el).innerHTML = '';
+    U.$('.bt-boss', el).classList.add('hidden');
+    var st = U.call('stage', sid) || {}, ch = U.chapterOf && U.chapterOf(sid);
+    U.$('.bt-stage', el).textContent = (ch ? ch.name + ' · ' : '') + (st.name || sid);
+    // simulate + build in the next task: the tap → screen switch paints first instead of one long task
+    setTimeout(function () { if (tk === B.token) setup(sid, tk); }, 0);
+  }
+  function setup(sid, tk) {
+    var el = B.el;
     var rec = U.call('battleStage', sid);
     if (!rec || !Array.isArray(rec.units) || !Array.isArray(rec.events)) {
       U.toast('无法开始战斗（请检查编队）', 'err');
-      setTimeout(function () { U.go('campaign', { stage: sid }, { replace: true }); }, 50);
+      setTimeout(function () { if (tk === B.token) U.go('campaign', { stage: sid }, { replace: true }); }, 50);
       return;
     }
     B.rec = rec; B.units = {}; B.idx = 0;
     B.maxR = rec.maxRounds || (NG.game && NG.game.cfg && NG.game.cfg.maxRounds) || 30;
-    var st = U.call('stage', sid) || {}, ch = U.chapterOf && U.chapterOf(sid);
-    U.$('.bt-stage', el).textContent = (ch ? ch.name + ' · ' : '') + (st.name || sid);
+    var st = U.call('stage', sid) || {};
     U.$('.bt-round', el).innerHTML = '第 <b>1</b> / ' + B.maxR + ' 回合';
-    var pa = 0, pb = 0;
+    var pa = 0, pb = 0, box = U.$('.bt-units', el);
+    box.classList.add('pre');
+    // rank each unit inside its own side (by engine pos) so the formation adapts to the line-up size
+    var bySide = { A: [], B: [] };
+    rec.units.forEach(function (u0) { bySide[u0.side === 'B' ? 'B' : 'A'].push(u0); });
+    ['A', 'B'].forEach(function (s) { bySide[s].sort(function (a, b) { return (a.pos | 0) - (b.pos | 0); }); });
+    var frag = document.createDocumentFragment();
     rec.units.forEach(function (u0) {
-      var c = U.char(u0.id) || { id: u0.id, name: u0.name || '???', rarity: u0.rarity || 'R' };
+      var c = U.char(u0.id) || { id: u0.id, name: u0.name || '忍者', rarity: u0.rarity || 'R' };
       var side = u0.side === 'B' ? 'B' : 'A';
-      var pos = u0.pos | 0, sl = SLOTS[pos] || [120 + (pos - 6) * 80, 200];
+      var pos = u0.pos | 0, list = bySide[side], sl = slotOf(list.indexOf(u0), list.length);
       var x = side === 'A' ? sl[0] : 1280 - sl[0], y = sl[1];
       var u = { uid: u0.uid, side: side, pos: pos, id: u0.id, c: c, x: x, y: y, maxHp: u0.maxHp || 1, hp: u0.hp != null ? u0.hp : u0.maxHp, shield: u0.shield || 0, chakra: u0.chakra || 0, boss: !!u0.boss, dead: (u0.hp != null && u0.hp <= 0), st: {} };
       if (side === 'A') pa += U.call('power', u0.id) || 0;
+      // bust src is assigned by loadBusts (an SVG <img> parses synchronously on src assignment)
       var ue = U.h('<div class="bt-unit ' + side + (u.boss ? ' boss' : '') + '" style="left:' + x + 'px;top:' + y + 'px;z-index:' + (5 + Math.round(y / 10)) + '"><div class="mv">' +
-        '<div class="ring"></div><div class="body"><div class="sh"></div><img src="' + U.bustURL(c) + '" alt=""></div>' + (u.boss ? '<span class="bossb">BOSS</span>' : '') +
+        '<div class="ring"></div><div class="body"><div class="sh"></div><img data-bust="' + U.bustURL(c) + '" alt=""></div>' + (u.boss ? '<span class="bossb">BOSS</span>' : '') +
         '<div class="bt-st"></div><div class="hud"><div class="nmr">' + U.rarHTML(U.rarity(c)) + '<span class="lv">Lv.' + (u0.lv || 1) + '</span><span class="n">' + U.esc(u0.name || U.charName(c)) + '</span></div>' +
         '<div class="bt-hp"><i class="lag"></i><i class="v"></i><i class="sd"></i></div><div class="bt-ck"><i class="v"></i></div></div></div></div>');
       u.el = ue; u.mv = U.$('.mv', ue);
-      U.$('.bt-units', el).appendChild(ue);
+      frag.appendChild(ue);
       B.units[u.uid] = u;
-      setHP(u, u.hp, u.shield, true); setCk(u, u.chakra);
       if (u.dead) ue.classList.add('dead');
     });
+    box.appendChild(frag);
+    Object.keys(B.units).forEach(function (k) { var u = B.units[k]; setHP(u, u.hp, u.shield, true); setCk(u, u.chakra); });
     B.boss = null;
     Object.keys(B.units).forEach(function (k) { var u = B.units[k]; if (u.side === 'B' && u.boss && !B.boss) B.boss = u; });
     var bb = U.$('.bt-boss', el); bb.classList.toggle('hidden', !B.boss);
@@ -118,7 +144,20 @@
     pb = st.power || 0;
     U.$('.bt-pw.a span', el).textContent = '我方战力 ' + U.fmt(pa || U.call('teamPower') || 0);
     U.$('.bt-pw.b span', el).textContent = '推荐战力 ' + U.fmt(pb);
-    run(B.token);
+    loadBusts(U.$$('img[data-bust]', box), tk, function () { box.classList.remove('pre'); run(tk); });
+  }
+  /* assign bust art a few per frame within a ~8ms budget (≥1 per frame), then start the replay */
+  function loadBusts(imgs, tk, done) {
+    var i = 0;
+    (function step() {
+      if (tk !== B.token) return;
+      var t0 = performance.now();
+      while (i < imgs.length) {
+        var im = imgs[i++]; im.src = im.getAttribute('data-bust'); im.removeAttribute('data-bust');
+        if (performance.now() - t0 > 8) break;
+      }
+      if (i < imgs.length) requestAnimationFrame(step); else requestAnimationFrame(function () { if (tk === B.token) done(); });
+    })();
   }
 
   /* ---------------- HUD ---------------- */
@@ -168,17 +207,27 @@
   }
   function rmStatus(u, s) { var i = u.st[s]; if (i && i.parentNode) i.parentNode.removeChild(i); delete u.st[s]; }
   var stackY = {};
+  /* floating texts use three lanes per unit so they never pile onto each other:
+   *  'd' numbers   – rise from just above the head
+   *  't' statuses  – over the chest
+   *  'p' passives  – a gold-trimmed ribbon sitting right on the unit's name bar (max 2 stacked) */
   function float(u, html, cls, style) {
-    if (B.skip) return;
-    var txt = cls && /txt|miss/.test(cls);
-    var c = center(u), k = u.uid + (txt ? 't' : 'd'), now = performance.now();
-    var sy = stackY[k] && now - stackY[k].t < 450 / speed() ? (stackY[k].n + 1) % 4 : 0; stackY[k] = { n: sy, t: now };
+    if (B.skip || !u) return;
+    cls = cls || '';
+    var lane = /psv/.test(cls) ? 'p' : /txt|miss/.test(cls) ? 't' : 'd';
+    var c = center(u), k = u.uid + lane, now = performance.now();
+    var dur = (lane === 'd' ? 900 : lane === 'p' ? 1300 : 1200) / Math.sqrt(speed());
+    // keep stacking while the previous text in this lane is still readable (~60% of its life)
+    var win = dur * 0.6;
+    var sy = stackY[k] && now - stackY[k].t < win ? (stackY[k].n + 1) % (lane === 'p' ? 2 : 4) : 0; stackY[k] = { n: sy, t: now };
+    var x = c.x + (lane === 'd' ? (sy % 2 ? 22 : -22) + Math.random() * 12 - 6 : 0);
+    var y = lane === 'p' ? u.y - (u.boss ? 28 : 22) - sy * 30 : lane === 't' ? c.y + 10 - sy * 26 : c.y - 44 - sy * 40;
     var d = document.createElement('div');
-    d.className = 'dmg ' + (cls || '');
-    d.style.cssText = 'left:' + (c.x + (txt ? 0 : Math.random() * 36 - 18)) + 'px;top:' + (txt ? c.y + 34 - sy * 26 : c.y - 44 - sy * 34) + 'px;animation-duration:' + (cls && cls.indexOf('txt') >= 0 ? 1200 : 900) / Math.sqrt(speed()) + 'ms;' + (style || '');
+    d.className = 'dmg ' + cls;
+    d.style.cssText = 'left:' + x.toFixed(1) + 'px;top:' + y.toFixed(1) + 'px;animation-duration:' + dur.toFixed(0) + 'ms;' + (style || '');
     d.innerHTML = html;
     layer().appendChild(d);
-    kill(d, 1300 / Math.sqrt(speed()));
+    kill(d, dur + 120);
   }
   function num(n) { n = Math.round(Number(n) || 0); return n >= 100000 ? U.fmt(n) : String(n); }
   function hitReact(u, crit) {
@@ -194,7 +243,9 @@
   }
 
   /* ---------------- event application ---------------- */
-  function apply(e) {
+  function apply(e, tk) {
+    // a replay loop of an aborted battle may still be unwinding: never let it touch the current battle
+    if (tk != null && tk !== B.token) return;
     var u = B.units[e.uid];
     switch (e.t) {
       case 'round':
@@ -223,7 +274,7 @@
         if (!u) break;
         var si = statusInfo(e.status); float(u, (si ? si.t : '无法行动') + '中', 'txt', '--c:#ffe08a');
         break;
-      case 'passive': if (u) float(u, '【' + U.esc(e.name || '被动') + '】', 'txt', '--c:#ffe9a6'); break;
+      case 'passive': if (u) float(u, '<i>被动</i>' + U.esc(e.name || '被动技能'), 'psv' + (u.side === 'B' ? ' foe' : '')); break;
       case 'death':
         if (!u) break; u.dead = true; setHP(u, 0, 0);
         Object.keys(u.st).forEach(function (s) { rmStatus(u, s); });
@@ -251,17 +302,18 @@
       if (e.t === 'act') {
         var group = [];
         while (B.idx < ev.length && !isGroupStop(ev[B.idx])) group.push(ev[B.idx++]);
-        try { await playAct(e, group, tk); } catch (x) { U.warn('playAct', x); group.forEach(apply); }
+        try { await playAct(e, group, tk); } catch (x) { U.warn('playAct', x); group.forEach(function (g) { apply(g, tk); }); }
       } else {
-        apply(e);
+        apply(e, tk);
         if (e.t === 'round') await wait(140);
         else if (e.t === 'dmg' || e.t === 'skip') await wait(380);
-        else if (e.t === 'passive' || e.t === 'death' || e.t === 'revive') await wait(300);
+        else if (e.t === 'passive') await wait(200);
+        else if (e.t === 'death' || e.t === 'revive') await wait(300);
         else if (e.t === 'status') await wait(120);
       }
     }
     if (tk !== B.token) return;
-    if (B.skip) { while (B.idx < ev.length) apply(ev[B.idx++]); }
+    if (B.skip) { while (B.idx < ev.length) apply(ev[B.idx++], tk); }
     finish(tk);
   }
   function skipAll() {
@@ -286,18 +338,18 @@
 
   async function playAct(act, group, tk) {
     var a = B.units[act.uid];
-    if (!a || a.dead && act.skill !== 'passive') { group.forEach(apply); return; }
+    if (!a || a.dead && act.skill !== 'passive') { group.forEach(function (g) { apply(g, tk); }); return; }
     var fx = fxColors(act.fx), fam = fx.fam || 'slash', isUlt = act.skill === 'ult';
     var targets = (act.targets || []).map(function (id) { return B.units[id]; }).filter(Boolean);
     var foes = targets.filter(function (t) { return t.side !== a.side; }), friends = targets.filter(function (t) { return t.side === a.side; });
     a.el.classList.add('acting');
     // pre events (e.g. chakra reset) until the first impact event
     var impactTypes = { dmg: 1, miss: 1, heal: 1, shield: 1, status: 1, death: 1, revive: 1 };
-    var k = 0; while (k < group.length && !impactTypes[group[k].t]) apply(group[k++]);
+    var k = 0; while (k < group.length && !impactTypes[group[k].t]) apply(group[k++], tk);
     var rest = group.slice(k);
     if (isUlt && alive(tk)) await cutIn(a, act, fx, tk);
     else if (act.skill === 's2' && alive(tk)) skillLabel(a, act.name, fx);
-    if (!alive(tk)) { rest.forEach(apply); a.el.classList.remove('acting'); return; }
+    if (!alive(tk)) { rest.forEach(function (g) { apply(g, tk); }); a.el.classList.remove('acting'); return; }
     var lungeBack = null;
     if (foes.length) lungeBack = await travel(a, foes, fam, fx, isUlt, tk);
     else if (friends.length || !targets.length) await selfCast(a, friends.length ? friends : [a], fam, fx, tk);
@@ -305,14 +357,14 @@
     var lastT = null;
     for (var i = 0; i < rest.length; i++) {
       var e = rest[i];
-      if (!alive(tk)) { apply(e); continue; }
+      if (!alive(tk)) { apply(e, tk); continue; }
       if (e.t === 'dmg' || e.t === 'miss') {
         var tu = B.units[e.uid];
         if (lastT === e.uid) await wait(isUlt ? 120 : 140); else if (lastT) await wait(45);
         if (tu && e.src === act.uid) impactFx(tu, fam, fx, isUlt);
         lastT = e.uid;
       } else if (e.t === 'death') { await wait(120); }
-      apply(e);
+      apply(e, tk);
     }
     await wait(isUlt ? 420 : 300);
     if (lungeBack) await lungeBack();
@@ -439,7 +491,7 @@
     if (B.skip) return;
     var c = a.c, name = act.name || ((U.skill(c, 'ult') || {}).name) || '奥义';
     var ci = U.h('<div class="cutin ' + a.side + '" style="--c1:' + fx.c1 + ';--c2:' + fx.c2 + '"><div class="dim"></div><div class="band"></div>' +
-      '<div class="who"><img src="' + U.bustURL(c) + '" alt=""></div><div class="sname' + (name.length > 7 ? ' xlong' : name.length > 5 ? ' long' : '') + '">' + U.esc(name) + '</div>' +
+      '<div class="who"><img src="' + U.bustURL(c) + '" alt=""></div><div class="sname' + (name.length > 10 ? ' xxlong' : name.length > 7 ? ' xlong' : name.length > 5 ? ' long' : '') + '">' + U.esc(name) + '</div>' +
       (c.quote ? '<div class="quote">' + U.esc(c.quote) + '</div>' : '') + '<div class="cflash"></div></div>');
     U.$('#fx').appendChild(ci);
     var dur = 1500 / Math.sqrt(speed());
@@ -495,7 +547,8 @@
       { html: '重 试', cls: 'blue', fn: function () { U.go('battle', { stage: sid, t: Date.now() }, { replace: true }); } }];
     if (win && nextOk) btns.push({ html: '下一关', cls: 'red shine', fn: function () { U.go('battle', { stage: next, t: Date.now() }, { replace: true }); } });
     html += statsHTML();
-    var m = U.modal({ cls: 'res ' + (win ? 'win' : 'lose'), close: false, maskClose: false, html: html, buttons: btns });
+    var m = U.modal({ cls: 'res ' + (win ? 'win' : 'lose'), close: false, maskClose: false, html: html, buttons: btns,
+      onBack: function (api) { api.close('btn'); btns[0].fn(); } });     // hardware back / Esc = 返回
     U.$$('.rstars img', m.el).forEach(function (im, i) { if (i < stars) setTimeout(function () { im.classList.add('pop'); }, 350 + i * 220); });
     U.$$('[data-go]', m.el).forEach(function (b) { b.addEventListener('click', function () { var g = b.getAttribute('data-go'); m.close(); U.go(g); }); });
   }

@@ -150,7 +150,9 @@
   function tr(x, y, inner, extra) { return '<g transform="translate(' + r1(x) + ',' + r1(y) + ')' + (extra || '') + '">' + inner + '</g>'; }
 
   /* ======================================================================
-   * 3. character classification helpers (the data schema has no gender/age)
+   * 3. character classification helpers
+   * Data may set art.gender ('f'|'m') / art.female, art.young, art.mood, art.build; the id
+   * lists below are only a fallback for characters whose art block omits those fields.
    * ==================================================================== */
   var FEMALE = toSet('sakura sakura_byakugou ino hinata tenten kurenai hanabi tsume hana tsunade kushina mito shizune koharu anko yugao konan kaguya mikoto izumi rin tayuya kin karin temari chiyo matsuri pakura mei ameyuri samui karui mabui yugito kurotsuchi fu moegi');
   var YOUNG = toSet('naruto sasuke sakura konohamaru moegi udon obito_kid rin nawaki hanabi gaara izumi');
@@ -181,7 +183,7 @@
    * 4. eyes — iris patterns are drawn in a unit circle, then scaled
    * ==================================================================== */
   var K = '#14060a';
-  var DOJ = toSet('sharingan ms_sasuke ms_itachi ms_obito ms_madara ms_shisui ms_eternal ms_izuna rinnegan rinne_sharingan tomoe_rinnegan byakugan');
+  var DOJ = toSet('sharingan sharingan_2tomoe ms_sasuke ms_itachi ms_obito ms_madara ms_shisui ms_eternal ms_izuna ms_indra rinnegan rinne_sharingan tomoe_rinnegan byakugan');
   var RIPPLE = toSet('rinnegan tomoe_rinnegan');
 
   function tomoe(x, y, s, rot, fill) {
@@ -212,6 +214,11 @@
     switch (kind) {
       case 'sharingan':
         return redBase(X) + '<circle r="0.6" fill="none" stroke="' + K + '" stroke-width="0.06" opacity="0.9"/>' + ringTomoe(3, 0.6, 0.19, -90, K) + '<circle r="0.24" fill="' + K + '"/>' + RIM;
+      case 'sharingan_2tomoe': // freshly awakened (young Obito / early Sasuke)
+        return redBase(X) + '<circle r="0.6" fill="none" stroke="' + K + '" stroke-width="0.06" opacity="0.9"/>' + ringTomoe(2, 0.6, 0.2, -135, K) + '<circle r="0.24" fill="' + K + '"/>' + RIM;
+      case 'ms_indra': // three thin sickle blades sweeping from a ringed pupil
+        return redBase(X) + rotN('M0.1,-0.27C0.52,-0.56 0.86,-0.36 0.97,0.1C0.74,-0.14 0.5,-0.2 0.24,-0.08Z', 3, K, 0) +
+          '<circle r="0.34" fill="' + K + '"/><circle r="0.24" fill="#e3121c"/>' + rotN('M0,-0.24L0.07,-0.12L-0.07,-0.12Z', 3, K, 60) + '<circle r="0.1" fill="' + K + '"/>' + RIM;
       case 'ms_sasuke':
         return redBase(X) + rotN('M0.16,-0.14C0.4,-0.62 0.78,-0.74 0.98,-0.42C0.78,-0.28 0.62,0.02 0.48,0.32C0.38,0.12 0.26,-0.02 0.16,-0.14Z', 3, K, -30) +
           '<circle r="0.33" fill="' + K + '"/><circle r="0.21" fill="#e3121c"/><circle r="0.11" fill="' + K + '"/>' + RIM;
@@ -283,7 +290,7 @@
       'Q' + P(cx + s * w * 0.32, cy + h * 0.6) + ' ' + P(cx - s * w * 0.04, cy + h * 0.54) +
       'Q' + P(cx - s * w * 0.34, cy + h * 0.48) + ' ' + PP(I) + 'Z';
     var dark = kind === 'dark';
-    var sclFill = dark ? '#241a24' : (RIPPLE[kind] ? '#cfc2f0' : (kind === 'beast' ? lt(col(color, '#ffcf3a'), 0.3) : '#fbf8f4'));
+    var sclFill = dark ? '#241a24' : (F.edo ? '#2e262c' : (RIPPLE[kind] ? '#cfc2f0' : (kind === 'beast' ? lt(col(color, '#ffcf3a'), 0.3) : '#fbf8f4')));
     var o = path(scl, sclFill);
     // soft shadow of the upper lid on the eyeball
     var cp = X.clip('<path d="' + scl + '"/>');
@@ -326,6 +333,13 @@
     var by = cy - h * (F.fem ? 1.55 : 1.25);
     var th = F.thick ? 2.1 : (F.fem ? 0.55 : 1);
     var d;
+    if (F.thick) { // Guy / Lee / Duy: huge bushy brows, blunt inner end, drawn over the fringe
+      by = cy - h * 1.5;
+      d = 'M' + P(cx - s * w * 0.66, by + h * 0.6) + 'C' + P(cx - s * w * 0.24, by - h * 0.2) + ' ' + P(cx + s * w * 0.42, by - h * 0.56) + ' ' + P(cx + s * w * 0.9, by - h * 0.16) +
+        'L' + P(cx + s * w * 0.82, by + h * 0.42) + 'C' + P(cx + s * w * 0.42, by + h * 0.18) + ' ' + P(cx - s * w * 0.12, by + h * 0.5) + ' ' + P(cx - s * w * 0.62, by + h * 1.3) + 'Z';
+      return path(d, color, 'stroke="' + dk(color, 0.4) + '" stroke-width="' + r1(X.lw * 0.6) + '" stroke-linejoin="round"') +
+        line('M' + P(cx - s * w * 0.3, by + h * 0.5) + 'q' + r1(s * w * 0.3) + ',' + r1(-h * 0.4) + ' ' + r1(s * w * 0.7) + ',' + r1(-h * 0.5), lt(color, 0.35), X.lw * 0.5, 'opacity="0.55"');
+    }
     if (F.fem) {
       d = 'M' + P(cx - s * w * 0.46, by + h * 0.28) + 'Q' + P(cx + s * w * 0.05, by - h * 0.32) + ' ' + P(cx + s * w * 0.62, by + h * 0.16) +
         'Q' + P(cx + s * w * 0.06, by - h * (0.32 + 0.2 * th)) + ' ' + P(cx - s * w * 0.48, by + h * 0.08) + 'Z';
@@ -681,6 +695,8 @@
         return '<path d="M0,-0.8C0.5,-0.2 0.6,0.1 0.6,0.3A0.6,0.6 0 0,1 -0.6,0.3C-0.6,0.1 -0.5,-0.2 0,-0.8Z"' + st + '/><path d="M0,-0.2V0.6"' + st + '/>';
       case 'allied':
         return '<text x="0" y="0.36" font-size="1.05" font-weight="900" text-anchor="middle" fill="' + c + '" font-family="' + FONT + '">忍</text>';
+      case 'yu': // 汤隐: hot-spring basin with three rising wisps of steam
+        return '<path d="M-0.66,0.12Q-0.72,0.74 0,0.74Q0.72,0.74 0.66,0.12"' + st + '/><path d="M-0.34,0.32Q-0.52,0.02 -0.32,-0.28Q-0.12,-0.58 -0.32,-0.86M0.02,0.32Q-0.16,0.02 0.04,-0.28Q0.24,-0.58 0.04,-0.86M0.38,0.32Q0.2,0.02 0.4,-0.28Q0.6,-0.58 0.4,-0.86"' + st + '/>';
       default:
         return '<path d="M0,-0.8L0.22,-0.22L0.8,0L0.22,0.22L0,0.8L-0.22,0.22L-0.8,0L-0.22,-0.22Z" fill="' + c + '"/>';
     }
@@ -757,6 +773,7 @@
       case 'mesh': neck = 'crew'; torsoFill = skin; out.chest = true; break;
       case 'bandage': neck = 'crew'; torsoFill = skin; out.chest = true; armSkin = true; break;
       case 'cloak': neck = 'high'; break;
+      case 'chakra_cloak': neck = 'high'; break;
       default: neck = 'crew';
     }
     var narrow = armSkin && o !== 'bandage';
@@ -781,6 +798,14 @@
     if (o === 'akatsuki') {
       out.arms += '<g clip-path="' + X.clipPaths([G.armF, G.armN]) + '">' + path(cloudD(x(-150), 520, 26), '#ffffff') + path(cloudD(x(-150), 520, 22), acc) + path(cloudD(x(166), 560, 26), '#ffffff') + path(cloudD(x(166), 560, 22), acc) + '</g>';
     }
+    if (o === 'chakra_cloak') { // 九喇嘛模式: glowing chakra shroud with black seal lines
+      var seal = '#1a1206', flick = '';
+      [[-150, 392, -14], [-118, 376, -6], [134, 380, 8], [166, 396, 16], [-176, 440, -22], [190, 446, 24]].forEach(function (f, i) { flick += tongue(x(f[0]), f[1] + 6, 46 + (i % 3) * 12, 26, f[2]); });
+      out.arms = path(flick, lt(main, 0.45), 'opacity="0.85"') + out.arms;
+      out.arms += '<g clip-path="' + X.clipPaths([G.armF, G.armN]) + '">' + path('M0,380H560V660H0Z', X.lin([[0, lt(main, 0.5), 0.55], [0.6, main, 0], [1, dk(main, 0.2), 0.3]], 0, 0, 1, 0)) +
+        line('M' + x(-150) + ',430Q' + x(-170) + ',520 ' + x(-176) + ',650M' + x(170) + ',436Q' + x(186) + ',520 ' + x(196) + ',650', seal, L * 1.4) +
+        line('M' + x(-196) + ',560Q' + x(-160) + ',570 ' + x(-124) + ',556M' + x(210) + ',566Q' + x(176) + ',576 ' + x(140) + ',562', seal, L * 2.2) + '</g>';
+    }
     // torso
     var tsh = torsoFill === skin ? Cc.skinSh : dk(torsoFill, 0.28);
     var t = outlineOf([torsoD], torsoFill === skin ? Cc.skinInk : inkOf(torsoFill), L * 2) + cel(X, torsoD, torsoFill, tsh, 26, 6);
@@ -797,6 +822,15 @@
         break;
       case 'flak':
         var vest = main;
+        if (ctxc.kumo) { // 云隐 flak: one-shoulder vest over a dark undershirt, quilted horizontal ribs, no pouches
+          details += path('M' + x(-130) + ',382L250,334L' + x(-36) + ',420L' + x(-60) + ',470L' + x(-118) + ',486Z', acc, 'stroke="' + inkOf(acc) + '" stroke-width="' + r1(L) + '"');
+          details += path('M' + x(-36) + ',420L' + x(-60) + ',470L' + x(-118) + ',486', 'none', 'stroke="' + inkOf(vest) + '" stroke-width="' + r1(L * 1.4) + '"');
+          details += path('M300,336L' + x(122) + ',382L' + x(124) + ',430L' + x(70) + ',410L292,360Z', dk(vest, 0.1), 'stroke="' + inkOf(vest) + '" stroke-width="' + r1(L) + '"');
+          details += line('M' + x(-70) + ',520Q' + x(20) + ',512 ' + x(118) + ',522M' + x(-104) + ',570Q' + x(10) + ',562 ' + x(118) + ',572M' + x(-104) + ',620Q' + x(10) + ',612 ' + x(118) + ',622', dk(vest, 0.3), L * 0.9, 'opacity="0.7"');
+          details += line('M' + x(8) + ',400V650', dk(vest, 0.45), L * 0.8);
+          collar = path('M240,346L243,306Q278,320 314,304L317,346Q279,360 240,346Z', acc, 'stroke="' + inkOf(acc) + '" stroke-width="' + r1(L) + '"');
+          break;
+        }
         details += line('M' + x(-4) + ',360V650', dk(vest, 0.5), L * 0.8);
         [[-92, 452], [-52, 452], [24, 456], [64, 456]].forEach(function (p) {
           var pw = r1(34 * G.b);
@@ -926,6 +960,17 @@
         }
         details += path('M' + x(110) + ',380L' + x(130) + ',400L' + x(-80) + ',650L' + x(-110) + ',640Z', acc, 'stroke="' + inkOf(acc) + '" stroke-width="' + r1(L * 0.8) + '"');
         out.chestLines = true;
+        break;
+      case 'chakra_cloak':
+        var sl = '#1a1206';
+        details += ell(x(4), 470, 120, 150, X.rad([[0, lt(main, 0.7), 0.85], [0.6, lt(main, 0.3), 0.35], [1, main, 0]]));
+        details += line('M262,352C' + x(-30) + ',420 ' + x(-46) + ',520 ' + x(-50) + ',660M296,352C' + x(40) + ',420 ' + x(56) + ',520 ' + x(60) + ',660', sl, L * 1.7);
+        details += line('M' + x(-118) + ',402Q' + x(-86) + ',430 ' + x(-74) + ',470M' + x(128) + ',404Q' + x(96) + ',432 ' + x(84) + ',472', sl, L * 1.2, 'opacity="0.9"');
+        details += konohaSwirl(x(6), 560, 30, sl) + circ(x(6), 560, 40, 'none', 'stroke="' + sl + '" stroke-width="' + r1(L * 1.1) + '"');
+        if (a.cloakFlames) details += path(flameRow(x(-150), x(160), 656, 92, 8, 31), sl, 'opacity="0.9"'); // Minato's haori-shaped shroud
+        collar = path('M226,352L223,300Q278,326 333,298L332,352Q279,374 226,352Z', lt(main, 0.25), 'stroke="' + sl + '" stroke-width="' + r1(L * 1.1) + '"');
+        for (var ci = 0; ci < 8; ci++) collar += tomoe(234 + ci * 13, 336 + Math.abs(ci - 3.5) * -1.6 + 4, 3.3, 200, sl);
+        out.glow = true;
         break;
       case 'cloak':
         details += line('M' + x(4) + ',360V650', inkOf(main), L, 'opacity="0.7"');
@@ -1103,14 +1148,22 @@
           line('M-14,-26Q-6,-18 -10,-10M14,-26Q6,-18 10,-10M-6,20Q0,26 6,20', '#c8102e', L * 0.9) +
           path('M-28,-28L-36,-52L-14,-38ZM28,-28L36,-52L14,-38Z', '#f4f2ec', 'stroke="#3a3a44" stroke-width="' + r1(L) + '"') + '</g>';
         break;
-      case 'zetsu':
-        var lc = col(a.maskColor, '#4c8a3a');
-        var leafL = 'M220,300C150,260 140,160 190,80C200,140 214,200 240,250Z', leafR = 'M342,300C412,260 422,160 372,80C362,140 348,200 322,250Z';
+      case 'zetsu': // Venus-flytrap lobes closing round the head, bristles along the rims
+        var lc = col(a.maskColor, '#4c8a3a'), lin = lt(lc, 0.35);
+        var leafL = 'M236,318C150,304 112,196 150,104C166,62 204,30 246,26C218,70 204,140 210,206C214,250 226,284 250,302Z';
+        var leafR = 'M326,318C412,304 450,196 412,104C396,62 358,30 316,26C344,70 358,140 352,206C348,250 336,284 312,302Z';
+        var inL = 'M246,26C218,70 204,140 210,206C214,250 226,284 250,302C230,292 196,250 190,196C184,130 206,64 246,26Z';
+        var inR = 'M316,26C344,70 358,140 352,206C348,250 336,284 312,302C332,292 366,250 372,196C378,130 356,64 316,26Z';
         s += outlineOf([leafL, leafR], inkOf(lc), L * 2) + cel(X, leafL, lc, dk(lc, 0.3), -8, 6) + cel(X, leafR, lc, dk(lc, 0.3), 8, 6);
-        for (var t = 0; t < 6; t++) {
-          var pl1 = pol(190, 180, 1, 0);
-          s += path('M' + P(196 + t * 4, 100 + t * 30) + 'l-14,-6l10,12Z', '#f4f0e0') + path('M' + P(366 - t * 4, 100 + t * 30) + 'l14,-6l-10,12Z', '#f4f0e0');
+        s += path(inL, lin, 'opacity="0.9"') + path(inR, lin, 'opacity="0.9"');
+        s += line('M160,120Q150,200 196,280M402,120Q412,200 366,280', dk(lc, 0.35), L * 0.8, 'opacity="0.6"');
+        var sp = '';
+        for (var t = 0; t < 9; t++) {
+          var u = t / 8, yy = 34 + u * 250, xl = 246 - Math.sin(u * 3.0) * 38 - u * 4, xr = 316 + Math.sin(u * 3.0) * 38 + u * 4;
+          sp += 'M' + P(xl, yy) + 'l' + r1(14 - u * 4) + ',' + r1(-4) + 'l' + r1(-12 + u * 4) + ',' + r1(9) + 'Z';
+          sp += 'M' + P(xr, yy) + 'l' + r1(-14 + u * 4) + ',' + r1(-4) + 'l' + r1(12 - u * 4) + ',' + r1(9) + 'Z';
         }
+        s += path(sp, '#f4f0dc', 'stroke="' + inkOf(lc) + '" stroke-width="' + r1(L * 0.5) + '" stroke-linejoin="round"');
         break;
       case 'puppet_mouth':
         s += line('M256,296L254,320M290,294L292,316', '#3a2a24', L * 0.9) + line('M238,250Q240,270 252,282M322,250Q320,270 308,282', '#3a2a24', L * 0.5, 'opacity="0.5"');
@@ -1144,24 +1197,30 @@
     var hbPos = pick(a.headbandPos, ART.headbandPos, 'forehead');
     var hasHB = a.headband && a.headband !== 'none' && inVocab(a.headband, ART.headband);
     var acc_ = pick(a.accessory, ART.accessory, 'none');
+    var acc2 = pick(a.accessory2, ART.accessory, 'none'); // optional second item (e.g. chakra blades + cigarette)
+    if (acc2 === acc_) acc2 = 'none';
+    if (isRaise(acc_, a) && isRaise(acc2, a)) acc2 = 'none'; // only one raised hand
     var mood = moodOf(c, a, fem);
-    var F = { fem: fem, young: young, g: g, ft: ft, thick: hairSt === 'bowl', fierce: !fem && (DOJ[eyes] && eyes !== 'byakugan' || mood === 'smirk') && !young, calm: mood === 'smile' || mood === 'soft' };
+    var F = { fem: fem, young: young, g: g, ft: ft, thick: has(marks, 'thick_brows') || (hairSt === 'bowl' && a.thickBrows !== false), edo: has(marks, 'edo_cracks'),
+      fierce: !fem && (DOJ[eyes] && eyes !== 'byakugan' || mood === 'smirk') && !young, calm: mood === 'smile' || mood === 'soft' };
     var G = bodyGeom(buildOf(c, a, fem), fem ? 0.78 : (young ? 0.88 : 1));
     var H = hairDef(hairSt, F, hasHB ? hbPos : 'none', hat);
     var faction = c.faction || '';
-    var ctxc = { konoha: a.headband === 'konoha' || faction === 'konoha' };
+    var ctxc = { konoha: a.headband === 'konoha' || faction === 'konoha', kumo: a.flakStyle ? a.flakStyle === 'kumo' : (a.headband === 'kumo' || faction === 'kumo') };
 
     var P_ = { back: '', body: '', head: '', front: '', sil: [] };
 
     // ---- back hair + back accessory
     var back = '';
     back += accessoryBack(X, acc_, G, Cc, L, c);
+    if (acc2 !== 'none') back += accessoryBack(X, acc2, G, Cc, L, c);
     back += inHead(paintHair(X, H.back, hairC, true));
     P_.back = back;
 
     // ---- body
     var body = '';
     var OF = drawOutfit(X, a, G, Cc, ctxc);
+    Cc.armSkin = OF.armSkin; Cc.armCol = OF.armCol;
     if (a.sixArms || c.id === 'kidomaru') {
       var ex = G.x, extra = [];
       [[-1, 0], [1, 0], [-1, 1], [1, 1]].forEach(function (q) {
@@ -1183,8 +1242,7 @@
     if (OF.neckCover) body += path('M250,300L306,300L308,352Q278,364 248,352Z', OF.neckCover);
     body += OF.torso;
     if (OF.armsOver) body += '';
-    var RAISE = { kunai: 1, chakra_blades: 1, flute: 1, paintbrush: 1, clay: 1 };
-    var pose = a.pose || (RAISE[acc_] || OF.kind === 'cloak' ? 'stand' : (c.role === 'tank' || c.role === 'ctrl') ? 'cross' : (c.role === 'sup' || c.role === 'heal') ? 'seal' : 'stand');
+    var pose = a.pose || (isRaise(acc_, a) || isRaise(acc2, a) || OF.kind === 'cloak' || acc_ === 'bow' ? 'stand' : (c.role === 'tank' || c.role === 'ctrl') ? 'cross' : (c.role === 'sup' || c.role === 'heal') ? 'seal' : 'stand');
     if (mode === 'bust') body += volume(X, [G.armF, G.armN, OF.torsoD, NECK], auraColor(c, a));
     if (pose === 'cross') body += crossedArms(X, G, Cc, L, OF.armCol, OF.armSkin);
     else if (pose === 'seal') body += handSeal(X, G, Cc, L, OF.armCol, OF.armSkin, auraColor(c, a));
@@ -1193,7 +1251,10 @@
     var hbParts = hasHB ? drawHeadband(X, a, G, hbPos, L) : { head: '', body: '' };
     body += hbParts.body;
     if (has(marks, 'curse_mark')) body += '<g transform="translate(298,318)">' + ringTomoe(3, 8.5, 3.2, -90, '#140608') + '</g>' + line('M290,330q-10,8 -16,20M306,330q8,10 18,14', '#140608', L * 0.6, 'opacity="0.7"');
+    if (F.edo) body += line('M262,300l6,14l-4,10l8,12M300,306l-4,12l6,8', mix(skin, '#2a1a1a', 0.6), L * 0.6, 'opacity="0.6"'); // cracks run down the neck
     body += accessoryMid(X, acc_, G, Cc, L, c);
+    if (acc2 !== 'none') body += accessoryMid(X, acc2, G, Cc, L, c);
+    if (acc_ === 'scarf' || acc2 === 'scarf') body += scarf(X, a, G, Cc, L);
     var mid = paintHair(X, H.mid, hairC);
     H.ties.forEach(function (t) { mid += '<g transform="translate(' + t[0] + ',' + t[1] + ') rotate(' + t[4] + ')"><rect x="' + (-t[2] / 2) + '" y="' + (-t[3] / 2) + '" width="' + t[2] + '" height="' + t[3] + '" rx="3" fill="' + col(a.tieColor, '#3a3f55') + '" stroke="#111" stroke-width="' + r1(L * 0.7) + '"/></g>'; });
     body += inHead(mid);
@@ -1211,6 +1272,10 @@
     head += path(g.d, skin);
     var fs = '';
     fs += path(g.sh, skinSh, 'opacity="0.9"');
+    if (a.mask === 'zetsu' && a.zetsuHalf !== false) { // Zetsu: black half (his right = viewer's left) split down a ragged centre line
+      var zb = col(a.halfColor, '#17171d');
+      fs += path('M120,90L276,90Q268,150 274,196Q266,226 272,252Q266,284 274,312L272,360L120,360Z', zb) + line('M276,90Q268,150 274,196Q266,226 272,252Q266,284 274,312L272,360', '#000', L * 0.8, 'opacity="0.5"');
+    }
     // hair cast shadow on forehead
     var castList = H.top.concat(H.front);
     if (H.hood || hat === 'hood_up') castList = castList.concat(['M184,270C168,180 200,92 281,88C362,92 394,180 378,272L356,250C356,212 340,176 281,170C222,176 206,212 206,250Z']);
@@ -1239,16 +1304,18 @@
     }
     head += drawEye(X, g.eR[0], g.eR[1], g.eR[2], g.eR[3], 1, eRk, a.eyeColor, F);
     if (eLk === 'byakugan' || eRk === 'byakugan') head += byakuganVeins(g, skinInk, L, eLk === 'byakugan', eRk === 'byakugan');
-    var gaaraRings = has(marks, 'ai_tattoo') || a.eyeRings;
-    if (gaaraRings) { // Gaara: insomniac dark rings, no eyebrows
+    // Gaara: insomniac dark rings, no eyebrows. Data mark 'eye_rings' (legacy: implied by ai_tattoo unless eyeRings === false)
+    var gaaraRings = has(marks, 'eye_rings') || a.eyeRings === true || (has(marks, 'ai_tattoo') && a.eyeRings !== false);
+    var browsLate = '';
+    if (gaaraRings) {
       [[g.eL, -1], [g.eR, 1]].forEach(function (e) {
         var E_ = e[0], sg = e[1];
         head += path('M' + P(E_[0] - sg * E_[2] * 0.62, E_[1] + E_[3] * 0.3) + 'Q' + P(E_[0] - sg * E_[2] * 0.2, E_[1] - E_[3] * 1.35) + ' ' + P(E_[0] + sg * E_[2] * 0.72, E_[1] - E_[3] * 0.25) +
           'Q' + P(E_[0] + sg * E_[2] * 0.3, E_[1] + E_[3] * 1.1) + ' ' + P(E_[0] - sg * E_[2] * 0.62, E_[1] + E_[3] * 0.3) + 'Z', '#2a1418', 'opacity="0.9"');
       });
       head += drawEye(X, g.eL[0], g.eL[1], g.eL[2], g.eL[3], -1, eLk, a.eyeColor, F) + drawEye(X, g.eR[0], g.eR[1], g.eR[2], g.eR[3], 1, eRk, a.eyeColor, F);
-    } else
-    head += drawBrow(X, g.eL[0], g.eL[1], g.eL[2], g.eL[3], -1, browC, F) + drawBrow(X, g.eR[0], g.eR[1], g.eR[2], g.eR[3], 1, browC, F);
+    } else if (F.thick) browsLate = drawBrow(X, g.eL[0], g.eL[1], g.eL[2], g.eL[3], -1, browC, F) + drawBrow(X, g.eR[0], g.eR[1], g.eR[2], g.eR[3], 1, browC, F);
+    else head += drawBrow(X, g.eL[0], g.eL[1], g.eL[2], g.eL[3], -1, browC, F) + drawBrow(X, g.eR[0], g.eR[1], g.eR[2], g.eR[3], 1, browC, F);
     if (F.fierce && !has(marks, 'eye_bandage')) head += line('M272,' + (g.eL[1] - 20) + 'q2,6 0,10M281,' + (g.eL[1] - 21) + 'q-1,6 1,10', skinInk, L * 0.45, 'opacity="0.45"');
     // nose
     var nx = g.nose[0], ny = g.nose[1];
@@ -1257,6 +1324,8 @@
     // mouth
     head += drawMouth(g, mood, F, Cc, L, marks, c);
     head += marksOver(X, marks, g, F, Cc, L, c, a, eLk, eRk);
+    var mouthFree = !inVocab(a.mask, ['lower', 'cloth', 'spiral', 'war_mask']) && !(has(marks, 'bandage_face') && (a.bandageFull || c.id === 'zabuza' || c.id === 'mu'));
+    if (mouthFree) head += mouthItem(X, acc_, a, g, L) + (acc2 !== 'none' ? mouthItem(X, acc2, a, g, L) : '');
     head += drawMask(X, a, F, Cc, L);
     head += glasses(X, marks, g, L);
 
@@ -1271,11 +1340,13 @@
       if (H.lines.length) head += line(H.lines.join(''), inkOf(hairC), L * 0.6, 'opacity="0.6"');
       if (coverL) { /* bang covers far eye */ }
     }
+    head += browsLate;
     if (H.flower) head += paperFlower(H.flower[0], H.flower[1], col(a.flowerColor, '#f2eefc'), L);
+    if (acc_ === 'goggles' || acc2 === 'goggles') head += goggles(X, a, g, L);
     head += hbParts.head;
     head += drawHat(X, a._id ? a : merge(a, { _id: c.id }), Cc, L);
     if (has(marks, 'third_eye')) head += thirdEye(X, a, L);
-    head += foreheadMarks(marks, L, hasHB && (hbPos === 'forehead' || hbPos === 'bandana'));
+    head += foreheadMarks(marks, L, hasHB && (hbPos === 'forehead' || hbPos === 'bandana'), hat !== 'none' && hat !== 'horns');
     if (acc_ === 'kiseru') head += kiseru(L);
     P_.head = inHead(head);
     if (a.twinHead || c.id === 'sakon') {
@@ -1283,7 +1354,7 @@
     }
 
     // ---- front accessory
-    P_.front = accessoryFront(X, acc_, G, Cc, L, c, a);
+    P_.front = accessoryFront(X, acc_, G, Cc, L, c, a) + (acc2 !== 'none' ? accessoryFront(X, acc2, G, Cc, L, c, a) : '');
     P_.G = G; P_.H = H; P_.OF = OF; P_.Cc = Cc;
     P_.sil = [G.armF, G.armN, OF.torsoD, NECK];
     P_.silHead = [g.d].concat(H.back, H.top, H.front, H.mid);
@@ -1296,12 +1367,29 @@
   function drawMouth(g, mood, F, Cc, L, marks, c) {
     var mx = g.mouth[0], my = g.mouth[1], w = g.mouth[2], ink = Cc.skinInk, s = '';
     var fang = has(marks, 'fangs') && !INUZUKA[c.id] && !(c.art && c.art.accessory === 'dog');
+    var sharp = has(marks, 'sharp_teeth') || c.id === 'kisame' || c.id === 'suigetsu';
+    function saw(x0, x1, yA, yB, n) { // row of triangular teeth from baseline yA pointing to yB
+      var d = 'M' + P(x0, yA), wd = (x1 - x0) / n;
+      for (var k = 0; k < n; k++) d += 'L' + P(x0 + wd * (k + 0.5), yB) + 'L' + P(x0 + wd * (k + 1), yA);
+      return d + 'Z';
+    }
+    if (sharp && mood !== 'grin') { // shark grin (Kisame, Suigetsu, Hōzuki clan, Kiri swordsmen)
+      var td = 'M' + P(mx - w * 0.62, my - 3) + 'Q' + P(mx, my + 1) + ' ' + P(mx + w * 0.72, my - 6) + 'Q' + P(mx + w * 0.42, my + 10) + ' ' + P(mx, my + 10) + 'Q' + P(mx - w * 0.42, my + 9) + ' ' + P(mx - w * 0.62, my - 3) + 'Z';
+      s += path(td, '#5a1420', 'stroke="' + ink + '" stroke-width="' + r1(L * 0.8) + '" stroke-linejoin="round"');
+      s += path(saw(mx - w * 0.56, mx + w * 0.64, my - 3.5, my + 4, 6), '#fbfaf6', 'stroke="' + ink + '" stroke-width="0.7"') + path(saw(mx - w * 0.38, mx + w * 0.42, my + 9, my + 3, 5), '#ecebe6', 'stroke="' + ink + '" stroke-width="0.7"');
+      if (has(marks, 'red_lips')) s += line(td.replace(/Z$/, ''), '#c8102e', L * 0.5, 'opacity="0.7"');
+      return s;
+    }
     switch (mood) {
       case 'grin':
         var gd = 'M' + P(mx - w * 0.75, my - 5) + 'Q' + P(mx, my + 2) + ' ' + P(mx + w * 0.8, my - 7) + 'Q' + P(mx + w * 0.5, my + 15) + ' ' + P(mx, my + 16) + 'Q' + P(mx - w * 0.5, my + 14) + ' ' + P(mx - w * 0.75, my - 5) + 'Z';
         s += path(gd, '#7a1e2a', 'stroke="' + ink + '" stroke-width="' + r1(L * 0.9) + '" stroke-linejoin="round"');
+        if (sharp) {
+          s += path(saw(mx - w * 0.68, mx + w * 0.74, my - 4, my + 5, 7), '#fbfaf6', 'stroke="' + ink + '" stroke-width="0.7"') + path(saw(mx - w * 0.46, mx + w * 0.5, my + 14, my + 7, 6), '#ecebe6', 'stroke="' + ink + '" stroke-width="0.7"');
+          break;
+        }
         s += path('M' + P(mx - w * 0.68, my - 3) + 'Q' + P(mx, my + 3) + ' ' + P(mx + w * 0.72, my - 5) + 'L' + P(mx + w * 0.62, my + 2) + 'Q' + P(mx, my + 8) + ' ' + P(mx - w * 0.6, my + 3) + 'Z', '#fff');
-        if (fang || c.id === 'kisame' || c.id === 'suigetsu') for (var i = -2; i <= 2; i++) s += path('M' + P(mx + i * 7 - 3, my + 2) + 'l3,7l3,-7Z', '#fff');
+        if (fang) for (var i = -2; i <= 2; i++) s += path('M' + P(mx + i * 7 - 3, my + 2) + 'l3,7l3,-7Z', '#fff');
         s += ell(mx + 2, my + 11, 7, 3, '#e86a7a', 'opacity="0.8"');
         break;
       case 'smirk':
@@ -1418,6 +1506,29 @@
         case 'mustache':
           s += path('M240,290Q256,276 271,284Q286,276 304,290Q290,296 271,291Q252,296 240,290Z', Cc.beard, 'stroke="' + inkOf(Cc.beard) + '" stroke-width="' + r1(L * 0.7) + '"');
           break;
+        case 'edo_cracks': // 秽土转生: papery skin split by dark cracks radiating from the eyes
+          var L_ = g.eL, R_ = g.eR, cr = mix(Cc.skin, '#24141a', 0.62), cd = '';
+          cd += 'M' + P(L_[0] - 12, L_[1] + 14) + 'l-5,11l6,8l-7,13l3,9M' + P(L_[0] - 16, L_[1] + 25) + 'l-12,3M' + P(L_[0] - 11, L_[1] + 46) + 'l-9,7';
+          cd += 'M' + P(L_[0] + 12, L_[1] + 15) + 'l3,10l-4,7';
+          cd += 'M' + P(R_[0] + 10, R_[1] + 15) + 'l6,10l-5,9l8,12l-2,10M' + P(R_[0] + 16, R_[1] + 25) + 'l13,-2M' + P(R_[0] + 17, R_[1] + 46) + 'l10,5';
+          cd += 'M' + P(R_[0] - 14, R_[1] + 16) + 'l-3,9l5,6';
+          cd += 'M' + P(g.mouth[0] + 22, g.chin - 20) + 'l8,-6l4,-10';
+          s += '<g clip-path="' + X.clip('<path d="' + g.d + '"/>') + '">' + line(cd, '#ffffff', L * 0.75, 'opacity="0.35" transform="translate(1.2,1.4)"') + line(cd, cr, L * 0.72, 'opacity="0.9"') + '</g>';
+          break;
+        case 'cheek_rects': // Rin: one purple rectangle on each cheek
+          var rc = col(a.paintColor, '#7b2fa0');
+          s += path('M' + P(g.eL[0] - 9, g.eL[1] + 17) + 'l13,-1l1,20l-13,1Z', rc) + path('M' + P(g.eR[0] - 1, g.eR[1] + 16) + 'l15,1l-1,21l-15,-1Z', rc);
+          break;
+        case 'burn_scar': // Raidō: scarred patch over the nose bridge spreading across the near cheek
+          var bsc = mix(Cc.skin, '#a83a3a', 0.3), bsk = mix(Cc.skin, '#5a1a1a', 0.55), nx_ = g.nose[0], ny_ = g.nose[1], ex_ = g.eR[0], ey_ = g.eR[1];
+          var bd = 'M' + P(nx_ - 12, ny_ - 30) + 'L' + P(nx_ + 4, ny_ - 24) + 'L' + P(ex_ - 18, ey_ + 14) + 'L' + P(ex_ - 2, ey_ + 18) + 'L' + P(ex_ + 14, ey_ + 14) + 'L' + P(ex_ + 30, ey_ + 20) + 'L' + P(ex_ + 44, ey_ + 16) +
+            'L' + P(ex_ + 46, ey_ + 40) + 'L' + P(ex_ + 34, ey_ + 52) + 'L' + P(ex_ + 20, ey_ + 48) + 'L' + P(ex_ + 8, ey_ + 60) + 'L' + P(ex_ - 8, ey_ + 50) + 'L' + P(nx_ + 10, ny_ - 2) + 'L' + P(nx_ - 2, ny_ - 12) + 'L' + P(nx_ - 16, ny_ - 18) + 'Z';
+          var bcl = X.clip('<path d="' + g.d + '"/>');
+          s += '<g clip-path="' + bcl + '">' + path(bd, bsc, 'stroke="' + bsk + '" stroke-width="' + r1(L * 0.7) + '" stroke-linejoin="round"') +
+            line('M' + P(nx_ - 6, ny_ - 24) + 'l14,6M' + P(ex_ - 10, ey_ + 24) + 'l18,4l12,-3M' + P(ex_ + 2, ey_ + 36) + 'l16,2l14,-6M' + P(ex_ + 8, ey_ + 48) + 'l12,-4', bsk, L * 0.55, 'opacity="0.75"') +
+            line('M' + P(ex_ - 4, ey_ + 28) + 'l14,2M' + P(ex_ + 14, ey_ + 42) + 'l12,-2', lt(bsc, 0.35), L * 0.5, 'opacity="0.7"') +
+            circ(ex_ + 26, ey_ + 30, 4, bsk, 'opacity="0.5"') + circ(ex_ - 8, ey_ + 38, 3, bsk, 'opacity="0.45"') + circ(nx_ + 2, ny_ - 18, 2.6, bsk, 'opacity="0.5"') + '</g>';
+          break;
       }
     });
     return s;
@@ -1454,8 +1565,15 @@
     return s;
   }
   // forehead marks are drawn above the fringe so they stay readable (canon: hair parts around them)
-  function foreheadMarks(marks, L, band) {
+  function foreheadMarks(marks, L, band, hatOn) {
     var s = '', y = band ? 214 : 0;
+    if (has(marks, 'caged_bird_seal') && !band && !hatOn) { // 籠中鳥: green cross between two bars, only when the forehead is bare
+      var cx = 281, cy = 196, gc = '#2f9a4a';
+      var cg = 'M' + (cx - 9) + ',' + (cy - 7) + 'L' + (cx + 9) + ',' + (cy + 7) + 'M' + (cx + 9) + ',' + (cy - 7) + 'L' + (cx - 9) + ',' + (cy + 7) +
+        'M' + (cx - 17) + ',' + (cy - 8) + 'Q' + (cx - 21) + ',' + cy + ' ' + (cx - 17) + ',' + (cy + 8) + 'M' + (cx + 17) + ',' + (cy - 8) + 'Q' + (cx + 21) + ',' + cy + ' ' + (cx + 17) + ',' + (cy + 8) +
+        'M' + (cx - 17) + ',' + cy + 'H' + (cx - 11) + 'M' + (cx + 11) + ',' + cy + 'H' + (cx + 17);
+      s += line(cg, '#0e3a1a', L * 1.5, 'opacity="0.55"') + line(cg, gc, L * 0.95);
+    }
     if (has(marks, 'ai_tattoo')) {
       var ty = band ? 222 : 196;
       s += '<text x="324" y="' + ty + '" font-size="30" font-weight="900" text-anchor="middle" fill="#d0162e" stroke="#4a0610" stroke-width="2.2" paint-order="stroke" font-family="' + FONT + '" transform="rotate(8 324 ' + ty + ')">愛</text>';
@@ -1597,6 +1715,22 @@
           if (o > 0 && o < 8) s += truthOrb(X, p[0], p[1], 20, L);
         }
         break;
+      case 'bow': // Kidomaru's golden spider-silk bow, standing upright beside the body
+        var bx0 = Math.min(x(222), 492), bow = 'M' + P(bx0, 54) + 'C' + P(bx0 + 70, 150) + ' ' + P(bx0 + 70, 470) + ' ' + P(bx0, 600) + 'L' + P(bx0 - 8, 592) + 'C' + P(bx0 + 50, 470) + ' ' + P(bx0 + 50, 160) + ' ' + P(bx0 - 8, 62) + 'Z';
+        s += line('M' + P(bx0 - 4, 58) + 'L' + P(bx0 - 4, 596), '#fff6c8', 2, 'opacity="0.9"');
+        s += outlineOf([bow], '#4a3208', L * 2) + cel(X, bow, '#f2c440', '#c08a1a', 6, 0);
+        s += line('M' + P(bx0 + 36, 200) + 'q10,30 0,60M' + P(bx0 + 40, 330) + 'q8,30 0,60', '#fff2b0', L * 0.8, 'opacity="0.7"');
+        s += path('M' + P(bx0 - 4, 54) + 'l-10,-18l18,8Z', '#f2c440', 'stroke="#4a3208" stroke-width="' + r1(L * 0.8) + '"');
+        break;
+      case 'fuma_shuriken': // Mizuki's giant windmill shuriken slung behind the far shoulder
+        var fx = x(-150), fy = 236, fm = '';
+        for (var fb = 0; fb < 4; fb++) {
+          var fa = 20 + fb * 90, t1 = pol(fx, fy, 128, fa), c1 = pol(fx, fy, 70, fa - 34), b1 = pol(fx, fy, 26, fa - 60), b2 = pol(fx, fy, 26, fa + 30);
+          fm += 'M' + PP(b2) + 'L' + PP(t1) + 'Q' + PP(c1) + ' ' + PP(b1) + 'Z';
+        }
+        s += path(fm, X.lin([[0, '#eef2f6'], [0.5, '#a8b2be'], [1, '#5a6472']], 0, 0, 1, 1), 'stroke="#1a1d24" stroke-width="' + r1(L * 1.6) + '" stroke-linejoin="round"');
+        s += circ(fx, fy, 30, '#7a8492', 'stroke="#1a1d24" stroke-width="' + r1(L * 1.6) + '"') + circ(fx, fy, 12, '#2a2e36') + line('M' + P(fx - 20, fy - 14) + 'q16,-10 34,-2', '#fff', L * 0.8, 'opacity="0.6"');
+        break;
       case 'kiseru':
       case 'none':
         break;
@@ -1661,11 +1795,10 @@
   }
   function accessoryFront(X, k, G, Cc, L, c, a) {
     var x = G.x, s = '';
-    var raise = { kunai: 1, chakra_blades: 1, flute: 1, paintbrush: 1, clay: 1 };
-    if (raise[k]) {
+    if (isRaise(k, a)) {
       // forearm raised across the chest, fist at (hx,hy)
       var hx = x(70), hy = 478;
-      var sleeveCol = Cc.armSkin ? Cc.skin : Cc.main;
+      var sleeveCol = Cc.armCol || (Cc.armSkin ? Cc.skin : Cc.main);
       var fa = 'M' + x(134) + ',660C' + x(140) + ',600 ' + P(hx + 10, hy + 70) + ' ' + P(hx - 14, hy + 8) + 'L' + P(hx + 34, hy - 6) + 'C' + P(hx + 50, hy + 50) + ' ' + x(200) + ',580 ' + x(212) + ',660Z';
       s += outlineOf([fa], inkOf(sleeveCol), L * 2) + cel(X, fa, sleeveCol, dk(sleeveCol, 0.25), 6, 0);
       var item = '';
@@ -1675,6 +1808,15 @@
       if (k === 'flute') item = seg(hx - 110, hy - 110, hx + 40, hy + 30, 12, '#b8323a', '#3a0a0a', L) + circ(hx - 74, hy - 76, 2.8, '#2a0a0a') + circ(hx - 58, hy - 61, 2.8, '#2a0a0a') + circ(hx - 42, hy - 46, 2.8, '#2a0a0a') + line('M' + P(hx - 104, hy - 104) + 'l10,10', '#f0c040', 10);
       if (k === 'paintbrush') item = seg(hx - 90, hy - 130, hx + 16, hy + 20, 8, '#c8a060', '#3a2a10', L) + path('M' + P(hx - 88, hy - 128) + 'Q' + P(hx - 110, hy - 150) + ' ' + P(hx - 104, hy - 172) + 'Q' + P(hx - 86, hy - 150) + ' ' + P(hx - 80, hy - 134) + 'Z', '#111', 'stroke="#111" stroke-width="' + r1(L) + '"') + path('M' + P(hx - 120, hy - 60) + 'q-6,10 0,14q6,-4 0,-14Z', '#111');
       if (k === 'clay') item = clayBird(hx - 50, hy - 92, L * 1.2);
+      if (k === 'chakra_rods') { // Pain's black chakra receiver, ridged grip, held point-up
+        var rtx = hx - 172, rty = hy - 132; // tip passes below the chin, clear of the face
+        item = seg(hx + 18, hy + 24, rtx, rty, 10, '#22202a', '#05040a', L) + path('M' + P(rtx + 2, rty - 8) + 'L' + P(rtx - 22, rty - 14) + 'L' + P(rtx - 2, rty + 8) + 'Z', '#2a2832', 'stroke="#05040a" stroke-width="' + r1(L) + '"');
+        for (var ri = 0; ri < 5; ri++) { var rt = 0.12 + ri * 0.05, rx = hx + 18 + (rtx - hx - 18) * rt, ry = hy + 24 + (rty - hy - 24) * rt; item += line('M' + P(rx - 2, ry - 6) + 'l5,11', '#6a6878', L * 0.7); }
+        item += line('M' + P(hx - 40, hy - 34) + 'L' + P(rtx + 14, rty + 6), '#8a88a0', L * 0.5, 'opacity="0.7"');
+      }
+      if (k === 'senbon') { // fan of needles between the fingers (Haku)
+        [-34, -22, -10].forEach(function (an) { var e = pol(hx - 4, hy - 6, 120, an - 90); item += line('M' + P(hx - 4, hy - 6) + 'L' + PP(e), '#3a3f4a', 4.2) + line('M' + P(hx - 4, hy - 6) + 'L' + PP(e), '#e6edf5', 2.2); });
+      }
       s += item + '<g transform="translate(' + r1(hx) + ',' + r1(hy) + ') scale(1.55) translate(' + r1(-hx) + ',' + r1(-hy) + ')">' + hand(X, hx, hy, -40, Cc.skin, Cc.skinInk, L / 1.55) + '</g>';
     }
     if (k === 'dog') {
@@ -1690,6 +1832,54 @@
     }
     return s;
   }
+  var RAISE_SET = { kunai: 1, chakra_blades: 1, flute: 1, paintbrush: 1, clay: 1, chakra_rods: 1 };
+  function isRaise(k, a) { return !!own(RAISE_SET, k) || (k === 'senbon' && !!a && a.senbonPos === 'hand'); }
+  // small items held in the mouth, drawn in head space at the near mouth corner
+  function mouthItem(X, k, a, g, L) {
+    var mx = g.mouth[0], my = g.mouth[1], w = g.mouth[2], x0, y0, s = '';
+    switch (k) {
+      case 'cigarette': // Asuma
+        x0 = mx + w * 0.32; y0 = my + 1;
+        s += seg(x0, y0, x0 + 40, y0 + 11, 5.5, '#f6f2ea', '#3a2a24', L * 0.6) + seg(x0, y0, x0 + 11, y0 + 3, 5.5, '#d88a3a', '#3a2a24', L * 0.6);
+        s += circ(x0 + 41, y0 + 11.3, 3.4, '#ff5a1a', 'stroke="#7a1a00" stroke-width="1"') + circ(x0 + 41, y0 + 11.3, 1.6, '#ffd27a');
+        s += line('M' + P(x0 + 43, y0 + 6) + 'q-8,-12 2,-22q10,-10 0,-24q-6,-8 2,-18', '#eceff4', L * 0.9, 'opacity="0.55"');
+        return s;
+      case 'senbon':
+        if (a && a.senbonPos === 'hand') return '';
+        x0 = mx + w * 0.28; y0 = my + 1; // Genma: needle held like a toothpick
+        return line('M' + P(x0 - 6, y0 + 1) + 'L' + P(x0 + 62, y0 + 9), '#2a2e38', 4) + line('M' + P(x0 - 6, y0 + 1) + 'L' + P(x0 + 62, y0 + 9), '#e8eef6', 1.8) + circ(x0 + 62, y0 + 9, 1.6, '#e8eef6');
+      case 'lollipop': // Omoi: round candy at the lips, stick poking out
+        x0 = mx + w * 0.55; y0 = my + 3;
+        s += seg(x0 + 4, y0 + 2, x0 + 30, y0 + 22, 3.6, '#f8f6f0', '#5a4a40', L * 0.5);
+        s += circ(x0, y0, 8.5, '#ff6aa0', 'stroke="#5a1a30" stroke-width="' + r1(L * 0.7) + '"') + '<g transform="translate(' + r1(x0) + ',' + r1(y0) + ') scale(7)"><path d="' + spiralD(1.5, 0.08, 1, 30) + '" fill="none" stroke="#fff3f8" stroke-width="0.2"/></g>';
+        return s;
+    }
+    return '';
+  }
+  // Obito's goggles worn over the eyes: dark frames, orange tinted glass, strap round the head
+  function goggles(X, a, g, L) {
+    var fc = col(a.gogglesColor, '#ff8f00'), s = '';
+    var E1 = g.eL, E2 = g.eR;
+    s += line('M' + P(E1[0] - E1[2] * 0.8, E1[1] - 2) + 'L' + P(198, E1[1] - 8) + 'M' + P(E2[0] + E2[2] * 0.8, E2[1] - 2) + 'L' + P(364, E2[1] - 10), '#2a2a32', L * 2.6);
+    [[E1, -1], [E2, 1]].forEach(function (e) {
+      var E_ = e[0], rx = E_[2] * 0.78, ry = E_[3] * 1.15 + 4, d = ellD(E_[0], E_[1] + 1, rx, ry);
+      s += path(d, fc, 'fill-opacity="0.34" stroke="#22222a" stroke-width="' + r1(L * 2.2) + '"') + path(d, 'none', 'stroke="' + lt(fc, 0.35) + '" stroke-width="' + r1(L * 0.8) + '"');
+      s += path('M' + P(E_[0] - rx * 0.6, E_[1] - ry * 0.2) + 'q' + r1(rx * 0.3) + ',' + r1(-ry * 0.6) + ' ' + r1(rx * 0.8) + ',' + r1(-ry * 0.62), 'none', 'stroke="#fff" stroke-width="' + r1(L * 0.9) + '" opacity="0.75" stroke-linecap="round"');
+    });
+    s += line('M' + P(E1[0] + E1[2] * 0.78, E1[1] - 2) + 'Q' + P((E1[0] + E2[0]) / 2, E1[1] - 9) + ' ' + P(E2[0] - E2[2] * 0.78, E2[1] - 2), '#22222a', L * 1.6);
+    return s;
+  }
+  // Konohamaru's long scarf: wrap under the chin, one tail down the chest, one streaming back
+  function scarf(X, a, G, Cc, L) {
+    var sc = col(a.scarfColor, Cc.acc), ink = inkOf(sc), sh = dk(sc, 0.3);
+    var wrap = 'M226,322Q278,350 330,316L336,352Q280,388 222,356Z';
+    var tail = 'M296,350C312,410 300,470 316,560L282,566C270,478 280,410 270,354Z';
+    var fly = 'M240,340C196,322 140,350 92,324C112,358 150,382 200,372C220,368 236,362 246,356Z';
+    var s = outlineOf([fly, tail, wrap], ink, L * 2) + cel(X, fly, sc, sh, 0, 8) + cel(X, tail, sc, sh, 8, 0) + cel(X, wrap, sc, sh, 0, 10);
+    s += line('M230,338Q278,362 330,334M300,400Q296,450 304,500M120,346Q160,366 210,360', ink, L * 0.6, 'opacity="0.45"');
+    s += line('M284,566l2,14M292,565l1,14M300,564l2,14M308,563l1,14', sc, L * 1.2);
+    return s;
+  }
   function kiseru(L) {
     return seg(286, 300, 352, 318, 4, '#5a3a1a', '#1a0a00', L) + path('M346,308l14,-2l4,16l-14,4Z', '#8a6a3a', 'stroke="#1a0a00" stroke-width="' + r1(L * 0.8) + '"') +
       path('M356,300C350,280 366,268 360,248C372,262 366,282 372,296Z', '#e8e8f0', 'opacity="0.5"');
@@ -1702,8 +1892,9 @@
   /* ======================================================================
    * 10b. beasts (bijuu, toads, snakes)
    * ==================================================================== */
-  var BEAST_TAILS = { tanuki: 1, cat: 2, turtle: 3, monkey: 4, horse: 5, slug: 6, beetle: 7, ox: 8, fox: 9, juubi: 10, toad: 0, snake: 0 };
-  var BEAST_EYE = { tanuki: '#f2c230', cat: '#ffd23a', turtle: '#ff3a2a', monkey: '#7ad04a', horse: '#ff6a5a', slug: '#3a3a2a', beetle: '#ff9a2a', ox: '#ffd54f', fox: '#ff2a1a', juubi: '#e3121c', toad: '#ffd23a', snake: '#ffe03a' };
+  var BEAST_TAILS = { tanuki: 1, cat: 2, turtle: 3, monkey: 4, horse: 5, slug: 6, beetle: 7, ox: 8, fox: 9, juubi: 10, toad: 0, snake: 0, dog: 0 };
+  var BEAST_EYE = { tanuki: '#f2c230', cat: '#ffd23a', turtle: '#ff3a2a', monkey: '#7ad04a', horse: '#ff6a5a', slug: '#3a3a2a', beetle: '#ff9a2a', ox: '#ffd54f', fox: '#ff2a1a', juubi: '#e3121c', toad: '#ffd23a', snake: '#ffe03a', dog: '#2a1a10' };
+  function mirrorD(d) { return d.replace(/(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/g, function (m, x, y) { return r1(560 - x) + ',' + y; }); } // absolute-coordinate paths only
   function smooth(pts, closed) {
     var n = pts.length, d = 'M' + PP(pts[0]);
     for (var i = 1; i < n - 1; i++) d += 'Q' + PP(pts[i]) + ' ' + P((pts[i][0] + pts[i + 1][0]) / 2, (pts[i][1] + pts[i + 1][1]) / 2);
@@ -1821,46 +2012,93 @@
         s += path('M270,296L290,296L280,308Z', '#1a0a20') + line('M280,308Q270,322 256,318M280,308Q290,322 304,318', '#1a0a20', L) + path('M262,318l4,10l4,-9ZM290,319l4,9l4,-10Z', '#fff');
         s += line('M206,290L160,280M206,302L162,306M354,290L400,280M354,302L398,306', lt(bc, 0.6), L * 0.8);
         break;
-      case 'turtle':
-        s += body(['M150,330C130,220 190,140 280,130C370,140 430,220 410,330Z'], 0, 14);
-        for (var t = 0; t < 7; t++) { var tp = pol(280, 330, 150, -165 + t * 25), tb = pol(280, 330, 108, -172 + t * 25), tc = pol(280, 330, 108, -158 + t * 25); s += path('M' + PP(tb) + 'L' + PP(tp) + 'L' + PP(tc) + 'Z', lt(bc, 0.4), 'stroke="' + ink + '" stroke-width="' + r1(L) + '"'); }
-        hd = 'M206,250C206,200 240,180 280,180C320,180 354,200 354,250C354,306 326,344 280,352C234,344 206,306 206,250Z';
+      case 'turtle': // Isobu: armoured head, far eye sealed under a carapace plate, one great red eye, crab-like jaws
+        hd = 'M200,262C196,206 236,174 282,174C328,174 366,206 364,262C364,316 332,354 282,362C232,354 200,316 200,262Z';
+        s += body(['M236,184L224,132L256,176Z', 'M282,176L282,120L300,174Z', 'M328,184L346,134L310,176Z']);
         s += body([hd]);
-        s += path('M198,206L274,196L266,276L194,270Z', lt(bc, 0.2), 'stroke="' + ink + '" stroke-width="' + r1(L * 1.2) + '"') + path('M206,210L186,184L222,204ZM230,200L222,172L246,198Z', lt(bc, 0.45), 'stroke="' + ink + '" stroke-width="' + r1(L) + '"');
-        s += beastEye(X, 318, 246, 46, 30, 1, 'beast', ec);
-        s += path('M236,308Q280,330 324,308L316,326Q280,342 244,326Z', '#3a0a10', 'stroke="#1a0606" stroke-width="' + r1(L) + '"') + mouthTeeth(242, 318, 310, 6, 8);
+        var plate = 'M192,212L280,192L276,292L188,282Z';
+        s += path(plate, lt(bc, 0.25), 'stroke="' + ink + '" stroke-width="' + r1(L * 1.4) + '" stroke-linejoin="round"') + line('M200,236L274,224M198,260L272,252', dk(bc, 0.2), L, 'opacity="0.7"') + path('M196,214L180,186L218,208ZM236,204L230,174L256,200Z', lt(bc, 0.45), 'stroke="' + ink + '" stroke-width="' + r1(L) + '"');
+        s += beastEye(X, 324, 244, 54, 34, 1, eye, ec) + path('M294,222Q326,204 360,222', 'none', 'stroke="' + dk(bc, 0.45) + '" stroke-width="' + r1(L * 2.4) + '" stroke-linecap="round"');
+        s += path('M222,306Q282,336 346,302L338,334Q282,360 230,334Z', '#3a0a10', 'stroke="#1a0606" stroke-width="' + r1(L) + '"') + mouthTeeth(228, 340, 310, 8, 9);
+        s += path('M206,300L190,330L220,322ZM358,296L376,326L346,318Z', lt(bc, 0.35), 'stroke="' + ink + '" stroke-width="' + r1(L) + '"');
         break;
-      case 'monkey':
+      case 'monkey': // Son Goku: gorilla face — heavy brow ridge, flat nostrils on a muzzle, flared cheek fur, fangs
         s += body(['M232,182C224,130 236,96 254,76C252,118 256,150 264,174Z', 'M328,182C336,130 324,96 306,76C308,118 304,150 296,174Z']);
-        hd = 'M186,236C182,176 228,150 280,150C332,150 378,176 374,236C388,290 356,356 280,366C204,356 172,290 186,236Z';
-        s += body([hd]);
-        var face = 'M216,236C226,204 334,204 344,236C352,292 322,342 280,346C238,342 208,292 216,236Z';
-        s += path(face, mix(bc, '#f0c8a0', 0.55), 'stroke="' + ink + '" stroke-width="' + r1(L) + '"');
-        s += path('M210,226Q244,206 274,226L276,236Q244,222 212,240ZM350,226Q316,206 286,226L284,236Q316,222 348,240Z', dk(bc, 0.45));
-        s += beastEye(X, 246, 246, 36, 20, -1, 'beast', ec) + beastEye(X, 314, 246, 36, 20, 1, 'beast', ec);
-        s += ell(270, 290, 5, 4, '#2a0a0a') + ell(290, 290, 5, 4, '#2a0a0a');
-        s += path('M236,312Q280,334 324,312Q312,344 280,346Q248,344 236,312Z', '#4a0a10', 'stroke="#1a0606" stroke-width="' + r1(L) + '"') + path('M244,314l6,14l6,-12ZM304,314l6,12l6,-14Z', '#fff');
-        s += path('M216,330Q240,372 280,378Q320,372 344,330Q330,392 280,398Q230,392 216,330Z', dk(bc, 0.2), 'stroke="' + ink + '" stroke-width="' + r1(L) + '"');
+        // gorilla skull: low sagittal crest, wide jaw, shaggy cheek fur
+        hd = 'M196,226C188,178 230,148 280,146C330,148 372,178 364,226C392,262 396,318 360,350C336,374 312,380 280,380C248,380 224,374 200,350C164,318 168,262 196,226Z';
+        var tufts = 'M192,250L148,236L176,268L136,280L178,296L146,318L190,320L172,346L214,338ZM368,250L412,236L384,268L424,280L382,296L414,318L370,320L388,346L346,338Z';
+        s += body([tufts, hd, 'M252,152L262,118L276,148L286,112L296,148L312,120L314,156Z']);
+        if (isHex(a.maneColor)) { // e.g. Enma: white mane / beard framing the face
+          var mc = col(a.maneColor), beardM = 'M206,300C210,350 240,388 280,394C320,388 350,350 354,300L340,330L326,316L314,350L296,330L280,366L264,330L246,350L234,316L220,330Z';
+          s += outlineOf([tufts, beardM], inkOf(mc), L * 1.6) + cel(X, tufts, mc, dk(mc, 0.18), 0, 6) + cel(X, beardM, mc, dk(mc, 0.18), 0, 6);
+        }
+        var face = 'M216,228C228,204 332,204 344,228C352,262 346,286 336,300L224,300C214,286 208,262 216,228Z';
+        s += path(face, dk(bc, 0.42), 'stroke="' + ink + '" stroke-width="' + r1(L) + '"');
+        s += beastEye(X, 248, 252, 30, 16, -1, 'beast', ec, '#1a0a08') + beastEye(X, 312, 252, 30, 16, 1, 'beast', ec, '#1a0a08');
+        s += path('M200,236Q242,204 280,226Q318,204 360,236L356,252Q318,226 280,246Q242,226 204,252Z', dk(bc, 0.62), 'stroke="' + ink + '" stroke-width="' + r1(L) + '"');
+        var muz = 'M220,300C222,268 338,268 340,300C350,344 322,372 280,374C238,372 210,344 220,300Z';
+        s += path(muz, mix(bc, '#d89870', 0.5), 'stroke="' + ink + '" stroke-width="' + r1(L * 1.2) + '"');
+        s += path('M252,284Q280,270 308,284Q304,298 280,300Q256,298 252,284Z', dk(bc, 0.3)) + ell(268, 290, 7, 4.5, '#1a0606') + ell(292, 290, 7, 4.5, '#1a0606');
+        s += path('M232,316Q280,336 328,316Q320,362 280,364Q240,362 232,316Z', '#3a0a10', 'stroke="#1a0606" stroke-width="' + r1(L) + '"');
+        s += path('M240,320l7,20l7,-17ZM306,320l7,17l7,-20Z', '#fff', 'stroke="#2a0a0a" stroke-width="1"') + path('M252,362l5,-14l5,12ZM298,362l5,-12l5,14Z', '#f4ece0', 'stroke="#2a0a0a" stroke-width="1"');
         break;
-      case 'horse':
+      case 'horse': // Kokuo: white horse body with a dolphin's head — rounded melon brow, bottlenose snout, swept-back horns
         s += path('M250,160C220,190 210,260 230,330L250,330C236,270 240,200 262,166Z', ac, 'stroke="' + inkOf(ac) + '" stroke-width="' + r1(L) + '"');
-        s += body(['M238,168C196,128 184,86 196,40C212,90 236,122 258,148Z', 'M322,168C364,128 376,86 364,40C348,90 324,122 302,148Z', 'M244,178C214,170 196,150 190,124C212,144 234,156 254,164Z', 'M316,178C346,170 364,150 370,124C348,144 326,156 306,164Z']);
-        hd = 'M230,172C230,138 330,138 330,172C344,222 334,300 316,362C306,394 254,394 244,362C226,300 216,222 230,172Z';
+        s += body(['M238,172C196,132 184,90 196,44C212,94 236,126 258,152Z', 'M322,172C364,132 376,90 364,44C348,94 324,126 302,152Z', 'M244,182C214,174 196,154 190,128C212,148 234,160 254,168Z', 'M316,182C346,174 364,154 370,128C348,148 326,160 306,168Z']);
+        hd = 'M210,214C200,156 360,156 350,214C362,256 350,296 330,318L230,318C210,296 198,256 210,214Z';
         s += body([hd]);
-        s += path('M244,330C250,310 310,310 316,330C320,360 300,384 280,384C260,384 240,360 244,330Z', lt(bc, 0.15));
-        s += beastEye(X, 244, 222, 30, 18, -1, 'beast', ec) + beastEye(X, 316, 222, 30, 18, 1, 'beast', ec);
-        s += path('M236,190L262,200L250,206ZM324,190L298,200L310,206Z', ac);
-        s += ell(264, 360, 6, 4, '#2a1a1a') + ell(296, 360, 6, 4, '#2a1a1a');
+        s += path('M224,206C232,174 328,174 336,206C312,188 248,188 224,206Z', lt(bc, 0.6), 'opacity="0.85"');
+        s += line('M222,262Q280,284 338,262', dk(bc, 0.3), L * 1.4, 'opacity="0.7"');
+        var snout = 'M242,300C240,278 320,278 318,300C322,340 306,366 280,368C254,366 238,340 242,300Z';
+        s += outlineOf([snout], inkOf(bc), L * 2) + cel(X, snout, lt(bc, 0.3), dk(bc, 0.12), 5, 6);
+        s += line('M226,318Q252,346 280,344Q308,346 334,318', inkOf(bc), L * 1.4) + path('M268,300Q280,292 292,300Q286,306 280,306Q274,306 268,300Z', dk(bc, 0.45));
+        s += path('M252,290Q262,280 278,282', 'none', 'stroke="#fff" stroke-width="' + r1(L * 1.2) + '" stroke-linecap="round" opacity="0.8"');
+        s += path('M214,236Q240,220 262,242Q238,252 214,236ZM346,236Q320,220 298,242Q322,252 346,236Z', ac);
+        s += beastEye(X, 240, 240, 30, 18, -1, 'beast', ec) + beastEye(X, 320, 240, 30, 18, 1, 'beast', ec);
         break;
-      case 'slug':
-        hd = 'M190,280C180,200 230,160 280,160C330,160 380,200 370,280C366,340 330,380 280,384C230,380 194,340 190,280Z';
+      case 'slug': // Saiken: glossy slime-white sea-slug — no neck, eye stalks, droopy eyes, tiny round mouth, dripping mucus
+        hd = 'M188,292C180,206 228,162 280,162C332,162 380,206 372,292C368,342 334,380 280,384C226,380 192,342 188,292Z';
+        s += line('M248,186Q236,150 226,122M312,186Q324,150 334,122', ink, L * 2.6) + line('M248,186Q236,150 226,122M312,186Q324,150 334,122', lt(bc, 0.2), L * 1.2);
+        s += circ(226, 120, 12, lt(bc, 0.35), 'stroke="' + ink + '" stroke-width="' + r1(L) + '"') + circ(334, 120, 12, lt(bc, 0.35), 'stroke="' + ink + '" stroke-width="' + r1(L) + '"') + circ(222, 116, 4, '#fff') + circ(330, 116, 4, '#fff');
         s += body([hd]);
-        s += line('M246,200L236,160M314,200L324,160', ink, L * 2) + circ(236, 158, 10, lt(bc, 0.3), 'stroke="' + ink + '" stroke-width="' + r1(L) + '"') + circ(324, 158, 10, lt(bc, 0.3), 'stroke="' + ink + '" stroke-width="' + r1(L) + '"');
-        s += beastEye(X, 246, 252, 32, 20, -1, 'normal', '#3a3a2a') + beastEye(X, 314, 252, 32, 20, 1, 'normal', '#3a3a2a');
-        s += path('M244,316Q280,300 316,316Q304,348 280,350Q256,348 244,316Z', '#e88a9a', 'stroke="' + ink + '" stroke-width="' + r1(L) + '"') + line('M248,322Q280,330 312,322', '#8a2a3a', L);
-        for (var bb = 0; bb < 6; bb++) s += circ(200 + bb * 34, 400 + (bb % 2) * 30, 8 + (bb % 3) * 3, '#dfffb0', 'opacity="0.55" stroke="' + ink + '" stroke-width="1"');
-        s += path('M216,220C224,196 244,184 262,180C246,192 236,206 230,226Z', '#fff', 'opacity="0.6"');
+        s += path('M200,300C206,330 236,360 280,364C324,360 354,330 360,300C350,346 318,374 280,376C242,374 210,346 200,300Z', ac, 'opacity="0.35"');
+        if (a.stripes) s += '<g clip-path="' + X.clip('<path d="' + hd + '"/>') + '">' + line('M206,236Q190,290 206,346M354,236Q370,290 354,346', ac, 9, 'opacity="0.8"') + '</g>'; // Katsuyu's blue flank stripes
+        s += beastEye(X, 244, 262, 38, 26, -1, 'beast', '#2a3a40', '#f4fbfa') + beastEye(X, 316, 262, 38, 26, 1, 'beast', '#2a3a40', '#f4fbfa');
+        // heavy, sleepy lids + a mantle ridge and freckles make it read as a soft mollusc rather than an alien
+        s += path('M224,258Q244,232 264,258Q244,250 224,258ZM296,258Q316,232 336,258Q316,250 296,258Z', bc, 'stroke="' + ink + '" stroke-width="' + r1(L) + '"');
+        s += path('M262,170Q280,150 298,170Q290,200 280,206Q270,200 262,170Z', dk(bc, 0.12), 'stroke="' + ink + '" stroke-width="' + r1(L * 0.8) + '" opacity="0.9"');
+        [[214, 300, 5], [226, 318, 3.5], [346, 300, 5], [334, 318, 3.5], [300, 196, 4], [252, 204, 3]].forEach(function (q) { s += circ(q[0], q[1], q[2], dk(bc, 0.22), 'opacity="0.7"'); });
+        s += ell(280, 326, 13, 9, '#6a2a3a', 'stroke="' + ink + '" stroke-width="' + r1(L) + '"') + ell(280, 329, 7, 4, '#c86a7a');
+        s += path('M206,330Q204,352 210,364Q216,352 214,334ZM350,336Q352,356 346,368Q340,356 342,338ZM262,376Q262,396 268,404Q274,394 272,378Z', lt(bc, 0.3), 'stroke="' + ink + '" stroke-width="' + r1(L * 0.6) + '" opacity="0.9"');
+        s += path('M214,236C222,204 244,186 268,180C248,194 234,212 228,240Z', '#fff', 'opacity="0.7"') + circ(330, 200, 6, '#fff', 'opacity="0.6"') + circ(344, 214, 3, '#fff', 'opacity="0.6"');
+        for (var bb = 0; bb < 6; bb++) s += circ(200 + bb * 34, 410 + (bb % 2) * 30, 7 + (bb % 3) * 3, '#e8fff8', 'opacity="0.55" stroke="' + ink + '" stroke-width="1"');
         break;
+      case 'dog': { // ninken: Pakkun-style pug (default for darker coats) or a fluffy white Akamaru
+        var pug = a.dogStyle ? a.dogStyle !== 'fluffy' : lum(bc) < 0.75;
+        var earC = col(a.earColor, pug ? dk(bc, 0.45) : mix(bc, '#c08a5a', 0.55));
+        var ear = pug ? 'M210,198C172,186 150,228 160,278C166,302 186,306 198,288C204,262 208,238 226,214Z' : 'M216,190C190,150 158,166 156,212C154,256 170,290 192,300C202,270 210,238 230,208Z';
+        s += outlineOf([ear, mirrorD(ear)], inkOf(earC), L * 2.2) + cel(X, ear, earC, dk(earC, 0.3), -6, 6) + cel(X, mirrorD(ear), earC, dk(earC, 0.3), 6, 6);
+        hd = 'M198,240C194,182 236,152 280,152C324,152 366,182 362,240C368,300 336,348 280,354C224,348 192,300 198,240Z';
+        s += body([hd]);
+        if (!pug) s += line('M206,290L188,300M210,306L192,320M354,290L372,300M350,306L368,320', bc, L * 2.4) + line('M206,290L188,300M210,306L192,320M354,290L372,300M350,306L368,320', ink, L * 0.6, 'opacity="0.5"');
+        var mz = 'M230,288C228,260 254,250 280,250C306,250 332,260 330,288C332,326 308,344 280,344C252,344 228,326 230,288Z';
+        s += path(mz, pug ? dk(bc, 0.5) : lt(bc, 0.4), 'stroke="' + ink + '" stroke-width="' + r1(L) + '"');
+        if (pug) s += line('M244,208Q262,198 280,206Q298,198 316,208M250,224Q266,218 280,222Q294,218 310,224M262,258Q280,250 298,258', dk(bc, 0.4), L * 1.1, 'opacity="0.8"');
+        [[246, -1], [314, 1]].forEach(function (e) {
+          var r = pug ? 13 : 9;
+          s += circ(e[0], 244, r, '#1e140c', 'stroke="' + ink + '" stroke-width="' + r1(L * 0.8) + '"') + circ(e[0] - r * 0.35, 244 - r * 0.4, r * 0.32, '#fff');
+          if (pug) s += path('M' + (e[0] - 15) + ',' + 236 + 'Q' + e[0] + ',' + 222 + ' ' + (e[0] + 15) + ',' + 236 + 'L' + (e[0] + 15) + ',' + 241 + 'Q' + e[0] + ',' + 232 + ' ' + (e[0] - 15) + ',' + 241 + 'Z', dk(bc, 0.1), 'stroke="' + ink + '" stroke-width="' + r1(L * 0.7) + '"');
+          s += path('M' + (e[0] - 14 * e[1]) + ',' + 224 + 'Q' + (e[0]) + ',' + 214 + ' ' + (e[0] + 12 * e[1]) + ',' + 220, 'none', 'stroke="' + dk(bc, 0.5) + '" stroke-width="' + r1(L * 1.6) + '" stroke-linecap="round"');
+        });
+        s += path('M264,270Q280,260 296,270Q294,286 280,288Q266,286 264,270Z', '#141010', 'stroke="#000" stroke-width="' + r1(L * 0.6) + '"') + ell(274, 268, 4, 2.5, '#fff', 'opacity="0.6"');
+        s += line('M280,288V300M262,306Q272,312 280,302Q288,312 298,306', '#1a0a0a', L * 1.1);
+        if (!pug) s += path('M272,310Q280,330 288,310Z', '#e86a7a', 'stroke="#5a1a20" stroke-width="' + r1(L * 0.6) + '"');
+        if (a.headband && a.headband !== 'none' && inVocab(a.headband, ART.headband)) {
+          var hcl = col(a.headbandColor, '#1f2b4d');
+          s += path('M200,192Q280,166 360,192L362,212Q280,186 198,212Z', hcl, 'stroke="' + inkOf(hcl) + '" stroke-width="' + r1(L) + '"') + metalPlate(X, 280, 192, 64, 26, a.headband, !!a.headbandSlash, L * 0.8);
+        }
+        break;
+      }
       case 'beetle':
         s += body(['M262,176C256,124 266,84 290,60C290,104 300,140 298,176Z']);
         hd = 'M204,240C204,192 240,170 280,170C320,170 356,192 356,240C356,292 324,332 280,338C236,332 204,292 204,240Z';
@@ -1909,6 +2147,12 @@
         s += path('M196,250Q210,270 236,262M364,250Q350,270 324,262', 'none', 'stroke="' + ac + '" stroke-width="' + r1(L * 2.2) + '"');
         if (lum(ac) > 0.7) s += path('M240,330Q260,350 280,344Q300,350 320,330Q300,372 280,368Q260,372 240,330Z', ac, 'stroke="' + inkOf(ac) + '" stroke-width="' + r1(L * 0.6) + '"');
         s += ell(266, 270, 4, 3, '#1a0a0a') + ell(294, 270, 4, 3, '#1a0a0a');
+        if (a.wrinkles) s += line('M190,236Q200,250 196,266M370,236Q360,250 364,266M244,286Q262,296 280,292Q298,296 316,286M214,316Q232,330 252,330M346,316Q328,330 308,330', dk(bc, 0.45), L * 0.9, 'opacity="0.7"');
+        if (isHex(a.brows)) { // old sage: bushy white brows sweeping out over the eye bumps
+          var bw = col(a.brows), tuft = 'M196,180C202,154 230,148 252,160C266,168 270,180 266,186C254,176 238,174 224,178L206,196L210,182L186,198Z';
+          s += outlineOf([tuft, mirrorD(tuft)], inkOf(bw), L * 1.6) + cel(X, tuft, bw, dk(bw, 0.18), 3, 4) + cel(X, mirrorD(tuft), bw, dk(bw, 0.18), -3, 4);
+          s += line('M206,170Q228,160 250,168M354,170Q332,160 310,168', dk(bw, 0.25), L * 0.6, 'opacity="0.7"');
+        }
         if (a.accessory === 'kiseru') s += seg(330, 318, 430, 290, 7, '#5a3a1a', '#1a0a00', L) + path('M422,276l18,-4l6,24l-18,6Z', '#8a6a3a', 'stroke="#1a0a00" stroke-width="' + r1(L) + '"');
         break;
       case 'snake':
@@ -1943,6 +2187,17 @@
         bd = 'M150,660C140,560 190,470 280,460C370,470 420,560 410,660Z';
         arms = ['M170,520L80,560L60,640L84,644L100,580L180,560Z', 'M390,520L480,560L500,640L476,644L460,580L380,560Z'];
       }
+      if (b === 'turtle') { // domed shell ringed with coral spikes, flippers in front
+        bd = 'M24,660C24,470 140,346 280,336C420,346 536,470 536,660Z';
+        arms = ['M58,660C42,598 84,544 146,546C186,562 200,612 188,660Z', mirrorD('M58,660C42,598 84,544 146,546C186,562 200,612 188,660Z')];
+        var cor = col(a.coralColor, '#efe2cc'), sp = '';
+        for (var ti = 0; ti < 11; ti++) {
+          var ta = -168 + ti * 15.6, rb = [280 + 250 * Math.cos(ta * Math.PI / 180), 660 + 318 * Math.sin(ta * Math.PI / 180)], ln = 66 + (ti % 3) * 22;
+          var tip = pol(rb[0], rb[1], ln, ta), b0 = pol(rb[0], rb[1], 18, ta - 90), b1 = pol(rb[0], rb[1], 18, ta + 90), br = pol(rb[0], rb[1], ln * 0.55, ta), bt = pol(br[0], br[1], ln * 0.5, ta + (ti % 2 ? 40 : -40));
+          sp += 'M' + PP(b0) + 'L' + PP(tip) + 'L' + PP(b1) + 'Z' + 'M' + PP(pol(br[0], br[1], 7, ta - 90)) + 'L' + PP(bt) + 'L' + PP(pol(br[0], br[1], 7, ta + 90)) + 'Z';
+        }
+        P_.back += path(sp, cor, 'stroke="' + inkOf(bc) + '" stroke-width="' + r1(L * 1.4) + '" stroke-linejoin="round"');
+      }
       var neck = { slug: 1, toad: 1 }[b] ? null : 'M228,330C224,384 206,432 170,486L390,486C354,432 336,384 332,330Z';
       P_.body = outlineOf([bd].concat(arms, neck ? [neck] : []), inkOf(bc), L * 2.2) + (neck ? cel(X, neck, bc, dk(bc, 0.3), 16, 0) : '') + cel(X, bd, bc, dk(bc, 0.3), 30, 10);
       if (b === 'fox' || b === 'monkey' || b === 'tanuki' || b === 'ox') {
@@ -1950,12 +2205,32 @@
         for (var fi = 0; fi < 6; fi++) { fur += 'M' + P(110 + fi * 18, 520 - fi * 14) + 'l' + r1(-30 + fi * 3) + ',' + r1(-18 - fi * 2) + 'l' + r1(34 - fi * 2) + ',' + r1(6) + 'Z'; fur += 'M' + P(450 - fi * 18, 520 - fi * 14) + 'l' + r1(30 - fi * 3) + ',' + r1(-18 - fi * 2) + 'l' + r1(-34 + fi * 2) + ',' + r1(6) + 'Z'; }
         P_.body += path(fur, bc, 'stroke="' + inkOf(bc) + '" stroke-width="' + r1(L) + '" stroke-linejoin="round"');
       }
+      if (b === 'turtle') { // hexagonal scutes on the shell
+        var sc3 = '';
+        [[150, 470], [280, 420], [410, 470], [90, 590], [470, 590]].forEach(function (q) { var hx_ = ''; for (var hk = 0; hk < 6; hk++) hx_ += (hk ? 'L' : 'M') + PP(pol(q[0], q[1], 44, hk * 60 + 30)); sc3 += hx_ + 'Z'; });
+        P_.body += '<g clip-path="' + X.clipPaths([bd]) + '">' + path(sc3, lt(bc, 0.12), 'stroke="' + inkOf(bc) + '" stroke-width="' + r1(L * 1.1) + '" opacity="0.9"') + '</g>';
+      }
       arms.forEach(function (d) { P_.body += cel(X, d, bc, dk(bc, 0.3), 14, 6); });
       if (b === 'beetle') P_.body += line('M170,540Q280,510 390,540M160,590Q280,560 400,590M280,470V660', dk(bc, 0.4), L * 1.2);
-      else if (b === 'slug') P_.body += path('M140,600C170,540 230,520 280,520C330,520 390,540 420,600', 'none', 'stroke="' + lt(bc, 0.5) + '" stroke-width="10" opacity="0.6" stroke-linecap="round"');
+      else if (b === 'slug') {
+        P_.body += path('M140,600C170,540 230,520 280,520C330,520 390,540 420,600', 'none', 'stroke="' + lt(bc, 0.5) + '" stroke-width="10" opacity="0.6" stroke-linecap="round"');
+        if (a.stripes) P_.body += '<g clip-path="' + X.clipPaths([bd]) + '">' + line('M176,486Q120,560 108,660M384,486Q440,560 452,660', ac, 18, 'opacity="0.8"') + '</g>';
+      }
       else P_.body += path('M200,660C200,560 236,500 280,496C324,500 360,560 360,660Z', lt(bc, b === 'fox' || b === 'monkey' ? 0.2 : 0.12), 'opacity="0.7"');
-      if (b === 'monkey') P_.body += path('M110,520L130,480L150,520Z M420,520L440,484L456,524Z', '#ff7a1a', 'stroke="#5a1a00" stroke-width="' + r1(L) + '"');
-      if ({ fox: 1, monkey: 1, tanuki: 1, ox: 1, juubi: 1, cat: 1 }[b]) {
+      if (b === 'monkey') { // bony white spurs on the shoulders
+        var spur = 'M118,528L104,452L140,504L150,446L166,512Z';
+        P_.body += path(spur + mirrorD(spur), '#f2ead8', 'stroke="#3a1a10" stroke-width="' + r1(L * 1.2) + '" stroke-linejoin="round"');
+      }
+      if (b === 'dog' && isHex(a.vestColor)) { // ninken vest
+        var vc = col(a.vestColor), vd = 'M96,660C92,566 150,482 222,470L280,552L338,470C410,482 468,566 464,660Z';
+        P_.body += outlineOf([vd], inkOf(vc), L * 2) + cel(X, vd, vc, dk(vc, 0.3), 16, 8) + line('M222,470L280,552L338,470', lt(vc, 0.35), L * 1.2, 'opacity="0.8"');
+      }
+      if (b === 'toad' && isHex(a.cape)) { // elder sage's cape tied at the throat
+        var cc = col(a.cape), cd = 'M30,660C34,540 130,446 236,420L274,458C236,520 222,600 226,660Z', cd2 = mirrorD(cd);
+        P_.body += outlineOf([cd, cd2], inkOf(cc), L * 2) + cel(X, cd, cc, dk(cc, 0.32), 20, 8) + cel(X, cd2, cc, dk(cc, 0.32), 20, 8) + line('M120,560Q160,600 150,660M440,560Q400,600 410,660', dk(cc, 0.4), L, 'opacity="0.6"');
+        P_.body += path('M226,416L280,462L334,416L324,406L280,440L236,406Z', lt(cc, 0.3), 'stroke="' + inkOf(cc) + '" stroke-width="' + r1(L) + '"') + line('M262,470Q280,486 298,470', '#d8b040', L * 1.6) + circ(280, 462, 9, '#d8b040', 'stroke="#4a3a10" stroke-width="' + r1(L * 0.8) + '"');
+      }
+      if ({ fox: 1, monkey: 1, tanuki: 1, ox: 1, juubi: 1, cat: 1, dog: 1 }[b]) {
         [[150, 1], [410, -1]].forEach(function (pw) {
           var px = pw[0], sg = pw[1];
           var pd = 'M' + (px - 64) + ',660C' + (px - 70) + ',596 ' + (px - 30) + ',560 ' + px + ',562C' + (px + 34) + ',564 ' + (px + 70) + ',598 ' + (px + 64) + ',660Z';

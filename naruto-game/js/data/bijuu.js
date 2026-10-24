@@ -170,7 +170,7 @@
     {
       id: 'son_goku', name: '孙悟空', form: '四尾', en: 'Son Goku', title: '齐天大圣',
       faction: 'bijuu', rarity: 'SSR', role: 'atk', element: 'fire', tags: ['输出', '穿透', '持续'],
-      stats: { hp: 1.12, atk: 1.05, def: 0.88, spd: 90 },
+      stats: { hp: 1.12, atk: 1.05, def: 0.88, spd: 95 },
       bio: '四尾，红毛巨猿模样的尾兽，口中能喷吐熔岩，自称“水帘洞的齐天大圣、仙猿之王·美猴王孙悟空”。人柱力是岩隐村的老紫，后被晓的干柿鬼鲛捕获。性情高傲暴躁，极其厌恶被人类当作工具。',
       quote: '我乃齐天大圣·美猴王孙悟空！',
       art: {
@@ -180,9 +180,9 @@
       skills: {
         passive: {
           name: '美猴王', tags: ['增益'],
-          desc: '越战越勇的猴王：攻击力+10%；受到攻击时有30%概率怒气上涌，使自身攻击力提升15%，持续2回合。',
+          desc: '越战越勇的猴王：攻击力+10%；受到攻击时有40%概率怒气上涌，使自身攻击力提升15%，持续2回合。',
           stats: { atk: 0.10 },
-          triggers: [{ on: 'on_hit', chance: 0.3, effects: [{ type: 'buff', stat: 'atk', value: 0.15, turns: 2 }] }]
+          triggers: [{ on: 'on_hit', chance: 0.4, effects: [{ type: 'buff', stat: 'atk', value: 0.15, turns: 2 }] }]
         },
         s1: {
           name: '熔岩之拳', tags: ['输出', '持续'], fx: 'fist', target: 'single', cd: 0,
@@ -276,7 +276,7 @@
     {
       id: 'saiken', name: '犀犬', form: '六尾', en: 'Saiken', title: '溶解液之主',
       faction: 'bijuu', rarity: 'SSR', role: 'sup', element: 'water', tags: ['减益', '持续', '净化'],
-      stats: { hp: 1.15, atk: 0.9, def: 1.0, spd: 84 },
+      stats: { hp: 1.15, atk: 0.9, def: 1.0, spd: 90 },
       bio: '六尾，形似巨大蛞蝓的白色尾兽，全身能分泌腐蚀一切的溶解液。人柱力是雾隐村的叛忍空，后被晓的佩恩捕获。在第四次忍界大战中与其他尾兽一同协助鸣人。',
       quote: '嘿嘿，沾上溶解液可就麻烦啦！',
       art: {
@@ -286,9 +286,9 @@
       skills: {
         passive: {
           name: '腐蚀黏液', tags: ['持续', '减益'],
-          desc: '全身覆盖着腐蚀性的黏液：受到的伤害-10%；受到攻击时有35%概率使攻击者中毒2回合（每回合30%攻击力）。',
+          desc: '全身覆盖着腐蚀性的黏液：受到的伤害-10%；受到攻击时有40%概率使攻击者中毒2回合（每回合30%攻击力）。',
           stats: { dr: 0.10 },
-          triggers: [{ on: 'on_hit', chance: 0.35, effects: [{ type: 'status', status: 'poison', turns: 2, value: 0.3 }] }]
+          triggers: [{ on: 'on_hit', chance: 0.4, effects: [{ type: 'status', status: 'poison', turns: 2, value: 0.3 }] }]
         },
         s1: {
           name: '溶解液', tags: ['消耗', '减益'], fx: 'poison', target: 'single', cd: 0,
@@ -300,27 +300,28 @@
         },
         s2: {
           name: '溶解泡', tags: ['群攻', '持续', '减益'], fx: 'water', target: 'all', cd: 3,
-          desc: '吐出大量裹着溶解液的泡泡飘向敌阵，对全体敌人造成70%攻击力伤害，使其中毒2回合（每回合35%攻击力），并降低其15%防御力，持续2回合。',
+          desc: '吐出大量裹着溶解液的泡泡飘向敌阵，对全体敌人造成90%攻击力伤害，使其中毒2回合（每回合35%攻击力），并降低其15%防御力，持续2回合。',
           effects: [
-            { type: 'dmg', mult: 0.7 },
+            { type: 'dmg', mult: 0.9 },
             { type: 'status', status: 'poison', turns: 2, value: 0.35 },
             { type: 'debuff', stat: 'def', value: 0.15, turns: 2 }
           ]
         },
         ult: {
-          name: '六尾·尾兽玉', tags: ['群攻', '减益', '持续'], fx: 'bijuu', target: 'all',
-          desc: '凝聚尾兽玉轰向敌阵，对全体敌人造成150%攻击力伤害，使其受到的伤害提高15%（持续2回合），并中毒2回合（每回合40%攻击力）。',
+          name: '六尾·尾兽玉', tags: ['群攻', '减益', '护盾'], fx: 'bijuu', target: 'all',
+          desc: '凝聚尾兽玉轰向敌阵，对全体敌人造成180%攻击力伤害，使其受到的伤害提高15%（持续2回合），并中毒2回合（每回合40%攻击力）；同时以黏液包裹全体友方，提供10%最大生命值的护盾，持续2回合。',
           effects: [
-            { type: 'dmg', mult: 1.5 },
+            { type: 'dmg', mult: 1.8 },
             { type: 'debuff', stat: 'dr', value: 0.15, turns: 2 },
-            { type: 'status', status: 'poison', turns: 2, value: 0.4 }
+            { type: 'status', status: 'poison', turns: 2, value: 0.4 },
+            { type: 'shield', pct: 0.1, turns: 2, to: 'ally_all' }
           ]
         },
         awaken: {
           name: '黏液护体', tags: ['净化', '治疗'],
-          desc: '生命值+10%，受到的伤害-5%；每回合开始时有50%概率以黏液包裹全体友方，解除其减益与异常状态，并恢复其4%最大生命值。',
+          desc: '生命值+10%，受到的伤害-5%；每回合开始时有35%概率以黏液包裹全体友方，解除其减益与异常状态，并恢复其4%最大生命值。',
           stats: { hp: 0.10, dr: 0.05 },
-          triggers: [{ on: 'turn_start', chance: 0.5, effects: [
+          triggers: [{ on: 'turn_start', chance: 0.35, effects: [
             { type: 'cleanse', to: 'ally_all' },
             { type: 'heal', pct: 0.04, to: 'ally_all' }
           ] }]
@@ -332,7 +333,7 @@
     {
       id: 'chomei', name: '重明', form: '七尾', en: 'Chomei', title: '六翼独角仙',
       faction: 'bijuu', rarity: 'SSR', role: 'ctrl', element: 'wind', tags: ['控制', '闪避', '减益'],
-      stats: { hp: 1.0, atk: 1.02, def: 0.98, spd: 132 },
+      stats: { hp: 1.0, atk: 1.02, def: 0.98, spd: 118 },
       bio: '七尾，长着六片翅膀与一条翅状尾巴的独角仙形尾兽，能在空中高速飞行，撒下的鳞粉可使人目眩。人柱力是泷隐村的芙，后被晓捕获。性格乐观，自称“幸运之七”。',
       quote: '幸运之七·重明，参上！',
       art: {
@@ -460,11 +461,11 @@
         },
         s2: {
           name: '九尾查克拉', tags: ['增益', '护盾', '回能'], fx: 'chakra', target: 'ally_all', cd: 4,
-          desc: '将九尾查克拉分给全体友方，使其攻击力提升25%，并获得30%攻击力的护盾（均持续2回合），同时为其补充15点查克拉。',
+          desc: '将九尾查克拉分给全体友方，使其攻击力提升25%，并获得30%攻击力的护盾（均持续2回合），同时为其补充10点查克拉。',
           effects: [
             { type: 'buff', stat: 'atk', value: 0.25, turns: 2 },
             { type: 'shield', mult: 0.3, turns: 2 },
-            { type: 'chakra', value: 15, to: 'ally_all' }
+            { type: 'chakra', value: 10, to: 'ally_all' }
           ]
         },
         ult: {
@@ -515,11 +516,11 @@
         },
         s2: {
           name: '神树之根', tags: ['群攻', '控制', '吸血'], fx: 'wood', target: 'all', cd: 3,
-          desc: '从地底伸出神树的根须缠绕敌阵、吸取查克拉，对全体敌人造成80%攻击力伤害，有40%概率使其束缚1回合，削减其15点查克拉，并回复造成伤害30%的生命值。',
+          desc: '从地底伸出神树的根须缠绕敌阵、吸取查克拉，对全体敌人造成80%攻击力伤害，有40%概率使其束缚1回合，削减其10点查克拉，并回复造成伤害30%的生命值。',
           effects: [
             { type: 'dmg', mult: 0.8 },
             { type: 'status', status: 'bind', turns: 1, chance: 0.4 },
-            { type: 'drain', value: 15 },
+            { type: 'drain', value: 10 },
             { type: 'lifesteal', value: 0.3 }
           ]
         },

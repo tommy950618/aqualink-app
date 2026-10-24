@@ -50,14 +50,14 @@
         },
         ult: {
           name: '影子绞首术', tags: ['控制', '爆发', '穿透'], fx: 'shadow', target: 'single',
-          desc: '影子化作手掌沿着敌人的身体攀上咽喉将其扼紧，造成300%攻击力伤害（无视30%防御），并使其束缚1回合。',
-          effects: [{ type: 'dmg', mult: 3.0, pierce: 0.3 }, { type: 'status', status: 'bind', turns: 1 }]
+          desc: '影子化作手掌沿着敌人的身体攀上咽喉将其扼紧，造成300%攻击力伤害（无视30%防御），并使其束缚2回合。',
+          effects: [{ type: 'dmg', mult: 3.0, pierce: 0.3 }, { type: 'status', status: 'bind', turns: 2 }]
         },
         awaken: {
           name: '玉之意志', tags: ['增益', '回能'],
-          desc: '继承阿斯玛守护“玉”的意志：攻击力+10%；每当有友方阵亡时，获得30点查克拉，并使自身攻击力提升20%（2回合）。',
+          desc: '继承阿斯玛守护“玉”的意志：攻击力+10%；战斗开始时获得30点查克拉；每当有友方阵亡时，获得30点查克拉，并使自身攻击力提升20%（2回合）。',
           stats: { atk: 0.10 },
-          triggers: [{ on: 'on_ally_death', effects: [
+          triggers: [{ on: 'battle_start', effects: [{ type: 'chakra', value: 30, to: 'self' }] }, { on: 'on_ally_death', effects: [
             { type: 'chakra', value: 30, to: 'self' },
             { type: 'buff', stat: 'atk', value: 0.2, turns: 2, to: 'self' }
           ] }]
@@ -72,7 +72,7 @@
       bio: '山中一族的少女，家里经营着山中花店，与春野樱既是挚友又是对手。擅长山中一族秘传的心转身之术，之后又学习了医疗忍术，是第十班不可或缺的支援。',
       quote: '我可不会输给大额头！',
       art: art({
-        skin: '#f8dcc2', hair: 'high_ponytail', hairColor: '#f3dc7a', eyeColor: '#6fb3d9',
+        gender: 'f', skin: '#f8dcc2', hair: 'high_ponytail', hairColor: '#f3dc7a', eyeColor: '#6fb3d9',
         outfit: 'sleeveless', outfitColor: '#7d4fa6', accentColor: '#e9e2f2',
         headbandPos: 'belt', aura: '#ffe066'
       }),
@@ -89,9 +89,9 @@
           effects: [{ type: 'dmg', mult: 0.9 }, { type: 'debuff', stat: 'atk', value: 0.12, turns: 2 }]
         },
         s2: {
-          name: '掌仙术', tags: ['治疗'], fx: 'heal', target: 'ally_lowest', cd: 3,
-          desc: '以医疗查克拉治疗生命最低的友方，恢复其160%攻击力的生命值。',
-          effects: [{ type: 'heal', mult: 1.6 }]
+          name: '掌仙术', tags: ['治疗', '净化'], fx: 'heal', target: 'ally_lowest', cd: 2,
+          desc: '以医疗查克拉治疗生命最低的友方，恢复其160%攻击力的生命值，并清除其减益与异常状态。',
+          effects: [{ type: 'heal', mult: 1.6 }, { type: 'cleanse', to: 'target' }]
         },
         ult: {
           name: '心转身之术', tags: ['控制', '减益'], fx: 'mind', target: 'highest_atk',
@@ -121,9 +121,9 @@
       skills: {
         passive: {
           name: '倍化之术', tags: ['护盾'],
-          desc: '生命+10%；受到攻击时有30%概率膨胀身体，获得8%最大生命的护盾（2回合）。',
+          desc: '生命+10%；受到攻击时有20%概率膨胀身体，获得6%最大生命的护盾（2回合）。',
           stats: { hp: 0.10 },
-          triggers: [{ on: 'on_hit', chance: 0.3, effects: [{ type: 'shield', pct: 0.08, turns: 2, to: 'self' }] }]
+          triggers: [{ on: 'on_hit', chance: 0.2, effects: [{ type: 'shield', pct: 0.06, turns: 2, to: 'self' }] }]
         },
         s1: {
           name: '部分倍化之术', tags: ['消耗', '控制'], fx: 'fist', target: 'single', cd: 0,
@@ -131,7 +131,7 @@
           effects: [{ type: 'dmg', mult: 0.95 }, { type: 'status', status: 'stun', turns: 1, chance: 0.2 }]
         },
         s2: {
-          name: '肉弹战车', tags: ['群攻', '嘲讽'], fx: 'fist', target: 'all', cd: 3,
+          name: '肉弹战车', tags: ['群攻', '嘲讽'], fx: 'fist', target: 'all', cd: 4,
           desc: '倍化身体缩成巨大肉球高速翻滚冲撞，对全体敌人造成75%攻击力伤害，并嘲讽敌人2回合。',
           effects: [{ type: 'dmg', mult: 0.75 }, { type: 'taunt', turns: 2, to: 'self' }]
         },
@@ -204,19 +204,19 @@
     {
       id: 'asuma', name: '猿飞阿斯玛', form: '', en: 'Sarutobi Asuma', title: '守护忍十二士',
       faction: 'konoha', rarity: 'SR', role: 'atk', element: 'wind', tags: ['输出', '穿透'],
-      stats: { hp: 1.0, atk: 1.1, def: 0.95, spd: 112 },
+      stats: { hp: 1.0, atk: 1.1, def: 0.95, spd: 118 },
       bio: '三代目火影猿飞日斩之子，第十班的上忍老师，曾是守护火之国大名的守护忍十二士之一。擅长将风遁查克拉灌注于查克拉刀中作战，在与晓的飞段、角都交战时牺牲。',
       quote: '所谓的“玉”，就是未来的孩子们。',
       art: art({
         skin: '#e9c4a0', hair: 'short', hairColor: '#252525', eyeColor: '#2b2b2b',
         outfit: 'flak', outfitColor: '#5b6e3a', accentColor: '#2c3e50',
-        marks: ['beard'], accessory: 'chakra_blades', aura: '#6fe0b8'
+        marks: ['beard'], accessory: 'chakra_blades', accessory2: 'cigarette', aura: '#6fe0b8'
       }),
       skills: {
         passive: {
           name: '风之性质变化', tags: ['增益', '减益'],
-          desc: '暴击率+8%；技能命中后有25%概率以风刃削开目标防御，使其防御降低15%（2回合）。',
-          stats: { crit: 0.08 },
+          desc: '攻击力+6%，暴击率+8%；技能命中后有25%概率以风刃削开目标防御，使其防御降低15%（2回合）。',
+          stats: { atk: 0.06, crit: 0.08 },
           triggers: [{ on: 'on_attack', chance: 0.25, effects: [{ type: 'debuff', stat: 'def', value: 0.15, turns: 2, to: 'target' }] }]
         },
         s1: {
@@ -226,8 +226,8 @@
         },
         s2: {
           name: '火遁·灰积烧', tags: ['群攻', '持续'], fx: 'fire', target: 'all', cd: 3,
-          desc: '吐出混有查克拉的灰尘笼罩敌阵，再以齿间火花将其引燃，对全体敌人造成85%攻击力伤害，并有60%概率使其灼烧2回合（每回合30%攻击力）。',
-          effects: [{ type: 'dmg', mult: 0.85 }, { type: 'status', status: 'burn', turns: 2, chance: 0.6, value: 0.3 }]
+          desc: '吐出混有查克拉的灰尘笼罩敌阵，再以齿间火花将其引燃，对全体敌人造成100%攻击力伤害，并使其灼烧2回合（每回合30%攻击力）。',
+          effects: [{ type: 'dmg', mult: 1.0 }, { type: 'status', status: 'burn', turns: 2, value: 0.3 }]
         },
         ult: {
           name: '风遁·飞燕', tags: ['爆发', '穿透', '斩杀'], fx: 'wind', target: 'single',
@@ -236,9 +236,9 @@
         },
         awaken: {
           name: '火之意志', tags: ['增益'],
-          desc: '攻击力+12%；阵亡时将火之意志托付给学生们，使全体友方攻击力提升20%（2回合）。',
+          desc: '攻击力+12%；阵亡时将火之意志托付给学生们，使全体友方攻击力提升25%（2回合）。',
           stats: { atk: 0.12 },
-          triggers: [{ on: 'on_death', effects: [{ type: 'buff', stat: 'atk', value: 0.2, turns: 2, to: 'ally_all' }] }]
+          triggers: [{ on: 'on_death', effects: [{ type: 'buff', stat: 'atk', value: 0.25, turns: 2, to: 'ally_all' }] }]
         }
       }
     },
@@ -288,20 +288,20 @@
     {
       id: 'hinata', name: '日向雏田', form: '', en: 'Hyuga Hinata', title: '宗家长女',
       faction: 'konoha', rarity: 'SR', role: 'ctrl', element: 'none', tags: ['控制', '护盾'],
-      stats: { hp: 0.95, atk: 1.05, def: 1.0, spd: 115 },
+      stats: { hp: 0.95, atk: 1.05, def: 1.0, spd: 122 },
       bio: '日向宗家的长女，性格内向温柔，一直默默追逐着鸣人的背影。佩恩袭击木叶时，她挺身而出保护鸣人，并向他吐露了心意。',
-      quote: '说到做到，这就是我的忍道。',
+      quote: '绝不收回说过的话，这也是我的忍道。',
       art: art({
-        skin: '#f8e0cc', hair: 'hime', hairColor: '#2c2f5c', eyes: 'byakugan', eyeColor: '#e6e3f5',
+        gender: 'f', skin: '#f8e0cc', hair: 'hime', hairColor: '#2c2f5c', eyes: 'byakugan', eyeColor: '#e6e3f5',
         outfit: 'jacket', outfitColor: '#cfc8e6', accentColor: '#3b3561',
         headbandPos: 'neck', aura: '#b9c8ff'
       }),
       skills: {
         passive: {
           name: '白眼', tags: ['闪避', '减益'],
-          desc: '白眼看穿经络：闪避率+10%；技能命中后有30%概率封住目标经络，削减其10点查克拉。',
+          desc: '白眼看穿经络：闪避率+10%；技能命中后有40%概率封住目标经络，削减其15点查克拉。',
           stats: { dodge: 0.10 },
-          triggers: [{ on: 'on_attack', chance: 0.3, effects: [{ type: 'drain', value: 10, to: 'target' }] }]
+          triggers: [{ on: 'on_attack', chance: 0.4, effects: [{ type: 'drain', value: 15, to: 'target' }] }]
         },
         s1: {
           name: '柔拳', tags: ['消耗', '减益'], fx: 'fist', target: 'single', cd: 0,
@@ -309,9 +309,9 @@
           effects: [{ type: 'dmg', mult: 1.05 }, { type: 'debuff', stat: 'atk', value: 0.12, turns: 2 }]
         },
         s2: {
-          name: '护身八卦六十四掌', tags: ['护盾', '反击'], fx: 'shield', target: 'ally_all', cd: 4,
-          desc: '双手查克拉织成无数掌刃守护同伴，为全体友方提供50%攻击力的护盾（2回合），并使自身获得反击状态2回合（反击50%攻击力）。',
-          effects: [{ type: 'shield', mult: 0.5, turns: 2 }, { type: 'counter', mult: 0.5, turns: 2, to: 'self' }]
+          name: '护身八卦六十四掌', tags: ['护盾', '反击'], fx: 'shield', target: 'ally_all', cd: 3,
+          desc: '双手查克拉织成无数掌刃守护同伴，为全体友方提供70%攻击力的护盾（2回合），并使自身获得反击状态2回合（反击50%攻击力）。',
+          effects: [{ type: 'shield', mult: 0.7, turns: 2 }, { type: 'counter', mult: 0.5, turns: 2, to: 'self' }]
         },
         ult: {
           name: '柔步双狮拳', tags: ['爆发', '封印', '减益'], fx: 'chakra', target: 'single',
@@ -347,7 +347,7 @@
       }),
       skills: {
         passive: {
-          name: '寄坏虫之体', tags: ['持续', '减益'],
+          name: '寄坏虫之体', tags: ['持续', '增益'],
           desc: '防御+5%；受到攻击时有30%概率令寄坏虫反噬攻击者，使其中毒2回合（每回合25%攻击力）。',
           stats: { def: 0.05 },
           triggers: [{ on: 'on_hit', effects: [{ type: 'status', status: 'poison', turns: 2, chance: 0.3, value: 0.25, to: 'attacker' }] }]
@@ -373,9 +373,12 @@
         },
         awaken: {
           name: '寄坏虫·雌虫', tags: ['增益', '减益'],
-          desc: '攻击力+10%；技能命中后有30%概率在目标身上留下雌虫追踪，使其受到的伤害增加10%（2回合）。',
+          desc: '攻击力+10%；技能命中后有30%概率在目标身上留下雌虫追踪，使其受到的伤害增加10%（2回合）；释放必杀技后，雌虫附着在全体敌人身上，使其受到的伤害增加15%（2回合）。',
           stats: { atk: 0.10 },
-          triggers: [{ on: 'on_attack', chance: 0.3, effects: [{ type: 'debuff', stat: 'dr', value: 0.1, turns: 2, to: 'target' }] }]
+          triggers: [
+            { on: 'on_attack', chance: 0.3, effects: [{ type: 'debuff', stat: 'dr', value: 0.1, turns: 2, to: 'target' }] },
+            { on: 'on_ult', effects: [{ type: 'debuff', stat: 'dr', value: 0.15, turns: 2, to: 'enemy_all' }] }
+          ]
         }
       }
     },
@@ -387,7 +390,7 @@
       bio: '第八班的上忍老师，木叶首屈一指的幻术使。与猿飞阿斯玛相恋，阿斯玛牺牲时她已怀有他的孩子。',
       quote: '你已经落入我的幻术之中了。',
       art: art({
-        skin: '#f6dccb', hair: 'wild_long', hairColor: '#1d1a26', eyeColor: '#c62828',
+        gender: 'f', skin: '#f6dccb', hair: 'wild_long', hairColor: '#1d1a26', eyeColor: '#c62828',
         outfit: 'bandage', outfitColor: '#ece6da', accentColor: '#b71c1c',
         marks: ['red_lips'], aura: '#d81b60'
       }),
@@ -404,16 +407,16 @@
           effects: [{ type: 'dmg', mult: 1.05 }, { type: 'debuff', stat: 'spd', value: 0.1, turns: 2 }]
         },
         s2: {
-          name: '幻术解除', tags: ['净化', '闪避'], fx: 'genjutsu', target: 'ally_all', cd: 4,
+          name: '幻术解除', tags: ['净化', '闪避'], fx: 'genjutsu', target: 'ally_all', cd: 3,
           desc: '以痛觉打断查克拉的扰乱，解除全体友方的减益与控制状态，并使其闪避率提升15%（2回合）。',
           effects: [{ type: 'cleanse', to: 'ally_all' }, { type: 'buff', stat: 'dodge', value: 0.15, turns: 2 }]
         },
         ult: {
           name: '魔幻·树缚杀', tags: ['控制', '爆发', '减益'], fx: 'genjutsu', target: 'single',
-          desc: '令敌人陷入被大树缠缚的幻境，随即从树干中现身持苦无刺击，造成300%攻击力伤害，使其束缚1回合，并降低其攻击力20%（2回合）。',
+          desc: '令敌人陷入被大树缠缚的幻境，随即从树干中现身持苦无刺击，造成300%攻击力伤害，使其束缚2回合，并降低其攻击力20%（2回合）。',
           effects: [
             { type: 'dmg', mult: 3.0 },
-            { type: 'status', status: 'bind', turns: 1 },
+            { type: 'status', status: 'bind', turns: 2 },
             { type: 'debuff', stat: 'atk', value: 0.2, turns: 2 }
           ]
         },
@@ -430,12 +433,12 @@
     {
       id: 'neji', name: '日向宁次', form: '', en: 'Hyuga Neji', title: '日向天才',
       faction: 'konoha', rarity: 'SR', role: 'atk', element: 'none', tags: ['输出', '反击'],
-      stats: { hp: 0.95, atk: 1.1, def: 1.0, spd: 122 },
+      stats: { hp: 0.95, atk: 1.1, def: 1.0, spd: 128 },
       bio: '日向分家的天才，曾坚信命运无法改变，在中忍考试中败给鸣人后重新找回了自我。第四次忍界大战中，他为保护鸣人与雏田挺身而出，壮烈牺牲。',
       quote: '你已经进入我八卦的领域了。',
       art: art({
         skin: '#f6dcc6', hair: 'long_straight', hairColor: '#3b2c2a', eyes: 'byakugan', eyeColor: '#e6e3f5',
-        outfit: 'robe', outfitColor: '#efe9dc', accentColor: '#5b4a3a', aura: '#cfe8ff'
+        outfit: 'robe', outfitColor: '#efe9dc', accentColor: '#5b4a3a', marks: ['caged_bird_seal'], aura: '#cfe8ff'
       }),
       skills: {
         passive: {
@@ -487,7 +490,7 @@
       art: art({
         skin: '#f3d3b3', hair: 'bowl', hairColor: '#111111', eyeColor: '#111111',
         outfit: 'bodysuit', outfitColor: '#3e9b3a', accentColor: '#f08c2e',
-        headbandPos: 'belt', aura: '#46d36b'
+        headbandPos: 'belt', marks: ['thick_brows'], aura: '#46d36b'
       }),
       skills: {
         passive: {
@@ -527,7 +530,7 @@
       bio: '凯班的少女，擅长操纵各式忍具与暗器，以传说三忍中的纲手为憧憬目标。能够从卷轴中通灵出大量武器，对敌人展开铺天盖地的攻击。',
       quote: '什么样的忍具，我都能运用自如！',
       art: art({
-        skin: '#f6d8c0', hair: 'buns', hairColor: '#4a2c1d', eyeColor: '#4a2c1d',
+        gender: 'f', skin: '#f6d8c0', hair: 'buns', hairColor: '#4a2c1d', eyeColor: '#4a2c1d',
         outfit: 'qipao', outfitColor: '#f2a5c0', accentColor: '#c2185b',
         accessory: 'scroll', aura: '#cfd8dc'
       }),
@@ -544,7 +547,7 @@
           effects: [{ type: 'dmg', mult: 0.32, hits: 3 }]
         },
         s2: {
-          name: '忍具口寄', tags: ['输出', '召唤'], fx: 'summon', target: 'random', count: 3, cd: 3,
+          name: '忍具通灵之术', tags: ['输出', '召唤'], fx: 'summon', target: 'random', count: 3, cd: 3,
           desc: '展开卷轴通灵出大量忍具投向随机3名敌人，各造成2段共100%攻击力伤害。',
           effects: [{ type: 'dmg', mult: 0.5, hits: 2 }]
         },
@@ -571,7 +574,7 @@
       art: art({
         skin: '#f1d0ae', hair: 'bowl', hairColor: '#151515', eyeColor: '#151515',
         outfit: 'flak', outfitColor: '#4e7a36', accentColor: '#3e9b3a',
-        headbandPos: 'belt', aura: '#46d36b'
+        headbandPos: 'belt', marks: ['thick_brows'], aura: '#46d36b'
       }),
       skills: {
         passive: {
@@ -599,9 +602,9 @@
           effects: [{ type: 'dmg', mult: 3.6, pierce: 0.3 }, { type: 'status', status: 'stun', turns: 1, chance: 0.6 }]
         },
         awaken: {
-          name: '八门遁甲·惊门', tags: ['增益', '回能'],
-          desc: '攻击力+12%；释放必杀技后，速度提升25%（2回合），并获得20点查克拉。',
-          stats: { atk: 0.12 },
+          name: '八门遁甲·惊门', tags: ['增益', '回能', '闪避'],
+          desc: '攻击力+12%，闪避率+8%；释放必杀技后，速度提升25%（2回合），并获得20点查克拉。',
+          stats: { atk: 0.12, dodge: 0.08 },
           triggers: [{ on: 'on_ult', effects: [
             { type: 'buff', stat: 'spd', value: 0.25, turns: 2, to: 'self' },
             { type: 'chakra', value: 20, to: 'self' }
@@ -619,7 +622,7 @@
       art: art({
         skin: '#e0533f', hair: 'spiky_up', hairColor: '#151515', eyes: 'blank',
         outfit: 'bodysuit', outfitColor: '#3e9b3a', accentColor: '#f08c2e',
-        headbandPos: 'belt', marks: ['face_lines'], aura: '#ff1744'
+        headbandPos: 'belt', marks: ['face_lines', 'thick_brows'], aura: '#ff1744'
       }),
       skills: {
         passive: {
@@ -667,7 +670,7 @@
       art: art({
         skin: '#efcba8', hair: 'bowl', hairColor: '#1a1a1a', eyeColor: '#1a1a1a',
         outfit: 'bodysuit', outfitColor: '#4caf50', accentColor: '#f08c2e',
-        aura: '#ff5252'
+        marks: ['thick_brows'], aura: '#ff5252'
       }),
       skills: {
         passive: {
@@ -683,7 +686,7 @@
         },
         s2: {
           name: '八门遁甲', tags: ['增益'], fx: 'gate', target: 'self', cd: 4,
-          desc: '依次冲开八门遁甲，攻击力提升30%、速度提升20%（2回合），并免疫控制2回合。',
+          desc: '接连冲开八门遁甲的前几道门，攻击力提升30%、速度提升20%（2回合），并免疫控制2回合。',
           effects: [
             { type: 'buff', stat: 'atk', value: 0.3, turns: 2 },
             { type: 'buff', stat: 'spd', value: 0.2, turns: 2 },
@@ -691,8 +694,8 @@
           ]
         },
         ult: {
-          name: '夕象', tags: ['群攻', '爆发', '控制'], fx: 'gate', target: 'all',
-          desc: '打开第八门死门，以夕象的空气重拳横扫如忍刀七人众般的强敌，对全体敌人造成4段共180%攻击力伤害，并有40%概率使其眩晕1回合。',
+          name: '八门遁甲·死门', tags: ['群攻', '爆发', '控制'], fx: 'gate', target: 'all',
+          desc: '为守护儿子打开第八门死门，燃烧生命化作赤红的蒸汽，以超越极限的体术横扫如忍刀七人众般的强敌，对全体敌人造成4段共180%攻击力伤害，并有40%概率使其眩晕1回合。',
           effects: [{ type: 'dmg', mult: 0.45, hits: 4 }, { type: 'status', status: 'stun', turns: 1, chance: 0.4 }]
         },
         awaken: {
@@ -765,7 +768,7 @@
       bio: '日向日足的次女，雏田的妹妹。自幼展现出过人的柔拳天赋，被父亲视为宗家继承人严格培养。',
       quote: '姐姐，我可不会手下留情。',
       art: art({
-        skin: '#f8e0cc', hair: 'hime', hairColor: '#5a3e34', eyes: 'byakugan', eyeColor: '#e6e3f5',
+        gender: 'f', skin: '#f8e0cc', hair: 'hime', hairColor: '#5a3e34', eyes: 'byakugan', eyeColor: '#e6e3f5',
         outfit: 'kimono', outfitColor: '#efe3cf', accentColor: '#a0707e',
         headband: 'none', aura: '#cfe8ff'
       }),
@@ -802,12 +805,13 @@
     {
       id: 'hizashi', name: '日向日差', form: '', en: 'Hyuga Hizashi', title: '日向分家',
       faction: 'konoha', rarity: 'SR', role: 'sup', element: 'none', tags: ['护盾', '增益'],
-      stats: { hp: 1.05, atk: 1.0, def: 1.0, spd: 110 },
+      stats: { hp: 1.05, atk: 1.0, def: 1.0, spd: 116 },
       bio: '日向日足的双胞胎弟弟，宁次的父亲，因生为分家而被刻上笼中鸟咒印。在日向事件中，他以自己的意志代替哥哥赴死，守护了宗家与村子的和平。',
       quote: '这是我自己选择的道路。',
       art: art({
         skin: '#f3d6be', hair: 'long_straight', hairColor: '#2b2422', eyes: 'byakugan', eyeColor: '#e6e3f5',
-        outfit: 'robe', outfitColor: '#bfb59e', accentColor: '#3e3226', aura: '#cfe8ff'
+        outfit: 'robe', outfitColor: '#bfb59e', accentColor: '#3e3226',
+        headband: 'none', marks: ['caged_bird_seal'], aura: '#cfe8ff'
       }),
       skills: {
         passive: {
@@ -822,14 +826,14 @@
           effects: [{ type: 'dmg', mult: 1.0 }, { type: 'debuff', stat: 'def', value: 0.12, turns: 2 }]
         },
         s2: {
-          name: '八卦六十四掌', tags: ['输出', '封印'], fx: 'fist', target: 'single', cd: 3,
-          desc: '连续点穴封闭敌人经络，造成8段共176%攻击力伤害，并封印目标1回合（只能使用技能1）。',
-          effects: [{ type: 'dmg', mult: 0.22, hits: 8 }, { type: 'status', status: 'silence', turns: 1 }]
+          name: '八卦六十四掌', tags: ['输出', '封印', '减益'], fx: 'fist', target: 'single', cd: 3,
+          desc: '连续点穴封闭敌人经络，造成8段共176%攻击力伤害，削减其20点查克拉，并封印目标1回合（只能使用技能1）。',
+          effects: [{ type: 'dmg', mult: 0.22, hits: 8 }, { type: 'drain', value: 20 }, { type: 'status', status: 'silence', turns: 1 }]
         },
         ult: {
-          name: '八卦掌回天', tags: ['群攻', '护盾'], fx: 'shield', target: 'all',
-          desc: '全力旋转释放查克拉守护身后的家人，对全体敌人造成150%攻击力伤害，并为全体友方提供50%攻击力的护盾（2回合）。',
-          effects: [{ type: 'dmg', mult: 1.5 }, { type: 'shield', mult: 0.5, turns: 2, to: 'ally_all' }]
+          name: '八卦空掌', tags: ['群攻', '护盾'], fx: 'chakra', target: 'all',
+          desc: '挡在家人身前，以白眼锁定所有敌人并接连推出真空掌压，对全体敌人造成150%攻击力伤害，并为全体友方提供80%攻击力的护盾（2回合）。',
+          effects: [{ type: 'dmg', mult: 1.5 }, { type: 'shield', mult: 0.8, turns: 2, to: 'ally_all' }]
         },
         awaken: {
           name: '自由之鸟', tags: ['治疗', '增益'],
@@ -961,9 +965,9 @@
       skills: {
         passive: {
           name: '秋道族长', tags: ['护盾'],
-          desc: '生命+10%；每回合开始时获得5%最大生命的护盾（2回合）。',
+          desc: '生命+10%；每回合开始时获得3%最大生命的护盾（2回合）。',
           stats: { hp: 0.10 },
-          triggers: [{ on: 'turn_start', effects: [{ type: 'shield', pct: 0.05, turns: 2, to: 'self' }] }]
+          triggers: [{ on: 'turn_start', effects: [{ type: 'shield', pct: 0.03, turns: 2, to: 'self' }] }]
         },
         s1: {
           name: '部分倍化之术', tags: ['消耗', '护盾'], fx: 'fist', target: 'single', cd: 0,
@@ -972,29 +976,29 @@
         },
         s2: {
           name: '倍化之术', tags: ['嘲讽', '护盾'], fx: 'shield', target: 'ally_all', cd: 4,
-          desc: '身体膨胀为巨人挡在同伴身前，嘲讽敌人2回合，为全体友方提供10%最大生命的护盾（2回合），并使自身防御提升20%（2回合）。',
+          desc: '身体膨胀为巨人挡在同伴身前，嘲讽敌人2回合，为全体友方提供6%最大生命的护盾（2回合），并使自身防御提升15%（2回合）。',
           effects: [
             { type: 'taunt', turns: 2, to: 'self' },
-            { type: 'shield', pct: 0.10, turns: 2 },
-            { type: 'buff', stat: 'def', value: 0.2, turns: 2, to: 'self' }
+            { type: 'shield', pct: 0.06, turns: 2 },
+            { type: 'buff', stat: 'def', value: 0.15, turns: 2, to: 'self' }
           ]
         },
         ult: {
           name: '秘传·超倍化之术', tags: ['群攻', '控制', '护盾'], fx: 'fist', target: 'all',
-          desc: '全身膨胀至山岳般巨大，以巨拳轰击全体敌人，造成150%攻击力伤害，有40%概率使其眩晕1回合，并获得20%最大生命的护盾（2回合）。',
+          desc: '全身膨胀至山岳般巨大，以巨拳轰击全体敌人，造成150%攻击力伤害，有30%概率使其眩晕1回合，并获得20%最大生命的护盾（2回合）。',
           effects: [
             { type: 'dmg', mult: 1.5 },
-            { type: 'status', status: 'stun', turns: 1, chance: 0.4 },
+            { type: 'status', status: 'stun', turns: 1, chance: 0.3 },
             { type: 'shield', pct: 0.2, turns: 2, to: 'self' }
           ]
         },
         awaken: {
           name: '秋道之魂', tags: ['治疗', '增益'],
-          desc: '生命+10%，防御+5%；生命低于30%时恢复30%最大生命，并免疫控制2回合。',
+          desc: '生命+10%，防御+5%；生命低于30%时恢复20%最大生命，并免疫控制1回合。',
           stats: { hp: 0.10, def: 0.05 },
           triggers: [{ on: 'low_hp', effects: [
-            { type: 'heal', pct: 0.3, to: 'self' },
-            { type: 'immune', turns: 2, to: 'self' }
+            { type: 'heal', pct: 0.2, to: 'self' },
+            { type: 'immune', turns: 1, to: 'self' }
           ] }]
         }
       }
@@ -1008,7 +1012,7 @@
       bio: '犬冢一族族长，牙与花的母亲，性格豪爽泼辣、作风强悍。与独眼的巨型忍犬黑丸搭档，配合之默契更胜儿子与赤丸。',
       quote: '黑丸，让他们见识犬冢的獠牙！',
       art: art({
-        skin: '#e8bb92', hair: 'wild_long', hairColor: '#3d2516', eyeColor: '#4a2a12',
+        gender: 'f', skin: '#e8bb92', hair: 'wild_long', hairColor: '#3d2516', eyeColor: '#4a2a12',
         outfit: 'flak', outfitColor: '#5b6e3a', accentColor: '#5a3a22',
         marks: ['fangs'], accessory: 'dog', aura: '#a1887f'
       }),
@@ -1053,7 +1057,7 @@
       bio: '犬冢爪的长女，牙的姐姐，是木叶的兽医忍者。与灰丸三兄弟搭档作战，擅长为忍犬与同伴治疗伤势。',
       quote: '受伤了就交给我，乖乖别乱动。',
       art: art({
-        skin: '#efc49e', hair: 'low_ponytail', hairColor: '#4a2e1c', eyeColor: '#4a2a12',
+        gender: 'f', skin: '#efc49e', hair: 'low_ponytail', hairColor: '#4a2e1c', eyeColor: '#4a2a12',
         outfit: 'flak', outfitColor: '#5b6e3a', accentColor: '#4a2e1c',
         marks: ['fangs'], accessory: 'dog', aura: '#69f0ae'
       }),

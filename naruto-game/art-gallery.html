@@ -34,7 +34,7 @@
 <script>
   // load every data file named in the roster's `file` column (tolerate missing ones via onerror)
   (function () {
-    var FILES = ['konoha_main', 'konoha_rookies', 'konoha_elders', 'uchiha_oto', 'akatsuki', 'suna_kiri', 'kumo_iwa', 'bijuu'];
+    var FILES = ['konoha_main', 'konoha_rookies', 'konoha_elders', 'uchiha_oto', 'akatsuki', 'suna_kiri', 'kumo_iwa', 'bijuu', 'summons'];
     if (window.NG_ROSTER && NG_ROSTER.length) {
       var seen = {}; FILES = [];
       NG_ROSTER.forEach(function (r) { if (r.file && !seen[r.file]) { seen[r.file] = 1; FILES.push(r.file); } });
@@ -80,9 +80,12 @@
     return { id: '_t_' + key + '_' + val + (extra ? '_' + i : ''), name: key + ':' + val, faction: 'konoha', element: ['fire', 'wind', 'lightning', 'earth', 'water', 'yin', 'yang'][i % 7], art: a, skills: {} };
   }
   function synthBeast(b, i) {
-    var tails = { tanuki: 1, cat: 2, turtle: 3, monkey: 4, horse: 5, slug: 6, beetle: 7, ox: 8, fox: 9, juubi: 10, toad: 0, snake: 0 }[b];
-    var colr = { tanuki: '#d8b57a', cat: '#3b6fe0', turtle: '#8a9aa6', monkey: '#c0392b', horse: '#f0ece2', slug: '#e6efe9', beetle: '#5fb0a0', ox: '#6a4a6a', fox: '#ff7a1a', juubi: '#8a8aa0', toad: '#d9622b', snake: '#7e57c2' }[b];
-    return { id: '_b_' + b, name: 'beast:' + b, faction: 'bijuu', element: 'yin', art: { type: 'beast', beast: b, tails: tails, bodyColor: colr, accentColor: '#3b1200', eyes: 'beast', aura: '#ff5a00' }, skills: {} };
+    var tails = { tanuki: 1, cat: 2, turtle: 3, monkey: 4, horse: 5, slug: 6, beetle: 7, ox: 8, fox: 9, juubi: 10, toad: 0, snake: 0, dog: 0 }[b];
+    var colr = { tanuki: '#d8b57a', cat: '#3b6fe0', turtle: '#8a9aa6', monkey: '#c0392b', horse: '#f0ece2', slug: '#e6efe9', beetle: '#5fb0a0', ox: '#6a4a6a', fox: '#ff7a1a', juubi: '#8a8aa0', toad: '#d9622b', snake: '#7e57c2', dog: '#c49a6c' }[b];
+    var extra = b === 'dog' ? { headband: 'konoha', vestColor: '#2f4f8f' } : {};
+    var art = { type: 'beast', beast: b, tails: tails, bodyColor: colr, accentColor: '#3b1200', eyes: 'beast', aura: '#ff5a00' };
+    for (var k in extra) art[k] = extra[k];
+    return { id: '_b_' + b + (i < 0 ? '_alt' : ''), name: 'beast:' + b, faction: 'bijuu', element: 'yin', art: art, skills: {} };
   }
 
   function charCard(c, opts) {
@@ -131,10 +134,13 @@
     gi2.innerHTML = chars.slice(0, +Q.n || 40).map(function (c) { return '<div class="card" style="width:300px"><div class="row">' + NG.SKILL_KEYS.map(function (k) { return safe(function () { return img(NG.art.skillIconURL(c, k, 96), 54, 54, 'sq'); }); }).join('') + '</div><div class="n">' + c.name + (c.form ? '·' + c.form : '') + '</div></div>'; }).join('');
   }
   if (view === 'vocab') {
-    var keys = Q.k ? Q.k.split(',') : ['hair', 'outfit', 'headband', 'headbandPos', 'marks', 'mask', 'hat', 'accessory'];
+    var keys = Q.k ? Q.k.split(',') : ['hair', 'eyes', 'outfit', 'headband', 'headbandPos', 'marks', 'mask', 'hat', 'accessory'];
+    var only = Q.only ? Q.only.split(',') : null; // ?only=a,b restricts to those values
     keys.forEach(function (key) {
+      var vals = ART[key].filter(function (v) { return !only || only.indexOf(v) >= 0; });
+      if (!vals.length) return;
       var gv = section('vocab: ' + key);
-      gv.innerHTML = ART[key].map(function (v, i) { var c = synth(key, v, i);
+      gv.innerHTML = vals.map(function (v) { var i = ART[key].indexOf(v), c = synth(key, v, i);
         if (Q.av) return '<div class="card" style="width:' + ((+Q.av) + 12) + 'px">' + img(NG.art.avatarURL(c, +Q.av), +Q.av, +Q.av, 'av') + '<div class="n">' + v + '</div></div>';
         return charCard(c, { bw: +Q.bw || 200, w: (+Q.bw || 200) + 20, icons: false }); }).join('');
     });
@@ -171,7 +177,9 @@
   }
   if (view === 'beasts') {
     var gb = section('Beasts');
-    gb.innerHTML = ART.beast.map(function (b, i) { return charCard(synthBeast(b, i), { bw: 280, w: 300, icons: false }); }).join('');
+    var bl = ART.beast.map(function (b, i) { return synthBeast(b, i); });
+    var fluffy = synthBeast('dog', -1); fluffy.art.bodyColor = '#f4f2ec'; fluffy.art.headband = 'none'; delete fluffy.art.vestColor; bl.push(fluffy);
+    gb.innerHTML = bl.map(function (c) { return charCard(c, { bw: 280, w: 300, icons: false }); }).join('');
   }
   if (view === 'emblems') {
     var gm = section('Emblems 64 / 128 + element badges');

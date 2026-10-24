@@ -102,9 +102,12 @@
       var b = U.h(itemHTML(id)); T.items[id] = b;
       b.addEventListener('click', function () { if (id !== T.id) { var d = T.list.indexOf(id) > T.list.indexOf(T.id) ? 1 : -1; select(id, d); } });
       return b;
-    }, { size: 24 });
-    var i = T.list.indexOf(T.id);
-    if (i > 3) setTimeout(function () { box.scrollTop = Math.max(0, i * 128 - 200); }, 60);
+    }, { size: 8, later: 24, done: function () {
+      // bring the selected ninja into view once the list exists (it may sit far down a 180-ninja roster)
+      var i = T.list.indexOf(T.id);
+      if (i > 3) box.scrollTop = Math.max(0, i * 128 - 200);
+    } });
+    box.scrollTop = 0;
   }
   function updItem(id) {
     var it = T.items[id]; if (!it) return;
@@ -116,9 +119,16 @@
     var el = T.el, id = T.id, c = U.char(id); if (!c) return;
     var e = entry(id), r = U.rarity(c);
     var wrap = U.$('.bust-wrap', el), img = U.$('img', wrap), url = U.bustURL(c);
-    if (img.getAttribute('src') !== url) {
-      img.src = url;
-      if (dir != null) { wrap.classList.remove('swap-l', 'swap-r'); void wrap.offsetWidth; wrap.classList.add(dir < 0 ? 'swap-l' : 'swap-r'); }
+    if (img.getAttribute('src') === url) wrap._want = null;          // cancels a pending load of another bust
+    else if (wrap._want !== url) {
+      // the big bust SVG parses synchronously on src assignment: do it in its own frame, after the
+      // name plate / panel update has painted (rapid arrow taps only load the last one)
+      wrap._want = url;
+      requestAnimationFrame(function () {
+        if (wrap._want !== url) return;
+        wrap._want = null; img.src = url;
+        if (dir != null) { wrap.classList.remove('swap-l', 'swap-r'); void wrap.offsetWidth; wrap.classList.add(dir < 0 ? 'swap-l' : 'swap-r'); }
+      });
     }
     U.$('.tr-hero', el).style.setProperty('--aura', (c.art && c.art.aura) || U.rcolor(c));
     var emb = U.$('.tr-emb img', el); emb.src = U.emblemURL(c.faction, 64);
@@ -147,6 +157,7 @@
     else if (T.tab === 'attr') renderAttr(box);
     else renderStar(box);
   }
+  function lenCls(t, a, b) { var n = String(t || '').length; return n > b ? ' xlong' : n > a ? ' long' : ''; }
   function canStar(id) { var e = U.owned(id), c = U.call('starCost', id); return !!(e && c != null && (e.shards || 0) >= c); }
 
   /* ---------------- 技能 ---------------- */
@@ -159,7 +170,7 @@
       var lv = (e.skills && e.skills[k]) || 1;
       html += '<button class="sk' + (unlocked ? '' : ' locked') + '" data-k="' + k + '"' + (soft ? ' style="animation:none"' : '') + '>' +
         '<div class="sk-ic"><img src="' + U.skillIconURL(c, k) + '" alt=""><span class="sk-lv"><b>' + lv + '</b></span></div>' +
-        '<div class="sk-main"><span class="sk-label">' + U.esc((NG.SKILL_LABELS || {})[k] || k) + '</span><div class="sk-name">' + U.esc(sk.name) + '</div><div class="sk-line"></div><div class="sk-tags">' + U.chipsHTML(sk.tags) + '</div></div>' +
+        '<div class="sk-main"><span class="sk-label">' + U.esc((NG.SKILL_LABELS || {})[k] || k) + '</span><div class="sk-name' + lenCls(sk.name, 8, 10) + '">' + U.esc(sk.name) + '</div><div class="sk-line"></div><div class="sk-tags">' + U.chipsHTML(sk.tags) + '</div></div>' +
         '<span class="sk-badge">' + (unlocked ? '已解锁' : '★' + (NG.AWAKEN_STAR || 4) + '解锁') + '</span><img class="sk-i" src="' + U.iconURL('info') + '" alt=""></button>';
     });
     box.innerHTML = html + '</div>';

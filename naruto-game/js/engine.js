@@ -5,7 +5,8 @@
  * fallback) so the whole engine also runs in node (tools/test-engine.js).
  *
  * Quick reference (beyond CONTRACT §4.2, all extras are optional helpers):
- *   NG.game.enemyPreview(stageId) -> [{id, lv, star, boss, hpMult, mult, c}]  (mult > 1 = elite beyond Lv400)
+ *   NG.game.enemyPreview(stageId) -> [{id, lv, star, boss, hpMult, mult, c}]  (mult ≥ 1 scales hp/atk/def: fine-tuning
+ *                                    between levels, or the elite factor beyond Lv400)
  *   NG.game.nextStage()           -> first uncleared (hence unlocked) stage id, or null when all cleared
  *   NG.game.chapterState(chId)    -> {unlocked, stars, maxStars, cleared, total}
  *   NG.game.idleRate()            -> {coins, exp, scrolls} per hour at current progress
@@ -989,6 +990,7 @@
       ['预选赛·心转身', '小樱与井野这对好友兼对手，在预选赛中展开宿命对决。', ['ino'], 'village'],
       ['预选赛·牙通牙', '鸣人对阵犬冢牙，以出其不意的战术逆转取胜。', ['kiba'], 'village'],
       ['预选赛·沙之盾', '李洛克打开八门遁甲，仍无法突破我爱罗的绝对防御。', ['gaara'], 'village'],
+      ['通灵之术', '自来也将鸣人推下悬崖，生死关头鸣人借九尾查克拉通灵出蛤蟆文太，死死抓住它的背不放，终于得到了蛤蟆老大的认可。', ['gamabunta'], 'summon'],
       ['正赛·影子模仿术', '鹿丸以影子模仿术困住手鞠，却在胜利前主动认输。', ['temari'], 'village'],
       ['命运的牢笼', '正赛第一场，鸣人直面日向宁次，誓要打破所谓命运的牢笼。', ['!neji', 'rock_lee', 'tenten'], 'village']
     ] },
@@ -1011,7 +1013,7 @@
       ['一指之赌', '鸣人向纲手发起挑战，却被她仅用一根手指弹飞。', ['tsunade', 'shizune']],
       ['逝者的幻影', '大蛇丸以复活绳树与断为交换条件，纲手眼前浮现出逝者的身影。', ['dan', 'nawaki']],
       ['药师兜', '兜撕下伪装，以查克拉手术刀切断鸣人的经络。', ['kabuto'], 'forest'],
-      ['三忍之战', '传说中的三忍再度相遇，蛤蟆、蛞蝓与巨蛇的通灵大战一触即发。', ['!orochimaru', 'kabuto'], 'forest']
+      ['三忍之战', '传说中的三忍再度相遇，蛤蟆、蛞蝓与巨蛇的通灵大战一触即发。', ['!orochimaru', 'kabuto', 'manda'], 'forest']
     ] },
     { name: '佐助夺还', bg: 'valley', desc: '受咒印与力量的诱惑，佐助叛逃投奔大蛇丸。鹿丸率领下忍小队，踏上追回同伴的道路。', s: [
       ['音忍四人众', '音忍四人众接走佐助，鹿丸小队在森林中紧追不舍。', ['sakon', 'kidomaru', 'jirobo', 'tayuya'], 'forest'],
@@ -1073,6 +1075,7 @@
       ['晓的起源', '弥彦、长门与小南曾怀抱和平的理想，创立了最初的“晓”。', ['yahiko', 'konan']],
       ['佩恩六道', '自来也开启仙人模式，却发现佩恩六道共享着彼此的视野。', ['pain', 'konan']],
       ['自来也之死', '生命的最后一刻，自来也将佩恩的秘密刻在深作仙人的背上。', ['pain']],
+      ['妙木山修行', '鸣人前往妙木山，在深作与志麻两位仙人的严格指导下修习仙术，稍有不慎便会化为蛤蟆石像。', ['fukasaku', 'shima'], 'forest'],
       ['木叶的劫难', '佩恩六道兵分多路袭击木叶，只为找出九尾人柱力。', ['pain', 'konan'], 'village'],
       ['卡卡西的牺牲', '卡卡西以神威对抗修罗道与天道，最终力竭倒下。', ['pain'], 'village'],
       ['神罗天征', '天道发动神罗天征，木叶在一瞬间被夷为平地。', ['pain', 'konan'], 'village'],
@@ -1131,30 +1134,32 @@
   // level a 5-UR team "should" have at the end of each chapter (drives enemy power & rewards)
   var CH_END_LV = [4, 15, 35, 60, 95, 120, 145, 170, 195, 220, 245, 270, 300, 330];
   // Recommended team power at the end of each chapter (geometric interpolation inside a chapter; stage 1-1
-  // starts at ECON.firstPower). Fitted to a greedy-player simulation (`node tools/test-engine.js --sim N`):
-  // ch1–4 are a honeymoon for the 1000-pull opening team, from ch6 on players arrive at ~0.85–1.0× of it.
+  // starts at ECON.firstPower). Fitted to a realistic-player simulation (`node tools/test-engine.js --sim-only 12`):
+  // ch1–5 are a honeymoon for the 1000-pull opening team (≥1.7× the recommended power, no losses), from ch7 on
+  // players arrive at ~0.97–1.05× of it; the whole campaign takes ≈2.0–2.6 h of active play (×2 battle speed).
   var CH_END_POWER = [25000, 75000, 160000, 350000, 630000, 930000, 1220000, 1480000, 1790000, 2070000, 2400000, 2770000, 3140000, 3300000];
   // Per-stage enemy strength adjustment, fitted by `node tools/test-engine.js --calibrate` so that a
-  // UR/SSR team at exactly the recommended power wins ~78% of the time on every stage (kits such as
-  // dodge+self-heal solos are stronger than any power formula predicts). Missing ids = 1. Range [0.5, 2].
+  // player-like team (5 URs — what the 1000-pull opening yields — stars 0–2 ahead of their level) at exactly
+  // the recommended power wins ~78% of the time on every stage (kits such as dodge+self-heal solos or AoE vs
+  // swarms are stronger/weaker than any power formula predicts). Missing ids = 1. Range [0.5, 2].
   var STAGE_ADJ = {
-    '1-1': 2, '1-2': 2, '1-3': 2, '1-4': 2, '1-5': 2, '1-6': 2, '1-7': 2, '1-8': 1.68, '1-9': 1.27,
-    '2-1': 1.56, '2-2': 0.99, '2-3': 1.04, '2-4': 0.83, '2-5': 1.29, '2-6': 0.82, '2-7': 1.25, '2-8': 0.96,
-    '2-9': 0.95, '3-1': 1.07, '3-2': 1.56, '3-3': 1.02, '3-4': 0.9, '3-5': 0.89, '3-6': 0.92, '3-7': 0.86,
-    '3-8': 1.12, '3-9': 0.99, '4-1': 1.17, '4-2': 1.36, '4-3': 1.14, '4-4': 0.97, '4-5': 1.05, '4-6': 1.03,
-    '4-7': 1.38, '5-1': 0.93, '5-2': 1.49, '5-3': 1.12, '5-4': 0.98, '5-5': 0.93, '5-6': 0.79, '5-7': 0.95,
-    '5-8': 1.09, '6-1': 1.04, '6-2': 0.89, '6-3': 0.95, '6-4': 1.14, '6-5': 0.91, '6-6': 0.9, '6-7': 0.88,
-    '6-8': 0.82, '6-9': 0.79, '7-1': 1.03, '7-2': 1.21, '7-3': 0.77, '7-4': 1.07, '7-5': 0.9, '7-6': 0.85,
-    '7-7': 0.72, '7-8': 0.96, '7-9': 0.77, '7-10': 0.9, '8-1': 1.02, '8-2': 0.87, '8-3': 0.89, '8-4': 0.93,
-    '8-5': 0.98, '8-6': 0.9, '8-7': 0.88, '8-8': 0.94, '9-1': 0.91, '9-2': 0.87, '9-3': 1.24, '9-4': 1.01,
-    '9-5': 0.92, '9-6': 1.1, '9-7': 1.06, '9-8': 1.09, '9-9': 1.17, '10-1': 0.81, '10-2': 1.08, '10-3': 0.8,
-    '10-4': 0.93, '10-5': 0.87, '10-6': 0.91, '10-7': 0.85, '10-8': 0.88, '10-9': 0.88, '11-1': 0.8,
-    '11-2': 1.23, '11-3': 1.04, '11-4': 0.92, '11-5': 1.02, '11-6': 0.96, '11-7': 0.92, '11-8': 1.03,
-    '11-9': 1.05, '11-10': 1.02, '12-1': 0.84, '12-2': 0.87, '12-3': 1.28, '12-4': 1.06, '12-5': 0.97,
-    '12-6': 0.93, '12-7': 1.1, '12-8': 0.83, '12-9': 0.82, '12-10': 0.9, '13-1': 1.11, '13-2': 0.92,
-    '13-3': 0.93, '13-4': 1.07, '13-5': 0.85, '13-6': 1.05, '13-7': 0.78, '13-8': 0.92, '13-9': 0.88,
-    '13-10': 1.22, '14-1': 0.75, '14-2': 1.06, '14-3': 1.03, '14-4': 0.84, '14-5': 0.83, '14-6': 0.97,
-    '14-7': 0.96, '14-8': 1.02, '14-9': 0.79, '14-10': 0.89
+    '1-1': 2, '1-2': 2, '1-3': 2, '1-4': 2, '1-5': 2, '1-6': 2, '1-7': 2, '1-8': 2, '1-9': 2, '2-1': 2,
+    '2-2': 1.63, '2-3': 1.76, '2-4': 1.28, '2-5': 1.73, '2-6': 0.93, '2-7': 1.3, '2-8': 1.3, '2-9': 0.92,
+    '2-10': 0.93, '3-1': 1.12, '3-2': 1.68, '3-3': 0.98, '3-4': 0.91, '3-5': 1.2, '3-6': 1.04, '3-7': 0.93,
+    '3-8': 1.17, '3-9': 1.13, '4-1': 1.19, '4-2': 1.44, '4-3': 1.08, '4-4': 1.02, '4-5': 1.23, '4-6': 1.12,
+    '4-7': 1.31, '4-8': 1.06, '5-1': 1.16, '5-2': 1.5, '5-3': 1.11, '5-5': 0.98, '5-6': 0.84, '5-7': 1.13,
+    '6-1': 1.01, '6-2': 0.84, '6-3': 1.05, '6-4': 1.3, '6-6': 0.99, '6-7': 0.98, '6-8': 0.81, '6-9': 0.9,
+    '7-1': 1.03, '7-2': 1.18, '7-3': 0.9, '7-4': 1.15, '7-5': 1.04, '7-6': 0.98, '7-7': 0.76, '7-8': 1.17,
+    '7-9': 0.9, '8-1': 1.01, '8-2': 1.05, '8-3': 1.06, '8-5': 1.09, '8-6': 1.01, '8-7': 0.96, '8-8': 0.99,
+    '9-1': 0.78, '9-2': 0.85, '9-3': 1.24, '9-4': 1.04, '9-5': 0.87, '9-6': 1.1, '9-7': 1.05, '9-8': 1.05,
+    '9-9': 1.11, '10-1': 0.88, '10-2': 1.17, '10-3': 0.83, '10-4': 1.01, '10-5': 0.97, '10-6': 1.14,
+    '10-7': 1.02, '10-8': 0.98, '10-9': 1.04, '10-10': 0.96, '11-1': 0.79, '11-2': 1.4, '11-3': 0.99,
+    '11-4': 0.94, '11-5': 1.18, '11-6': 0.92, '11-7': 1.11, '11-8': 1.08, '11-9': 1.03, '11-10': 1.05,
+    '12-1': 0.79, '12-2': 0.9, '12-3': 1.26, '12-4': 1.03, '12-5': 1.04, '12-6': 1.12, '12-7': 1.24,
+    '12-8': 0.93, '12-9': 0.99, '12-10': 0.95, '13-1': 1.16, '13-2': 1.02, '13-3': 1.16, '13-4': 1.25,
+    '13-5': 0.99, '13-6': 1.22, '13-7': 0.92, '13-8': 1.14, '13-9': 0.95, '13-10': 1.45, '14-1': 0.87,
+    '14-2': 1.28, '14-3': 1.2, '14-4': 1.08, '14-5': 1.08, '14-6': 1.23, '14-7': 1.15, '14-8': 1.2,
+    '14-9': 0.99
   };
   var adjVersion = 0;
   var ECON = {
@@ -1231,12 +1236,13 @@
     ids.forEach(function (x) { var c = charOf(x.id); rk += num(LINEUP.rarityK[c && c.rarity], 1); });
     rk = ids.length ? rk / ids.length : 1;
     var t = target * LINEUP.sizeK[n] * (hasBoss ? LINEUP.bossK[n] : 1) * LINEUP.ease * rk;
-    var lv = solveLevel(lineup, t), mult = 1, cap = levelCap(maxStar());
-    if (lv > cap) {                       // beyond Lv cap: keep Lv.400★6 and add an elite multiplier
-      lv = cap;
-      mult = Math.round(t / Math.max(1, lineupPower(lineup, cap)) * 100) / 100;
-      if (mult <= 1) mult = 1;
-    }
+    var lv = Math.min(solveLevel(lineup, t), levelCap(maxStar())), p = lineupPower(lineup, lv);
+    if (p > t && lv > 1) { lv--; p = lineupPower(lineup, lv); }
+    // Fine-tune with a small multiplier so the lineup lands exactly on the target power: a single level can
+    // be a +16% jump at a star threshold (Lv100→101, …) and awakens unlock at ★4 (Lv220→221), which made a
+    // few stages swing between "easy" and "wall". Beyond Lv400★6 the same multiplier is the elite factor.
+    var mult = Math.round(t / Math.max(1, p) * 100) / 100;
+    if (mult <= 1) mult = 1;
     var star = starForLevel(lv), sks = skForLevel(lv);
     return lineup.map(function (x) {
       var o = { id: x.id, lv: lv, star: star, boss: x.boss, skills: defaultSkills(sks) };
@@ -1383,6 +1389,15 @@
     return o;
   }
 
+  /* Saves from before a stage was inserted into a chapter (e.g. 2-8 通灵之术, 10-6 妙木山修行) can have
+   * an uncleared stage in front of cleared ones; stages are only playable in order, so mark such gaps as
+   * cleared (1★, no rewards) to keep "next stage" pointing at the real frontier. */
+  function fillProgressGaps(s) {
+    var list = buildCampaign().stages, last = -1, i;
+    for (i = 0; i < list.length; i++) if (s.progress[list[i].id] > 0) last = i;
+    for (i = 0; i < last; i++) if (!(s.progress[list[i].id] > 0)) s.progress[list[i].id] = 1;
+  }
+
   function persist() {
     if (!S) return;
     try { storeSet(NG.SAVE_KEY || 'ng_save_v1', JSON.stringify(S)); } catch (e) { warnOnce('save', 'save failed: ' + e.message); }
@@ -1402,6 +1417,7 @@
       try { var parsed = JSON.parse(raw); if (parsed && parsed.v === 1) loaded = normalize(parsed); }
       catch (e) { warnOnce('load', 'corrupt save ignored: ' + e.message); }
     }
+    if (loaded) fillProgressGaps(loaded);
     S = loaded || freshState();
     persist();
     if (NG.emit) NG.emit('change', { what: 'init', keys: ['all'] });

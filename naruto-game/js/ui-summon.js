@@ -87,9 +87,9 @@
     }).join('') + '</div>';
     html += '<div style="font-size:16px;color:#cfe0ff;line-height:1.8">· 每次十连必定获得至少1名SSR及以上忍者<br>· 距离上次获得UR满90抽时，必定获得UR忍者<br>· 招募券不足时，每抽消耗150勾玉<br>· 重复获得忍者时转化为对应稀有度的升星碎片</div>';
     html += '<div style="margin-top:12px;font-weight:900;color:#ffe9a6">UR 忍者一览</div><div class="scroller ur-list" style="display:flex;flex-wrap:wrap;gap:10px;margin-top:8px;max-height:220px">' +
-      urPool().map(function (c) { return '<div style="display:flex;flex-direction:column;align-items:center;width:84px">' + U.avatarHTML(c, { size: 66 }) + '<div style="font-size:12px;margin-top:4px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:84px">' + U.esc(U.charName(c)) + '</div></div>'; }).join('') + '</div></div>';
+      urPool().map(function (c) { return '<div style="display:flex;flex-direction:column;align-items:center;width:84px">' + U.avatarHTML(c, { size: 66, lazy: true }) + '<div style="font-size:12px;margin-top:4px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:84px">' + U.esc(U.charName(c)) + '</div></div>'; }).join('') + '</div></div>';
     var m = U.modal({ title: '概率详情', html: html, buttons: [{ html: '关闭', cls: 'blue' }] });
-    var l = U.$('.ur-list', m.el); if (l) U.scroller(l);
+    var l = U.$('.ur-list', m.el); if (l) { U.scroller(l); U.lazy(l); }
   }
 
   /* ---------------- summon & reveal ---------------- */
@@ -122,7 +122,7 @@
     var c = U.char(x.id), r = U.rarity(c);
     return '<div class="rv-slot r-' + r + '" style="--rc:' + U.rcolor(c) + '"><div class="glow"></div><div class="rv-card r-' + r + '">' +
       '<div class="face back"><img src="' + U.iconURL('leaf') + '" alt=""></div>' +
-      '<div class="face front"><div class="art"><img src="' + U.avatarURL(c, 256) + '" alt=""></div>' + U.rarHTML(r) +
+      '<div class="face front"><div class="art"><img data-src="' + U.avatarURL(c, 128) + '" alt=""></div>' + U.rarHTML(r) +
       (x.isNew ? '' : '<span class="shard">碎片+' + (x.shards || 0) + '</span>') +
       '<div class="info"><div class="nm">' + U.esc(U.charName(c)) + '</div><div class="fm">' + U.esc(U.charForm(c)) + '</div></div>' +
       (x.isNew ? '<span class="newb hidden">NEW</span>' : '') + '</div></div></div>';
@@ -135,6 +135,7 @@
       ov.insertAdjacentHTML('beforeend', '<div class="rv-head">招募结果</div><div class="rv-grid ' + (res.length === 1 ? 'n1' : 'n10') + '"></div><button class="btn dark sm rv-skip">跳过</button><div class="rv-bar hidden"></div>');
       var grid = U.$('.rv-grid', ov), ctl = { skip: false, multi: res.length > 1 };
       res.forEach(function (x, i) { var c = U.h(cardHTML(x)); c.style.animationDelay = (i * 0.06) + 's'; grid.appendChild(c); });
+      U.lazy(grid);      // portraits load a few per frame while the cards are still face-down
       var cards = U.$$('.rv-slot', grid);
       U.$('.rv-skip', ov).addEventListener('click', function () { ctl.skip = true; if (ctl.wake) ctl.wake(); if (ctl.closeShow) ctl.closeShow(); });
       ov.addEventListener('click', function (e) { if (!e.target.closest('button') && ctl.wake) ctl.wake(); });
@@ -164,13 +165,14 @@
     var bar = U.$('.rv-bar', ov); bar.classList.remove('hidden');
     var again = n >= 100 ? 100 : n;
     bar.innerHTML = '<button class="btn dark lg" data-a="ok">确 定</button><button class="btn ' + (again >= 100 ? 'red' : again >= 10 ? '' : 'blue') + ' lg shine" data-a="again"><span>再来' + (again === 1 ? '一抽' : again + '连') + '</span>' + costHTML(again) + '</button>';
-    U.$('[data-a="ok"]', bar).addEventListener('click', function () { close(ov); done(); });
+    U.$('[data-a="ok"]', bar).addEventListener('click', function () { if (ov._closing) return; close(ov); done(); });
     U.$('[data-a="again"]', bar).addEventListener('click', function () {
+      if (ov._closing) return;
       var st = U.state(); if ((st.tickets || 0) < again && (st.gems || 0) < (again - (st.tickets || 0)) * 150) { U.toast('招募券和勾玉不足', 'err'); return; }
       close(ov); done(); setTimeout(function () { doSummon(again); }, 120);
     });
   }
-  function close(ov) { ov.style.transition = 'opacity .2s'; ov.style.opacity = '0'; setTimeout(function () { if (ov.parentNode) ov.parentNode.removeChild(ov); }, 220); }
+  function close(ov) { ov._closing = true; ov.classList.add('closing'); U.guardTaps(380); ov.style.transition = 'opacity .2s'; ov.style.opacity = '0'; setTimeout(function () { if (ov.parentNode) ov.parentNode.removeChild(ov); }, 220); }
 
   /* full screen UR / SSR showcase. resolves on tap or after a few seconds */
   function showcase(x, ctl) {
@@ -217,10 +219,11 @@
         var grid = U.$('.grid', sum), html = '';
         sorted.forEach(function (x, i) {
           var c = U.char(x.id), r = U.rarity(c);
-          html += '<div class="mini r-' + r + '" style="--rc:' + U.rcolor(c) + ';animation-delay:' + (i * 0.012).toFixed(3) + 's"><div class="mi"><img src="' + U.avatarURL(c, 128) + '" alt=""></div>' + U.rarHTML(r) + (x.isNew ? '<span class="newb">NEW</span>' : '') + '</div>';
+          html += '<div class="mini r-' + r + '" style="--rc:' + U.rcolor(c) + ';animation-delay:' + (i * 0.012).toFixed(3) + 's"><div class="mi"><img data-src="' + U.avatarURL(c, 128) + '" alt=""></div>' + U.rarHTML(r) + (x.isNew ? '<span class="newb">NEW</span>' : '') + '</div>';
         });
         grid.innerHTML = html;
         ov.appendChild(sum);
+        U.lazy(grid);
         U.$$('.mini', grid).forEach(function (m, i) { m.addEventListener('click', function () { var x = sorted[i]; var c = U.char(x.id); if (c) U.toast(U.charName(c) + (c.form ? '·' + c.form : '') + (x.isNew ? '（新）' : '（碎片+' + (x.shards || 0) + '）')); }); });
         finishBar(ov, 100, done);
         U.$('.rv-bar', ov).style.bottom = '16px';

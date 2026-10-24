@@ -75,20 +75,23 @@
         type: 'human', skin: '#e9dccf', hair: 'low_ponytail', hairColor: '#15161d',
         eyes: 'ms_itachi', outfit: 'akatsuki', outfitColor: AKA, accentColor: CLOUD,
         headband: 'konoha', headbandSlash: true, headbandPos: 'forehead',
-        marks: ['tear_lines', 'face_lines'], mask: 'none', hat: 'none', accessory: 'sword', aura: '#ff5a3c'
+        marks: ['tear_lines', 'edo_cracks'], mask: 'none', hat: 'none', accessory: 'sword', aura: '#ff5a3c'
       },
       skills: {
         passive: {
-          name: '秽土转生', tags: ['治疗', '增益'],
-          desc: '以秽土之躯重临战场：受到的伤害-10%；生命首次低于30%时，尘土重组躯体，立即恢复35%最大生命值。',
+          name: '秽土转生', tags: ['治疗', '回能', '增益'],
+          desc: '以拥有无限查克拉的秽土之躯重临战场：受到的伤害-10%；战斗开始时获得25点查克拉；生命首次低于30%时，尘土重组躯体，立即恢复35%最大生命值。',
           stats: { dr: 0.10 },
-          triggers: [{ on: 'low_hp', effects: [{ type: 'heal', pct: 0.35 }] }]
+          triggers: [
+            { on: 'battle_start', effects: [{ type: 'chakra', value: 25 }] },
+            { on: 'low_hp', effects: [{ type: 'heal', pct: 0.35 }] }
+          ]
         },
         s1: {
           name: '火遁·凤仙火之术', tags: ['输出', '持续'], fx: 'fire', target: 'single', cd: 0,
-          desc: '连续喷出数枚小火球，造成3段共123%攻击力伤害，并有20%概率使目标灼烧2回合（每回合30%攻击力）。',
+          desc: '连续喷出数枚小火球，造成3段共129%攻击力伤害，并有20%概率使目标灼烧2回合（每回合30%攻击力）。',
           effects: [
-            { type: 'dmg', mult: 0.41, hits: 3 },
+            { type: 'dmg', mult: 0.43, hits: 3 },
             { type: 'status', status: 'burn', turns: 2, chance: 0.2, value: 0.3 }
           ]
         },
@@ -103,10 +106,10 @@
         },
         ult: {
           name: '须佐能乎·十拳剑', tags: ['封印', '爆发', '单体'], fx: 'susanoo', target: 'single',
-          desc: '以须佐能乎挥出封印之剑十拳剑：先驱散目标的增益与护盾，再造成380%攻击力伤害（无视30%防御），并将其封印2回合（只能使用技能1）。',
+          desc: '以须佐能乎挥出封印之剑十拳剑：先驱散目标的增益与护盾，再造成400%攻击力伤害（无视30%防御），并将其封印2回合（只能使用技能1）。',
           effects: [
             { type: 'dispel' },
-            { type: 'dmg', mult: 3.8, pierce: 0.3 },
+            { type: 'dmg', mult: 4.0, pierce: 0.3 },
             { type: 'status', status: 'silence', turns: 2 }
           ]
         },
@@ -130,48 +133,48 @@
         type: 'human', skin: '#86a9c7', hair: 'spiky_up', hairColor: '#2c4d7a',
         eyes: 'normal', eyeColor: '#dfe8ee', outfit: 'akatsuki', outfitColor: AKA, accentColor: CLOUD,
         headband: 'kiri', headbandSlash: true, headbandPos: 'forehead',
-        marks: ['blue_skin_marks', 'gills'], mask: 'none', hat: 'none', accessory: 'samehada', aura: '#2196f3'
+        marks: ['blue_skin_marks', 'gills', 'sharp_teeth'], mask: 'none', hat: 'none', accessory: 'samehada', aura: '#2196f3'
       },
       skills: {
         passive: {
           name: '鲛肌', tags: ['吸血', '消耗'],
-          desc: '背后的鲛肌会自动削取查克拉：生命值+10%，吸血+10%；受到攻击时吸取攻击者10点查克拉。',
+          desc: '背后的鲛肌会自动削取查克拉：生命值+10%，吸血+10%；受到攻击时有50%概率吸取攻击者10点查克拉。',
           stats: { hp: 0.10, lifesteal: 0.10 },
-          triggers: [{ on: 'on_hit', effects: [{ type: 'drain', value: 10, to: 'attacker' }] }]
+          triggers: [{ on: 'on_hit', chance: 0.5, effects: [{ type: 'drain', value: 10, to: 'attacker' }] }]
         },
         s1: {
           name: '大刀·鲛肌', tags: ['消耗', '吸血'], fx: 'blade', target: 'single', cd: 0,
-          desc: '挥舞鲛肌削去敌人的查克拉，造成110%攻击力伤害，吸取其15点查克拉，并恢复相当于伤害20%的生命值。',
+          desc: '挥舞鲛肌削去敌人的查克拉，造成110%攻击力伤害，吸取其10点查克拉，并恢复相当于伤害20%的生命值。',
           effects: [
             { type: 'dmg', mult: 1.1 },
-            { type: 'drain', value: 15 },
+            { type: 'drain', value: 10 },
             { type: 'lifesteal', value: 0.2 }
           ]
         },
         s2: {
           name: '水遁·大鲛弹之术', tags: ['消耗', '嘲讽'], fx: 'water', target: 'single', cd: 3,
-          desc: '放出能吸收对手查克拉而不断变大的巨鲛，造成180%攻击力伤害并吸取目标20点查克拉；同时挑衅敌人，嘲讽2回合。',
+          desc: '放出能吸收对手查克拉而不断变大的巨鲛，造成180%攻击力伤害并吸取目标15点查克拉；同时挑衅敌人，嘲讽2回合。',
           effects: [
             { type: 'dmg', mult: 1.8 },
-            { type: 'drain', value: 20 },
+            { type: 'drain', value: 15 },
             { type: 'taunt', turns: 2, to: 'self' }
           ]
         },
         ult: {
           name: '水遁·水牢鲛踊之术', tags: ['群攻', '控制', '消耗'], fx: 'water', target: 'all',
-          desc: '以巨大的水牢笼罩战场，鲛群在水中撕咬敌人：对全体敌人造成150%攻击力伤害，有60%概率使其束缚1回合，并吸取每人25点查克拉。',
+          desc: '以巨大的水牢笼罩战场，鲛群在水中撕咬敌人：对全体敌人造成150%攻击力伤害，有40%概率使其束缚1回合，并吸取每人15点查克拉。',
           effects: [
             { type: 'dmg', mult: 1.5 },
-            { type: 'status', status: 'bind', turns: 1, chance: 0.6 },
-            { type: 'drain', value: 25 }
+            { type: 'status', status: 'bind', turns: 1, chance: 0.4 },
+            { type: 'drain', value: 15 }
           ]
         },
         awaken: {
           name: '鲛肌融合', tags: ['治疗', '增益'],
-          desc: '攻击力+10%，防御+10%；生命首次低于30%时与鲛肌融合化身鲛人，恢复30%最大生命值，并使受到的伤害降低20%，持续3回合。',
+          desc: '攻击力+10%，防御+10%；生命首次低于30%时与鲛肌融合化身鲛人，恢复20%最大生命值，并使受到的伤害降低20%，持续3回合。',
           stats: { atk: 0.10, def: 0.10 },
           triggers: [{ on: 'low_hp', effects: [
-            { type: 'heal', pct: 0.3 },
+            { type: 'heal', pct: 0.2 },
             { type: 'buff', stat: 'dr', value: 0.2, turns: 3 }
           ] }]
         }
@@ -291,15 +294,15 @@
       art: {
         type: 'human', skin: '#f0d9c4', hair: 'slick_back', hairColor: '#cfd6dc',
         eyes: 'normal', eyeColor: '#b05ab8', outfit: 'akatsuki', outfitColor: AKA, accentColor: CLOUD,
-        headband: 'none', marks: [], mask: 'none', hat: 'none', accessory: 'scythe', aura: '#d32f2f'
+        headband: 'yu', headbandSlash: true, headbandPos: 'neck', marks: [], mask: 'none', hat: 'none', accessory: 'scythe', aura: '#d32f2f'
       },
       skills: {
         passive: {
           name: '不死之身', tags: ['治疗', '增益'],
-          desc: '邪神教赐予的不死之身：生命值+10%，受到的伤害-8%；生命首次低于30%时恢复35%最大生命值，并使防御提升30%，持续3回合。',
+          desc: '邪神教赐予的不死之身：生命值+10%，受到的伤害-8%；生命首次低于30%时恢复25%最大生命值，并使防御提升30%，持续3回合。',
           stats: { hp: 0.10, dr: 0.08 },
           triggers: [{ on: 'low_hp', effects: [
-            { type: 'heal', pct: 0.35 },
+            { type: 'heal', pct: 0.25 },
             { type: 'buff', stat: 'def', value: 0.3, turns: 3 }
           ] }]
         },
@@ -313,19 +316,19 @@
         },
         s2: {
           name: '邪神教·仪式', tags: ['嘲讽', '反击', '护盾'], fx: 'seal', target: 'self', cd: 3,
-          desc: '以鲜血在脚下画出邪神教的阵法，身体化为黑白相间的诅咒形态：嘲讽敌人2回合，获得15%最大生命值的护盾（持续2回合），并在2回合内受到攻击时反击，造成70%攻击力伤害。',
+          desc: '以鲜血在脚下画出邪神教的阵法，身体化为黑白相间的诅咒形态：嘲讽敌人2回合，获得10%最大生命值的护盾（持续2回合），并在2回合内受到攻击时反击，造成50%攻击力伤害。',
           effects: [
             { type: 'taunt', turns: 2 },
-            { type: 'shield', pct: 0.15, turns: 2 },
-            { type: 'counter', mult: 0.7, turns: 2 }
+            { type: 'shield', pct: 0.1, turns: 2 },
+            { type: 'counter', mult: 0.5, turns: 2 }
           ]
         },
         ult: {
           name: '咒术·死司凭血', tags: ['穿透', '持续', '单体'], fx: 'seal', target: 'single',
-          desc: '舔舐目标的鲜血完成诅咒，以黑棒刺穿自己的身体将痛苦同步给对方：造成170%攻击力伤害，额外造成目标最大生命值20%的真实伤害，并使其流血3回合（每回合40%攻击力）。',
+          desc: '舔舐目标的鲜血完成诅咒，以黑棒刺穿自己的身体将痛苦同步给对方：造成170%攻击力伤害，额外造成目标最大生命值12%的真实伤害，并使其流血3回合（每回合40%攻击力）。',
           effects: [
             { type: 'dmg', mult: 1.7 },
-            { type: 'true_dmg', pct: 0.2 },
+            { type: 'true_dmg', pct: 0.12 },
             { type: 'status', status: 'bleed', turns: 3, value: 0.4 }
           ]
         },
@@ -405,7 +408,7 @@
         type: 'human', skin: '#f1d3bc', hair: 'spiky', hairColor: '#e8731e',
         eyes: 'rinnegan', outfit: 'akatsuki', outfitColor: AKA, accentColor: CLOUD,
         headband: 'ame', headbandSlash: true, headbandPos: 'forehead',
-        marks: ['piercings'], mask: 'none', hat: 'none', accessory: 'none', aura: '#9575cd'
+        marks: ['piercings'], mask: 'none', hat: 'none', accessory: 'chakra_rods', aura: '#9575cd'
       },
       skills: {
         passive: {
@@ -432,14 +435,14 @@
         },
         ult: {
           name: '地爆天星', tags: ['群攻', '控制'], fx: 'gravity', target: 'all',
-          desc: '向空中射出引力核心，吸附岩石形成巨大的球体困住敌人：对全体敌人造成150%攻击力伤害，并有80%概率使其眩晕1回合。',
+          desc: '向空中射出引力核心，吸附岩石形成巨大的球体困住敌人：对全体敌人造成150%攻击力伤害，并有65%概率使其眩晕1回合。',
           effects: [
             { type: 'dmg', mult: 1.5 },
-            { type: 'status', status: 'stun', turns: 1, chance: 0.8 }
+            { type: 'status', status: 'stun', turns: 1, chance: 0.65 }
           ]
         },
         awaken: {
-          name: '佩恩六道', tags: ['减益', '回能'],
+          name: '佩恩六道', tags: ['消耗', '回能'],
           desc: '攻击力+12%；释放必杀技后，饿鬼道与人间道相继出手，吸取随机一名敌人30点查克拉，并使自身获得15点查克拉。',
           stats: { atk: 0.12 },
           triggers: [{ on: 'on_ult', effects: [
@@ -460,17 +463,17 @@
       art: {
         type: 'human', skin: '#e6d9cc', hair: 'long_straight', hairColor: '#b3262e',
         eyes: 'rinnegan', outfit: 'akatsuki', outfitColor: AKA, accentColor: CLOUD,
-        headband: 'none', marks: ['face_lines'], mask: 'none', hat: 'none', accessory: 'none', aura: '#b39ddb'
+        headband: 'none', marks: ['edo_cracks'], mask: 'none', hat: 'none', accessory: 'none', aura: '#b39ddb'
       },
       skills: {
         passive: {
           name: '地狱道', tags: ['治疗'],
-          desc: '召唤地狱道的阎魔王修复伤者：生命值+8%；每回合开始时为生命值最低的友军恢复6%最大生命值。',
+          desc: '召唤地狱道的阎魔王修复伤者：生命值+8%；每回合开始时为生命值最低的友军恢复4%最大生命值。',
           stats: { hp: 0.08 },
-          triggers: [{ on: 'turn_start', effects: [{ type: 'heal', pct: 0.06, to: 'ally_lowest' }] }]
+          triggers: [{ on: 'turn_start', effects: [{ type: 'heal', pct: 0.04, to: 'ally_lowest' }] }]
         },
         s1: {
-          name: '人间道·魂之吸取', tags: ['消耗', '减益'], fx: 'yin', target: 'single', cd: 0,
+          name: '人间道·魂之吸取', tags: ['消耗', '输出'], fx: 'yin', target: 'single', cd: 0,
           desc: '以人间道之力从敌人体内拔取灵魂，造成100%攻击力伤害，并吸取其20点查克拉。',
           effects: [
             { type: 'dmg', mult: 1.0 },
@@ -478,27 +481,27 @@
           ]
         },
         s2: {
-          name: '饿鬼道·封术吸印', tags: ['护盾', '消耗'], fx: 'chakra', target: 'all', cd: 3,
-          desc: '以饿鬼道吸收敌方的忍术与查克拉：吸取全体敌人各15点查克拉，并为全体友军提供15%最大生命值的护盾，持续2回合。',
+          name: '饿鬼道·封术吸印', tags: ['护盾', '消耗'], fx: 'chakra', target: 'all', cd: 4,
+          desc: '以饿鬼道吸收敌方的忍术与查克拉：吸取全体敌人各10点查克拉，并为全体友军提供10%最大生命值的护盾，持续2回合。',
           effects: [
-            { type: 'drain', value: 15 },
-            { type: 'shield', pct: 0.15, turns: 2, to: 'ally_all' }
+            { type: 'drain', value: 10 },
+            { type: 'shield', pct: 0.1, turns: 2, to: 'ally_all' }
           ]
         },
         ult: {
           name: '外道·轮回天生之术', tags: ['复活', '治疗', '净化'], fx: 'heal', target: 'ally_all',
-          desc: '发动轮回眼的禁术：复活一名阵亡友军并恢复其50%最大生命值（每场战斗限1次），为全体友军恢复120%攻击力的生命值，并清除全体友军的减益。',
+          desc: '发动轮回眼的禁术：复活一名阵亡友军并恢复其40%最大生命值（每场战斗限1次），为全体友军恢复100%攻击力的生命值，并清除全体友军的减益。',
           effects: [
-            { type: 'revive', pct: 0.5 },
-            { type: 'heal', mult: 1.2 },
+            { type: 'revive', pct: 0.4 },
+            { type: 'heal', mult: 1.0 },
             { type: 'cleanse', to: 'ally_all' }
           ]
         },
         awaken: {
           name: '畜生道·通灵之术', tags: ['召唤', '群攻'],
-          desc: '攻击力+10%，生命值+8%；释放必杀技后，畜生道通灵出的巨型通灵兽冲入敌阵，对全体敌人造成70%攻击力伤害。',
+          desc: '攻击力+10%，生命值+8%；释放必杀技后，畜生道通灵出的巨型通灵兽冲入敌阵，对全体敌人造成50%攻击力伤害。',
           stats: { atk: 0.10, hp: 0.08 },
-          triggers: [{ on: 'on_ult', effects: [{ type: 'dmg', mult: 0.7, to: 'enemy_all' }] }]
+          triggers: [{ on: 'on_ult', effects: [{ type: 'dmg', mult: 0.5, to: 'enemy_all' }] }]
         }
       }
     },
@@ -511,7 +514,7 @@
       bio: '雨隐村的战争孤儿，与长门、弥彦一同师从自来也，是晓组织的创始成员之一，能将身体化为纸片自如操纵。长门死后她离开晓守护雨隐，为保护鸣人带来的希望，以六千亿张起爆符迎战宇智波带土，最终战败身亡。',
       quote: '愿你成为通往和平的桥梁。',
       art: {
-        type: 'human', skin: '#f2dbc8', hair: 'flower', hairColor: '#5b6fd6',
+        type: 'human', gender: 'f', skin: '#f2dbc8', hair: 'flower', hairColor: '#5b6fd6',
         eyes: 'normal', eyeColor: '#e3a64a', outfit: 'akatsuki', outfitColor: AKA, accentColor: CLOUD,
         headband: 'none', marks: ['lip_piercing', 'purple_eyeliner'], mask: 'none', hat: 'none',
         accessory: 'none', aura: '#e8e8f5'
@@ -566,7 +569,7 @@
       },
       skills: {
         passive: {
-          name: '地中潜行', tags: ['闪避'],
+          name: '蜉蝣之术', tags: ['闪避'],
           desc: '能与大地、树木融为一体，在地下自由穿行：闪避率+15%，速度+5%。',
           stats: { dodge: 0.15, spd: 0.05 }
         },
@@ -581,18 +584,18 @@
         },
         s2: {
           name: '木遁·差木之术', tags: ['群攻', '减益'], fx: 'wood', target: 'all', cd: 3,
-          desc: '从体内伸出无数尖锐的树枝刺向四周，对全体敌人造成85%攻击力伤害，并降低其速度15%，持续2回合。',
+          desc: '从体内伸出无数尖锐的树枝刺向四周，对全体敌人造成85%攻击力伤害，并降低其速度10%，持续2回合。',
           effects: [
             { type: 'dmg', mult: 0.85 },
-            { type: 'debuff', stat: 'spd', value: 0.15, turns: 2 }
+            { type: 'debuff', stat: 'spd', value: 0.1, turns: 2 }
           ]
         },
         ult: {
           name: '十万白绝大军', tags: ['群攻', '召唤', '吸血'], fx: 'clone', target: 'all',
-          desc: '铺天盖地的白绝分身扑向敌阵并寄生吸取查克拉：对全体敌人造成140%攻击力伤害，吸取每人25点查克拉，并恢复相当于伤害15%的生命值。',
+          desc: '铺天盖地的白绝分身扑向敌阵并寄生吸取查克拉：对全体敌人造成140%攻击力伤害，吸取每人15点查克拉，并恢复相当于伤害15%的生命值。',
           effects: [
             { type: 'dmg', mult: 1.4 },
-            { type: 'drain', value: 25 },
+            { type: 'drain', value: 15 },
             { type: 'lifesteal', value: 0.15 }
           ]
         },
@@ -609,7 +612,7 @@
     {
       id: 'black_zetsu', name: '黑绝', form: '', en: 'Kuro Zetsu', title: '辉夜的意志',
       faction: 'akatsuki', rarity: 'SR', role: 'ctrl', element: 'yin', tags: ['控制', '封印', '减益'],
-      stats: { hp: 0.95, atk: 1.0, def: 1.0, spd: 120 },
+      stats: { hp: 0.95, atk: 1.0, def: 1.0, spd: 112 },
       bio: '大筒木辉夜被封印前创造的意志化身，自称“母亲的意志”。千年来他暗中篡改宇智波一族的石碑、操纵因陀罗的转世者，最终寄生于宇智波斑体内令辉夜复活，后与辉夜一同被六道·地爆天星封印。',
       quote: '一切都是为了母亲大人的复活。',
       art: {
@@ -620,9 +623,9 @@
       skills: {
         passive: {
           name: '辉夜的意志', tags: ['闪避', '回能'],
-          desc: '千年来潜伏暗处、玩弄人心：闪避率+12%，速度+8%；战斗开始时获得30点查克拉。',
+          desc: '千年来潜伏暗处、玩弄人心：闪避率+12%，速度+8%；战斗开始时获得20点查克拉。',
           stats: { dodge: 0.12, spd: 0.08 },
-          triggers: [{ on: 'battle_start', effects: [{ type: 'chakra', value: 30 }] }]
+          triggers: [{ on: 'battle_start', effects: [{ type: 'chakra', value: 20 }] }]
         },
         s1: {
           name: '寄生之术', tags: ['控制', '消耗'], fx: 'shadow', target: 'single', cd: 0,
@@ -633,7 +636,7 @@
           ]
         },
         s2: {
-          name: '操纵宿主', tags: ['封印', '减益'], fx: 'yin', target: 'single', cd: 3,
+          name: '操纵宿主', tags: ['封印', '消耗'], fx: 'yin', target: 'single', cd: 3,
           desc: '寄生于敌人体内夺取身体的控制权：造成150%攻击力伤害，吸取其25点查克拉，并将其封印2回合（只能使用技能1）。',
           effects: [
             { type: 'dmg', mult: 1.5 },
@@ -643,18 +646,18 @@
         },
         ult: {
           name: '千年之谋', tags: ['群攻', '减益', '封印'], fx: 'yin', target: 'all',
-          desc: '千年来篡改石碑、挑动忍界纷争的阴谋一齐发动：对全体敌人造成140%攻击力伤害，降低其攻击力20%，持续2回合，并有50%概率将其封印1回合。',
+          desc: '千年来篡改石碑、挑动忍界纷争的阴谋一齐发动：对全体敌人造成140%攻击力伤害，降低其攻击力15%，持续2回合，并有50%概率将其封印1回合。',
           effects: [
             { type: 'dmg', mult: 1.4 },
-            { type: 'debuff', stat: 'atk', value: 0.2, turns: 2 },
+            { type: 'debuff', stat: 'atk', value: 0.15, turns: 2 },
             { type: 'status', status: 'silence', turns: 1, chance: 0.5 }
           ]
         },
         awaken: {
           name: '寄生·轮回天生', tags: ['复活', '增益'],
-          desc: '攻击力+10%；有友军阵亡时，寄生并操纵宿主强行发动轮回天生，使其以30%最大生命值复活（每场战斗限1次）。',
+          desc: '攻击力+10%；有友军阵亡时，寄生并操纵宿主强行发动轮回天生，使其以20%最大生命值复活（每场战斗限1次）。',
           stats: { atk: 0.10 },
-          triggers: [{ on: 'on_ally_death', effects: [{ type: 'revive', pct: 0.3 }] }]
+          triggers: [{ on: 'on_ally_death', effects: [{ type: 'revive', pct: 0.2 }] }]
         }
       }
     },
@@ -663,7 +666,7 @@
     {
       id: 'obito', name: '宇智波带土', form: '面具男', en: 'Uchiha Obito', title: '晓的幕后黑手',
       faction: 'akatsuki', rarity: 'SSR', role: 'ctrl', element: 'fire', tags: ['闪避', '控制', '召唤'],
-      stats: { hp: 1.0, atk: 1.08, def: 0.95, spd: 122 },
+      stats: { hp: 1.0, atk: 1.08, def: 0.95, spd: 118 },
       bio: '戴着漩涡面具、自称“宇智波斑”的神秘男子，真实身份是本应死于第三次忍界大战的宇智波带土。他以神威的时空间忍术暗中操纵晓组织，策动九尾袭击木叶，并向五大国宣告了第四次忍界大战。',
       quote: '我谁也不是，也不想成为任何人。',
       art: {
@@ -685,18 +688,18 @@
         },
         s2: {
           name: '木遁·树界降诞', tags: ['群攻', '控制'], fx: 'wood', target: 'all', cd: 3,
-          desc: '以移植的柱间细胞催生出巨木森林，对全体敌人造成90%攻击力伤害，并有40%概率使其束缚1回合。',
+          desc: '以移植的柱间细胞催生出巨木森林，对全体敌人造成90%攻击力伤害，并有30%概率使其束缚1回合。',
           effects: [
             { type: 'dmg', mult: 0.9 },
-            { type: 'status', status: 'bind', turns: 1, chance: 0.4 }
+            { type: 'status', status: 'bind', turns: 1, chance: 0.3 }
           ]
         },
         ult: {
           name: '通灵之术·外道魔像', tags: ['召唤', '群攻', '控制'], fx: 'summon', target: 'all',
-          desc: '通灵出封印着尾兽的外道魔像降临战场，对全体敌人造成160%攻击力伤害，有50%概率使其眩晕1回合，并吸取每人20点查克拉。',
+          desc: '通灵出封印着尾兽的外道魔像降临战场，对全体敌人造成160%攻击力伤害，有40%概率使其眩晕1回合，并吸取每人20点查克拉。',
           effects: [
             { type: 'dmg', mult: 1.6 },
-            { type: 'status', status: 'stun', turns: 1, chance: 0.5 },
+            { type: 'status', status: 'stun', turns: 1, chance: 0.4 },
             { type: 'drain', value: 20 }
           ]
         },
@@ -723,10 +726,13 @@
       },
       skills: {
         passive: {
-          name: '十尾人柱力', tags: ['治疗', '增益'],
-          desc: '与十尾融为一体，拥有磅礴的生命力：生命值+12%，受到的伤害-10%；每回合开始时恢复5%最大生命值。',
+          name: '十尾人柱力', tags: ['治疗', '回能', '增益'],
+          desc: '与十尾融为一体，拥有磅礴的生命力与查克拉：生命值+12%，受到的伤害-10%；战斗开始时获得25点查克拉，每回合开始时恢复5%最大生命值。',
           stats: { hp: 0.12, dr: 0.10 },
-          triggers: [{ on: 'turn_start', effects: [{ type: 'heal', pct: 0.05 }] }]
+          triggers: [
+            { on: 'battle_start', effects: [{ type: 'chakra', value: 25 }] },
+            { on: 'turn_start', effects: [{ type: 'heal', pct: 0.05 }] }
+          ]
         },
         s1: {
           name: '求道玉', tags: ['护盾', '输出'], fx: 'truth', target: 'single', cd: 0,
@@ -737,7 +743,7 @@
           ]
         },
         s2: {
-          name: '求道锡杖', tags: ['穿透', '单体', '减益'], fx: 'truth', target: 'single', cd: 3,
+          name: '求道锡杖', tags: ['穿透', '单体', '爆发'], fx: 'truth', target: 'single', cd: 3,
           desc: '以求道玉化成的锡杖贯穿敌人，消除一切忍术：先驱散目标的增益与护盾，再造成220%攻击力伤害（无视40%防御）。',
           effects: [
             { type: 'dispel' },
@@ -875,7 +881,7 @@
       bio: '远古时代从天外而来的大筒木一族公主，食下神树的查克拉果实成为最初的查克拉持有者，被称为“兔女神”。她曾以无限月读统治人间，后被两个儿子羽衣与羽村封印；第四次忍界大战中借黑绝之手复活，最终被鸣人与佐助以六道·地爆天星再度封印。',
       quote: '这片大地的查克拉，全都属于我。',
       art: {
-        type: 'human', skin: '#f7efef', hair: 'very_long', hairColor: '#f4f1ff',
+        type: 'human', gender: 'f', skin: '#f7efef', hair: 'very_long', hairColor: '#f4f1ff',
         eyes: 'byakugan', outfit: 'otsutsuki', outfitColor: '#f5f2fa', accentColor: '#7b5ea7',
         headband: 'none', marks: ['third_eye', 'red_lips'], mask: 'none', hat: 'horns', accessory: 'none', aura: '#d9c8ff'
       },
@@ -910,7 +916,7 @@
           ]
         },
         awaken: {
-          name: '膨胀求道玉', tags: ['减益', '吸血'],
+          name: '膨胀求道玉', tags: ['消耗', '吸血'],
           desc: '攻击力+12%，吸血+8%；释放必杀技后放出吞噬一切的膨胀求道玉，吸取全体敌人各25点查克拉。',
           stats: { atk: 0.12, lifesteal: 0.08 },
           triggers: [{ on: 'on_ult', effects: [{ type: 'drain', value: 25, to: 'enemy_all' }] }]
@@ -977,7 +983,7 @@
       id: 'hamura', name: '大筒木羽村', form: '', en: 'Otsutsuki Hamura', title: '月之守护者',
       faction: 'otsutsuki', rarity: 'SSR', role: 'ctrl', element: 'none', tags: ['封印', '消耗', '护盾'],
       stats: { hp: 1.0, atk: 1.0, def: 1.05, spd: 112 },
-      bio: '大筒木辉夜的次子、羽衣的弟弟，继承了母亲的白眼。他与兄长并肩作战封印了辉夜，随后率领族人移居月球，守护封印着辉夜躯壳的外道魔像，日向一族正是他的后裔。',
+      bio: '大筒木辉夜的次子、羽衣的弟弟，继承了母亲的白眼。他与兄长并肩作战封印了辉夜，随后移居月球，守护封印于月中的十尾躯壳“外道魔像”，日向一族正是他的后裔。',
       quote: '兄长，月亮就由我来守护。',
       art: {
         type: 'human', skin: '#f5ece6', hair: 'long_straight', hairColor: '#f2f2f2',
@@ -1034,7 +1040,7 @@
       quote: '唯有力量，才能带来秩序。',
       art: {
         type: 'human', skin: '#f1dccb', hair: 'long_bang', hairColor: '#141419',
-        eyes: 'ms_sasuke', outfit: 'robe', outfitColor: '#2a2a3a', accentColor: '#7c4dff',
+        eyes: 'ms_indra', outfit: 'robe', outfitColor: '#2a2a3a', accentColor: '#7c4dff',
         headband: 'none', marks: [], mask: 'none', hat: 'none', accessory: 'none', aura: '#7c4dff'
       },
       skills: {
@@ -1069,9 +1075,12 @@
         },
         awaken: {
           name: '万花筒写轮眼', tags: ['增益', '回能'],
-          desc: '攻击力+12%；每击败一名敌人，获得35点查克拉。',
+          desc: '攻击力+12%；战斗开始时获得30点查克拉；每击败一名敌人，获得35点查克拉。',
           stats: { atk: 0.12 },
-          triggers: [{ on: 'on_kill', effects: [{ type: 'chakra', value: 35 }] }]
+          triggers: [
+            { on: 'battle_start', effects: [{ type: 'chakra', value: 30 }] },
+            { on: 'on_kill', effects: [{ type: 'chakra', value: 35 }] }
+          ]
         }
       }
     },

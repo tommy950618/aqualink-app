@@ -124,9 +124,9 @@
       skills: {
         passive: {
           name: '五遁精通', tags: ['增益'],
-          desc: '精通全部五种查克拉性质变化：攻击力+8%，暴击率+10%；战斗开始时激励全军，使全体友方攻击力提升10%，持续2回合。',
+          desc: '精通全部五种查克拉性质变化：攻击力+8%，暴击率+10%；战斗开始时激励全军，使全体友方攻击力提升15%，持续2回合。',
           stats: { atk: 0.08, crit: 0.1 },
-          triggers: [{ on: 'battle_start', effects: [{ type: 'buff', stat: 'atk', value: 0.1, turns: 2, to: 'ally_all' }] }]
+          triggers: [{ on: 'battle_start', effects: [{ type: 'buff', stat: 'atk', value: 0.15, turns: 2, to: 'ally_all' }] }]
         },
         s1: {
           name: '手里剑影分身之术', tags: ['群攻', '消耗'], fx: 'shuriken', target: 'random', count: 3, cd: 0,
@@ -152,9 +152,9 @@
         },
         awaken: {
           name: '猿魔·金刚如意', tags: ['控制', '增益'],
-          desc: '攻击力+12%，防御力+5%；通灵猿猴王·猿魔化身金刚如意并肩作战，每次攻击命中后有20%概率使目标束缚1回合。',
+          desc: '攻击力+12%，防御力+5%；通灵猿猴王·猿魔化身金刚如意并肩作战，每次攻击命中后有30%概率使目标束缚1回合。',
           stats: { atk: 0.12, def: 0.05 },
-          triggers: [{ on: 'on_attack', chance: 0.2, effects: [{ type: 'status', status: 'bind', turns: 1, to: 'target' }] }]
+          triggers: [{ on: 'on_attack', chance: 0.3, effects: [{ type: 'status', status: 'bind', turns: 1, to: 'target' }] }]
         }
       }
     },
@@ -218,24 +218,24 @@
     {
       id: 'minato_edo', name: '波风水门', form: '秽土转生·九喇嘛模式', en: 'Namikaze Minato', title: '归来的火影',
       faction: 'konoha', rarity: 'UR', role: 'atk', element: 'yang', tags: ['输出', '群攻', '护盾'],
-      stats: { hp: 0.95, atk: 1.15, def: 0.92, spd: 148 },
+      stats: { hp: 0.95, atk: 1.15, def: 0.92, spd: 142 },
       bio: '第四次忍界大战中被大蛇丸以秽土转生唤回，与历代火影一同奔赴战场。他借助体内封印的阴之九喇嘛进入九喇嘛模式，以飞雷神之术把忍者联军从十尾的攻击中转移出来，并与鸣人父子并肩作战。',
       quote: '鸣人，让我们父子并肩战斗吧！',
       art: {
         type: 'human', skin: '#f5d3b3', hair: 'fringe_spiky', hairColor: '#ffcf1a',
         eyes: 'kurama', eyeColor: '#ff8a00',
-        outfit: 'cloak', outfitColor: '#ffb300', accentColor: '#1b1b1b',
+        outfit: 'chakra_cloak', outfitColor: '#ffb300', accentColor: '#1b1b1b', cloakFlames: true,
         headband: 'konoha', headbandSlash: false, headbandPos: 'forehead',
-        marks: ['kurama_marks'], mask: 'none', hat: 'none', accessory: 'kunai', aura: '#ffcc00'
+        marks: ['kurama_marks', 'edo_cracks'], mask: 'none', hat: 'none', accessory: 'kunai', aura: '#ffcc00'
       },
       skills: {
         passive: {
           name: '秽土转生之躯', tags: ['治疗', '闪避'],
-          desc: '秽土转生的躯体可以不断再生：闪避率+15%，伤害减免+10%；战斗开始时获得25点查克拉，每回合开始时恢复5%最大生命值。',
+          desc: '秽土转生的躯体可以不断再生：闪避率+15%，伤害减免+10%；战斗开始时获得15点查克拉，每回合开始时恢复3%最大生命值。',
           stats: { dodge: 0.15, dr: 0.1 },
           triggers: [
-            { on: 'battle_start', effects: [{ type: 'chakra', value: 25 }] },
-            { on: 'turn_start', effects: [{ type: 'heal', pct: 0.05 }] }
+            { on: 'battle_start', effects: [{ type: 'chakra', value: 15 }] },
+            { on: 'turn_start', effects: [{ type: 'heal', pct: 0.03 }] }
           ]
         },
         s1: {
@@ -245,18 +245,18 @@
         },
         s2: {
           name: '飞雷神·导雷', tags: ['护盾', '增益'], fx: 'shield', target: 'ally_all', cd: 3,
-          desc: '在全体友方身上刻下飞雷神术式，随时将其转移出险境：为全体友方提供18%最大生命值的护盾，并使其速度提升15%，持续2回合。',
+          desc: '在全体友方身上刻下飞雷神术式，随时将其转移出险境：为全体友方提供15%最大生命值的护盾（持续2回合），并使其速度提升10%（持续1回合）。',
           effects: [
-            { type: 'shield', pct: 0.18, turns: 2 },
-            { type: 'buff', stat: 'spd', value: 0.15, turns: 2 }
+            { type: 'shield', pct: 0.15, turns: 2 },
+            { type: 'buff', stat: 'spd', value: 0.1, turns: 1 }
           ]
         },
         ult: {
           name: '九喇嘛模式·尾兽玉', tags: ['群攻', '爆发', '控制'], fx: 'bijuu', target: 'all',
-          desc: '借阴之九喇嘛的力量凝聚尾兽玉，并以飞雷神之术精准投送至敌阵中央，对全体敌人造成230%攻击力伤害，并有40%概率使其眩晕1回合。',
+          desc: '借阴之九喇嘛的力量凝聚尾兽玉，并以飞雷神之术精准投送至敌阵中央，对全体敌人造成230%攻击力伤害，并有30%概率使其眩晕1回合。',
           effects: [
             { type: 'dmg', mult: 2.3 },
-            { type: 'status', status: 'stun', turns: 1, chance: 0.4 }
+            { type: 'status', status: 'stun', turns: 1, chance: 0.3 }
           ]
         },
         awaken: {
@@ -275,7 +275,7 @@
       bio: '传说三忍之一、初代火影的孙女，忍界首屈一指的医疗忍者，拥有一击碎地的怪力与百豪之术。她在自来也与鸣人的劝说下重返木叶，继任第五代火影。',
       quote: '只要我还在，就不会让同伴死去！',
       art: {
-        type: 'human', skin: '#f6d7bd', hair: 'twin_tails', hairColor: '#f2d16b',
+        type: 'human', gender: 'f', skin: '#f6d7bd', hair: 'twin_tails', hairColor: '#f2d16b',
         eyes: 'normal', eyeColor: '#b07a3a',
         outfit: 'robe', outfitColor: '#6b8e4e', accentColor: '#8a8a8a',
         headband: 'none', headbandSlash: false, headbandPos: 'forehead',
@@ -298,9 +298,9 @@
         },
         s2: {
           name: '掌仙术', tags: ['治疗', '净化'], fx: 'heal', target: 'ally_lowest', cd: 2,
-          desc: '以掌仙术为生命比例最低的友方疗伤，恢复相当于自身200%攻击力的生命值，并清除其所有减益与异常状态。',
+          desc: '以掌仙术为生命比例最低的友方疗伤，恢复相当于自身180%攻击力的生命值，并清除其所有减益与异常状态。',
           effects: [
-            { type: 'heal', mult: 2.0 },
+            { type: 'heal', mult: 1.8 },
             { type: 'cleanse', to: 'target' }
           ]
         },
@@ -330,7 +330,7 @@
     {
       id: 'jiraiya', name: '自来也', form: '蛤蟆仙人', en: 'Jiraiya', title: '好色仙人',
       faction: 'konoha', rarity: 'SSR', role: 'atk', element: 'fire', tags: ['群攻', '控制', '持续'],
-      stats: { hp: 1.05, atk: 1.08, def: 0.92, spd: 110 },
+      stats: { hp: 1.05, atk: 1.08, def: 0.92, spd: 116 },
       bio: '传说三忍之一，妙木山的蛤蟆仙人，也是被鸣人称为“好色仙人”的畅销小说作家。他先后培养了波风水门与漩涡鸣人，独自潜入雨隐村调查晓组织，与弟子长门操纵的佩恩六道战斗至最后一刻。',
       quote: '所谓忍者，就是能够忍耐之人。',
       art: {
@@ -343,9 +343,9 @@
       skills: {
         passive: {
           name: '忍法·针地藏', tags: ['反击', '增益'],
-          desc: '长发硬化成针刺包裹全身：防御力+10%，生命值+5%；受到攻击时有30%概率以针地藏反刺攻击者，造成50%攻击力伤害。',
+          desc: '长发硬化成针刺包裹全身：防御力+10%，生命值+5%；受到攻击时有40%概率以针地藏反刺攻击者，造成50%攻击力伤害。',
           stats: { def: 0.1, hp: 0.05 },
-          triggers: [{ on: 'on_hit', chance: 0.3, effects: [{ type: 'dmg', mult: 0.5, to: 'attacker' }] }]
+          triggers: [{ on: 'on_hit', chance: 0.4, effects: [{ type: 'dmg', mult: 0.5, to: 'attacker' }] }]
         },
         s1: {
           name: '火遁·蛤蟆油炎弹', tags: ['输出', '持续'], fx: 'fire', target: 'single', cd: 0,
@@ -387,7 +387,7 @@
       bio: '出身漩涡一族的第二代九尾人柱力，波风水门之妻、漩涡鸣人之母。因一头红发与火爆脾气被称为“血红辣椒”，拥有能压制九尾的特殊查克拉锁链。九尾之夜，她与水门用生命守护了刚出生的鸣人。',
       quote: '鸣人……不要挑食，要好好吃饭哦。',
       art: {
-        type: 'human', skin: '#f7d9c0', hair: 'very_long', hairColor: '#c8102e',
+        type: 'human', gender: 'f', skin: '#f7d9c0', hair: 'very_long', hairColor: '#c8102e',
         eyes: 'normal', eyeColor: '#5a6b8c',
         outfit: 'robe', outfitColor: '#5b8a3c', accentColor: '#f2efe6',
         headband: 'none', headbandSlash: false, headbandPos: 'forehead',
@@ -410,10 +410,10 @@
         },
         s2: {
           name: '查克拉锁链', tags: ['群攻', '控制'], fx: 'chakra', target: 'all', cd: 3,
-          desc: '从体内射出无数查克拉锁链贯穿敌阵，对全体敌人造成85%攻击力伤害，并有40%概率使其束缚1回合。',
+          desc: '从体内射出无数查克拉锁链贯穿敌阵，对全体敌人造成85%攻击力伤害，并有30%概率使其束缚1回合。',
           effects: [
             { type: 'dmg', mult: 0.85 },
-            { type: 'status', status: 'bind', turns: 1, chance: 0.4 }
+            { type: 'status', status: 'bind', turns: 1, chance: 0.3 }
           ]
         },
         ult: {
@@ -445,7 +445,7 @@
       bio: '出身漩涡一族，初代火影千手柱间之妻、纲手的祖母。柱间与宇智波斑决战后，她将九尾封入自己体内，成为第一代九尾人柱力，晚年又把九尾托付给了漩涡玖辛奈。',
       quote: '只要心中充满爱，就能压制九尾。',
       art: {
-        type: 'human', skin: '#f6dcc6', hair: 'buns', hairColor: '#c8102e',
+        type: 'human', gender: 'f', skin: '#f6dcc6', hair: 'buns', hairColor: '#c8102e',
         eyes: 'normal', eyeColor: '#3b2f4a',
         outfit: 'kimono', outfitColor: '#e9e4f2', accentColor: '#6741d9',
         headband: 'none', headbandSlash: false, headbandPos: 'forehead',
@@ -473,7 +473,7 @@
           ]
         },
         ult: {
-          name: '九尾封印', tags: ['封印', '群攻', '护盾'], fx: 'seal', target: 'all',
+          name: '九尾封印', tags: ['群攻', '减益', '护盾'], fx: 'seal', target: 'all',
           desc: '施展将九尾封入己身的大封印术，对全体敌人造成140%攻击力伤害并减少其30点查克拉，同时为全体友方提供相当于自身攻击力60%的护盾，持续2回合。',
           effects: [
             { type: 'dmg', mult: 1.4 },
@@ -494,7 +494,7 @@
     {
       id: 'sakumo', name: '旗木朔茂', form: '木叶白牙', en: 'Hatake Sakumo', title: '卡卡西之父',
       faction: 'konoha', rarity: 'SSR', role: 'atk', element: 'lightning', tags: ['输出', '爆发', '穿透'],
-      stats: { hp: 0.92, atk: 1.18, def: 0.9, spd: 128 },
+      stats: { hp: 0.92, atk: 1.18, def: 0.9, spd: 134 },
       bio: '旗木卡卡西的父亲，凭借白光查克拉刀威震忍界，被称为“木叶白牙”，名声甚至在传说三忍之上。他曾为拯救同伴而放弃任务，却因此遭到村民与同伴的指责，最终含恨自尽。',
       quote: '比起任务，我选择守护同伴。',
       art: {
@@ -533,9 +533,9 @@
         },
         awaken: {
           name: '同伴之义', tags: ['护盾', '增益'],
-          desc: '攻击力+12%；把同伴的性命看得比任务更重，每回合开始时为生命比例最低的友方提供相当于自身攻击力40%的护盾，持续1回合。',
+          desc: '攻击力+12%；把同伴的性命看得比任务更重，每回合开始时为生命比例最低的友方提供相当于自身攻击力60%的护盾，持续1回合。',
           stats: { atk: 0.12 },
-          triggers: [{ on: 'turn_start', effects: [{ type: 'shield', mult: 0.4, turns: 1, to: 'ally_lowest' }] }]
+          triggers: [{ on: 'turn_start', effects: [{ type: 'shield', mult: 0.6, turns: 1, to: 'ally_lowest' }] }]
         }
       }
     },
@@ -651,7 +651,7 @@
       bio: '加藤断的侄女、纲手的弟子兼助手，多年来陪伴纲手四处漂泊，总是抱着小猪豚豚。她是优秀的医疗忍者，同时擅长毒术与暗器，纲手就任火影后成为她的左右手。',
       quote: '纲手大人，请您振作起来！',
       art: {
-        type: 'human', skin: '#f3d6bf', hair: 'bob', hairColor: '#1c1c24',
+        type: 'human', gender: 'f', skin: '#f3d6bf', hair: 'bob', hairColor: '#1c1c24',
         eyes: 'normal', eyeColor: '#2a2a2a',
         outfit: 'kimono', outfitColor: '#2b2b38', accentColor: '#e6e6e6',
         headband: 'none', headbandSlash: false, headbandPos: 'forehead',
@@ -739,7 +739,7 @@
           ]
         },
         awaken: {
-          name: '里四象封印', tags: ['封印', '群攻'],
+          name: '里四象封印', tags: ['控制', '群攻'],
           desc: '攻击力+12%；阵亡时发动刻在身上的里四象封印，把敌人一同卷入封印，对全体敌人造成160%攻击力伤害，并有50%概率使其束缚1回合。',
           stats: { atk: 0.12 },
           triggers: [{ on: 'on_death', effects: [
@@ -780,8 +780,8 @@
         },
         s2: {
           name: '顾问的进言', tags: ['增益'], fx: 'yang', target: 'ally_all', cd: 3,
-          desc: '冷静地为同伴分析战局，使全体友方攻击力提升20%，持续2回合。',
-          effects: [{ type: 'buff', stat: 'atk', value: 0.2, turns: 2 }]
+          desc: '冷静地为同伴分析战局，使全体友方攻击力提升25%，持续2回合。',
+          effects: [{ type: 'buff', stat: 'atk', value: 0.25, turns: 2 }]
         },
         ult: {
           name: '火遁·豪火球之术', tags: ['群攻', '持续'], fx: 'fire', target: 'all',
@@ -807,7 +807,7 @@
       bio: '木叶的高层顾问，与水户门炎、猿飞日斩同为千手扉间的弟子。她把灰白的头发盘成发髻，在村子的重大事务上与门炎一同向火影进言。',
       quote: '火影的决断，关乎全村的存亡。',
       art: {
-        type: 'human', skin: '#e9cbb0', hair: 'buns', hairColor: '#bdbdbd',
+        type: 'human', gender: 'f', skin: '#e9cbb0', hair: 'buns', hairColor: '#bdbdbd',
         eyes: 'closed', eyeColor: '#3a3a3a',
         outfit: 'kimono', outfitColor: '#5a6b5a', accentColor: '#c9b28a',
         headband: 'none', headbandSlash: false, headbandPos: 'forehead',
@@ -919,7 +919,7 @@
       },
       skills: {
         passive: {
-          name: '毒虫之体', tags: ['持续', '反击'],
+          name: '毒虫之体', tags: ['持续', '增益'],
           desc: '毒虫寄宿于全身：生命值+8%；受到攻击时有40%概率使攻击者中毒2回合（每回合25%攻击力）。',
           stats: { hp: 0.08 },
           triggers: [{ on: 'on_hit', chance: 0.4, effects: [{ type: 'status', status: 'poison', turns: 2, value: 0.25, to: 'attacker' }] }]
@@ -969,14 +969,14 @@
         eyes: 'normal', eyeColor: '#3a3a3a',
         outfit: 'shirt', outfitColor: '#2b2b33', accentColor: '#9e9e9e',
         headband: 'none', headbandSlash: false, headbandPos: 'forehead',
-        marks: ['stitches'], mask: 'none', hat: 'none', accessory: 'scroll', aura: '#757575'
+        marks: ['stitches', 'edo_cracks'], mask: 'none', hat: 'none', accessory: 'scroll', aura: '#757575'
       },
       skills: {
         passive: {
           name: '兄弟之绊', tags: ['增益'],
-          desc: '生命值+8%；战斗开始时激励随机一名友方，使其攻击力提升15%，持续2回合。',
+          desc: '生命值+8%；战斗开始时激励全体友方，使其攻击力提升10%，持续2回合。',
           stats: { hp: 0.08 },
-          triggers: [{ on: 'battle_start', effects: [{ type: 'buff', stat: 'atk', value: 0.15, turns: 2, to: 'ally_random' }] }]
+          triggers: [{ on: 'battle_start', effects: [{ type: 'buff', stat: 'atk', value: 0.1, turns: 2, to: 'ally_all' }] }]
         },
         s1: {
           name: '暗杀术', tags: ['输出', '穿透'], fx: 'blade', target: 'single', cd: 0,
@@ -985,8 +985,8 @@
         },
         s2: {
           name: '起爆符', tags: ['群攻', '消耗'], fx: 'explosion', target: 'random', count: 3, cd: 3,
-          desc: '向敌阵撒出数张起爆符，对随机3名敌人各造成55%攻击力伤害。',
-          effects: [{ type: 'dmg', mult: 0.55 }]
+          desc: '向敌阵撒出数张起爆符，对随机3名敌人各造成70%攻击力伤害。',
+          effects: [{ type: 'dmg', mult: 0.7 }]
         },
         ult: {
           name: '起爆符·连环爆破', tags: ['群攻', '持续'], fx: 'explosion', target: 'all',
@@ -1016,7 +1016,7 @@
       bio: '木叶的特别上忍，曾是大蛇丸的弟子，脖子上留有大蛇丸种下的天之咒印。她担任中忍考试第二场“死亡森林”的考官，擅长蛇系忍术与禁术。',
       quote: '在死亡森林里，可别丢了小命哦。',
       art: {
-        type: 'human', skin: '#f3d3b5', hair: 'high_ponytail', hairColor: '#3b2a4a',
+        type: 'human', gender: 'f', skin: '#f3d3b5', hair: 'high_ponytail', hairColor: '#3b2a4a',
         eyes: 'normal', eyeColor: '#a07850',
         outfit: 'coat', outfitColor: '#c9a26b', accentColor: '#2b2b2b',
         headband: 'konoha', headbandSlash: false, headbandPos: 'forehead',
@@ -1080,7 +1080,7 @@
       },
       skills: {
         passive: {
-          name: '拷问专家', tags: ['减益', '反击'],
+          name: '拷问专家', tags: ['减益', '增益'],
           desc: '生命值+8%，防御力+5%；受到攻击时有30%概率以压迫感震慑攻击者，使其攻击力降低15%，持续2回合。',
           stats: { hp: 0.08, def: 0.05 },
           triggers: [{ on: 'on_hit', chance: 0.3, effects: [{ type: 'debuff', stat: 'atk', value: 0.15, turns: 2, to: 'attacker' }] }]
@@ -1112,7 +1112,7 @@
           ]
         },
         awaken: {
-          name: '第十题', tags: ['减益', '控制'],
+          name: '第十题', tags: ['减益', '增益'],
           desc: '攻击力+10%；战斗开始时抛出令人动摇的“第十题”，使全体敌人速度降低15%，持续2回合。',
           stats: { atk: 0.1 },
           triggers: [{ on: 'battle_start', effects: [{ type: 'debuff', stat: 'spd', value: 0.15, turns: 2, to: 'enemy_all' }] }]
@@ -1131,7 +1131,7 @@
         eyes: 'normal', eyeColor: '#3a2a1e',
         outfit: 'flak', outfitColor: '#5d7a3e', accentColor: '#2a3550',
         headband: 'konoha', headbandSlash: false, headbandPos: 'bandana',
-        marks: [], mask: 'none', hat: 'none', accessory: 'none', aura: '#90a4ae'
+        marks: [], mask: 'none', hat: 'none', accessory: 'senbon', aura: '#90a4ae'
       },
       skills: {
         passive: {
@@ -1153,18 +1153,21 @@
           effects: [{ type: 'dmg', mult: 0.6 }]
         },
         ult: {
-          name: '千本·暴雨', tags: ['群攻', '穿透', '持续'], fx: 'shuriken', target: 'random', count: 4,
-          desc: '千本如暴雨般倾泻而下，对随机4名敌人各造成65%攻击力伤害，无视目标30%防御，并使其流血2回合（每回合25%攻击力）。',
+          name: '千本·暴雨', tags: ['群攻', '穿透', '持续'], fx: 'shuriken', target: 'all',
+          desc: '千本如暴雨般倾泻而下，对全体敌人造成2段共110%攻击力伤害，无视目标30%防御，并使其流血2回合（每回合25%攻击力）。',
           effects: [
-            { type: 'dmg', mult: 0.65, pierce: 0.3 },
+            { type: 'dmg', mult: 0.55, hits: 2, pierce: 0.3 },
             { type: 'status', status: 'bleed', turns: 2, value: 0.25 }
           ]
         },
         awaken: {
-          name: '特别上忍', tags: ['增益', '回能'],
-          desc: '攻击力+10%；每击败一名敌人获得30点查克拉。',
+          name: '特别上忍', tags: ['增益', '回能', '持续'],
+          desc: '攻击力+10%；攻击命中后有25%概率以千本刺中要害，使目标流血2回合（每回合20%攻击力）；每击败一名敌人获得30点查克拉。',
           stats: { atk: 0.1 },
-          triggers: [{ on: 'on_kill', effects: [{ type: 'chakra', value: 30 }] }]
+          triggers: [
+            { on: 'on_attack', chance: 0.25, effects: [{ type: 'status', status: 'bleed', turns: 2, value: 0.2 }] },
+            { on: 'on_kill', effects: [{ type: 'chakra', value: 30 }] }
+          ]
         }
       }
     },
@@ -1180,7 +1183,7 @@
         eyes: 'normal', eyeColor: '#2b2b2b',
         outfit: 'flak', outfitColor: '#5d7a3e', accentColor: '#2a3550',
         headband: 'konoha', headbandSlash: false, headbandPos: 'forehead',
-        marks: ['cheek_scar'], mask: 'none', hat: 'none', accessory: 'tanto', aura: '#455a64'
+        marks: ['burn_scar'], mask: 'none', hat: 'none', accessory: 'tanto', aura: '#455a64'
       },
       skills: {
         passive: {
@@ -1259,7 +1262,7 @@
           ]
         },
         ult: {
-          name: '秘术·心转身', tags: ['单体', '控制', '减益'], fx: 'mind', target: 'highest_atk',
+          name: '秘术·心转身', tags: ['单体', '减益'], fx: 'mind', target: 'highest_atk',
           desc: '潜入攻击力最高的敌人的意识读取情报，造成260%攻击力伤害，减少其40点查克拉，并驱散其所有增益与护盾。',
           effects: [
             { type: 'dmg', mult: 2.6 },
@@ -1335,7 +1338,7 @@
       bio: '木叶暗部的剑术高手，月光疾风的恋人。疾风在木叶崩溃前夕遇害后，她在疾风的墓前立誓要守护他所守护的村子。',
       quote: '疾风，我会替你守护这个村子。',
       art: {
-        type: 'human', skin: '#f3dcc8', hair: 'long_straight', hairColor: '#9b7fc4',
+        type: 'human', gender: 'f', skin: '#f3dcc8', hair: 'long_straight', hairColor: '#9b7fc4',
         eyes: 'normal', eyeColor: '#5a3a6a',
         outfit: 'anbu', outfitColor: '#d6d6d6', accentColor: '#2b2b2b',
         headband: 'none', headbandSlash: false, headbandPos: 'forehead',
@@ -1463,28 +1466,28 @@
           ]
         },
         s2: {
-          name: '水遁·水饴拿原', tags: ['群攻', '控制', '减益'], fx: 'water', target: 'all', cd: 3,
-          desc: '吐出黏稠的水饴铺满地面粘住敌人，对全体敌人造成60%攻击力伤害，使其速度降低25%，持续2回合，并有30%概率使其束缚1回合。',
+          name: '水遁·水饴拿原', tags: ['群攻', '控制', '减益'], fx: 'water', target: 'all', cd: 4,
+          desc: '吐出黏稠的水饴铺满地面粘住敌人，对全体敌人造成60%攻击力伤害，使其速度降低15%，持续1回合，并有20%概率使其束缚1回合。',
           effects: [
             { type: 'dmg', mult: 0.6 },
-            { type: 'debuff', stat: 'spd', value: 0.25, turns: 2 },
-            { type: 'status', status: 'bind', turns: 1, chance: 0.3 }
+            { type: 'debuff', stat: 'spd', value: 0.15, turns: 1 },
+            { type: 'status', status: 'bind', turns: 1, chance: 0.2 }
           ]
         },
         ult: {
           name: '幻术·迷途之门', tags: ['群攻', '控制', '减益'], fx: 'genjutsu', target: 'all',
-          desc: '施展曾在中忍考试中用来把关的幻术迷惑敌阵，对全体敌人造成120%攻击力伤害，使其攻击力降低15%，持续2回合，并有40%概率使其睡眠1回合。',
+          desc: '施展曾在中忍考试中用来把关的幻术迷惑敌阵，对全体敌人造成120%攻击力伤害，使其攻击力降低10%，持续2回合，并有40%概率使其睡眠1回合。',
           effects: [
             { type: 'dmg', mult: 1.2 },
-            { type: 'debuff', stat: 'atk', value: 0.15, turns: 2 },
+            { type: 'debuff', stat: 'atk', value: 0.1, turns: 2 },
             { type: 'status', status: 'sleep', turns: 1, chance: 0.4 }
           ]
         },
         awaken: {
           name: '多年的搭档', tags: ['减益', '增益'],
-          desc: '攻击力+10%；攻击命中后有20%概率使目标速度降低15%，持续2回合。',
+          desc: '攻击力+10%；攻击命中后有20%概率使目标速度降低10%，持续2回合。',
           stats: { atk: 0.1 },
-          triggers: [{ on: 'on_attack', chance: 0.2, effects: [{ type: 'debuff', stat: 'spd', value: 0.15, turns: 2, to: 'target' }] }]
+          triggers: [{ on: 'on_attack', chance: 0.2, effects: [{ type: 'debuff', stat: 'spd', value: 0.1, turns: 2, to: 'target' }] }]
         }
       }
     }

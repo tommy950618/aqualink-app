@@ -5,7 +5,7 @@ var ROOT = path.join(__dirname, '..');
 global.window = global; var ctx = global; var realConsole = console;
 function load(f) { (0, eval)(fs.readFileSync(path.join(ROOT, f), 'utf8') + '\n//# sourceURL=' + f); }
 load('js/core.js');
-var FILES = ['konoha_main', 'konoha_rookies', 'konoha_elders', 'uchiha_oto', 'akatsuki', 'suna_kiri', 'kumo_iwa', 'bijuu'], loaded = [];
+var FILES = ['konoha_main', 'konoha_rookies', 'konoha_elders', 'uchiha_oto', 'akatsuki', 'suna_kiri', 'kumo_iwa', 'bijuu', 'summons'], loaded = [];
 FILES.forEach(function (f) { if (fs.existsSync(path.join(ROOT, 'js/data/' + f + '.js'))) { try { load('js/data/' + f + '.js'); loaded.push(f); } catch (e) { console.log('DATA ERR', f, e.message); } } });
 var warns = []; var _w = console.warn, _e = console.error; console.warn = function () { warns.push([].join.call(arguments, ' ')); }; console.error = function () { warns.push('E ' + [].join.call(arguments, ' ')); };
 load('js/art.js');
@@ -35,6 +35,17 @@ NG.CHARS.forEach(function (c) {
   if (A.avatarURL) { var u = A.avatarURL(c, 64); if (u.indexOf('data:image/svg+xml') !== 0) { bad++; console.log('BAD url', c.id); } }
 });
 var tAll = Date.now() - t;
+// art fields the schema validator does not know about (validate.js ignores unknown keys): keep them sane
+var HEXF = ['scarfColor', 'paintColor', 'headbandColor', 'maskColor', 'capColor', 'hornColor', 'beardColor', 'tieColor', 'flowerColor', 'gogglesColor', 'halfColor', 'vestColor', 'earColor', 'coralColor', 'brows', 'cape', 'maneColor'];
+NG.CHARS.forEach(function (c) {
+  var a = c.art || {};
+  if (a.accessory2 !== undefined && NG.ART.accessory.indexOf(a.accessory2) < 0) { bad++; console.log('BAD accessory2', c.id, a.accessory2); }
+  if (a.gender !== undefined && a.gender !== 'f' && a.gender !== 'm') { bad++; console.log('BAD gender', c.id, a.gender); }
+  if (a.senbonPos !== undefined && a.senbonPos !== 'hand' && a.senbonPos !== 'mouth') { bad++; console.log('BAD senbonPos', c.id, a.senbonPos); }
+  if (a.dogStyle !== undefined && a.dogStyle !== 'pug' && a.dogStyle !== 'fluffy') { bad++; console.log('BAD dogStyle', c.id, a.dogStyle); }
+  if (a.build !== undefined && !(+a.build >= 0.8 && +a.build <= 1.3)) { bad++; console.log('BAD build', c.id, a.build); }
+  HEXF.forEach(function (k) { if (a[k] !== undefined && !/^#[0-9a-f]{6}$/i.test(a[k])) { bad++; console.log('BAD ' + k, c.id, a[k]); } });
+});
 // vocabulary sweep
 var base = { type: 'human', skin: '#f3d2b4', hair: 'spiky', hairColor: '#3a3f8a', eyes: 'normal', eyeColor: '#3b6fd6', outfit: 'shirt', outfitColor: '#3d5a99', accentColor: '#d14b3c', headband: 'konoha', headbandPos: 'forehead', marks: [], mask: 'none', hat: 'none', accessory: 'none' };
 var n = 0;

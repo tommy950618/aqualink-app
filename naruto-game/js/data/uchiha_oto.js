@@ -16,7 +16,7 @@
     {
       id: 'shisui', name: '宇智波止水', form: '瞬身之止水', en: 'Uchiha Shisui', title: '木叶的守护者',
       faction: 'konoha', rarity: 'SSR', role: 'ctrl', element: 'fire', tags: ['控制', '闪避', '群攻'],
-      stats: { hp: 0.95, atk: 1.08, def: 0.95, spd: 148 },
+      stats: { hp: 0.95, atk: 1.08, def: 0.95, spd: 142 },
       bio: '宇智波一族的天才忍者，以出神入化的瞬身术闻名忍界，人称“瞬身止水”。他的万花筒写轮眼拥有最强幻术“别天神”，为阻止一族政变，他将左眼托付给挚友鼬后投河自尽。',
       quote: '守护好村子，还有宇智波之名。',
       art: {
@@ -28,9 +28,9 @@
       skills: {
         passive: {
           name: '万花筒写轮眼', tags: ['闪避', '增益'],
-          desc: '洞悉敌人一举一动的瞳力：闪避率+15%，暴击率+8%；战斗开始时获得30点查克拉。',
+          desc: '洞悉敌人一举一动的瞳力：闪避率+15%，暴击率+8%；战斗开始时获得20点查克拉。',
           stats: { dodge: 0.15, crit: 0.08 },
-          triggers: [{ on: 'battle_start', effects: [{ type: 'chakra', value: 30 }] }]
+          triggers: [{ on: 'battle_start', effects: [{ type: 'chakra', value: 20 }] }]
         },
         s1: {
           name: '瞬身术', tags: ['输出', '闪避'], fx: 'blade', target: 'single', cd: 0,
@@ -50,11 +50,11 @@
         },
         ult: {
           name: '别天神', tags: ['控制', '群攻', '减益'], fx: 'eye', target: 'all',
-          desc: '以万花筒写轮眼的最强幻术在不知不觉间改写敌人的意志：对全体敌人造成130%攻击力伤害，有70%概率使其束缚1回合，并削减其20点查克拉。',
+          desc: '以万花筒写轮眼的最强幻术在不知不觉间改写敌人的意志：对全体敌人造成130%攻击力伤害，有45%概率使其束缚1回合，并削减其10点查克拉。',
           effects: [
             { type: 'dmg', mult: 1.3 },
-            { type: 'status', status: 'bind', turns: 1, chance: 0.7 },
-            { type: 'drain', value: 20 }
+            { type: 'status', status: 'bind', turns: 1, chance: 0.45 },
+            { type: 'drain', value: 10 }
           ]
         },
         awaken: {
@@ -128,7 +128,7 @@
       bio: '宇智波富岳之妻，鼬与佐助的母亲，也是漩涡玖辛奈的挚友。她温柔而坚强，灭族之夜与丈夫一同平静地迎接了自己的命运。',
       quote: '无论如何，我们都爱着你。',
       art: {
-        type: 'human', skin: '#f5dcc8', hair: 'long_straight', hairColor: '#1a1c2a',
+        type: 'human', gender: 'f', skin: '#f5dcc8', hair: 'long_straight', hairColor: '#1a1c2a',
         eyes: 'normal', eyeColor: '#2b2b2b', outfit: 'shirt', outfitColor: '#4a4560', accentColor: '#e8e2d6',
         headband: 'none', marks: [], mask: 'none', hat: 'none', accessory: 'none', aura: '#ff8a80'
       },
@@ -180,7 +180,7 @@
       bio: '宇智波鼬的青梅竹马，一直默默地喜欢着鼬，立志成为配得上他的出色忍者。灭族之夜，鼬以月读让她在幻术中度过了与他共度的幸福一生，随后安详离世。',
       quote: '能遇见你，我很幸福。',
       art: {
-        type: 'human', skin: '#f6dcc6', hair: 'long_straight', hairColor: '#3a2a24',
+        type: 'human', gender: 'f', skin: '#f6dcc6', hair: 'long_straight', hairColor: '#3a2a24',
         eyes: 'sharingan', outfit: 'highcollar', outfitColor: '#8e6fa8', accentColor: '#2c2c3c',
         headband: 'konoha', headbandSlash: false, headbandPos: 'forehead',
         marks: [], mask: 'none', hat: 'none', accessory: 'none', aura: '#f48fb1'
@@ -252,11 +252,10 @@
         },
         s2: {
           name: '写轮眼·瞳术', tags: ['减益', '群攻'], fx: 'eye', target: 'all', cd: 3,
-          desc: '以写轮眼的瞳术扰乱敌阵：对全体敌人造成60%攻击力伤害，并降低其攻击力20%、速度15%，持续2回合。',
+          desc: '以写轮眼的瞳术扰乱敌阵：对全体敌人造成60%攻击力伤害，并降低其攻击力15%，持续2回合。',
           effects: [
             { type: 'dmg', mult: 0.6 },
-            { type: 'debuff', stat: 'atk', value: 0.2, turns: 2 },
-            { type: 'debuff', stat: 'spd', value: 0.15, turns: 2 }
+            { type: 'debuff', stat: 'atk', value: 0.15, turns: 2 }
           ]
         },
         ult: {
@@ -270,11 +269,11 @@
         },
         awaken: {
           name: '二代目的教诲', tags: ['治疗', '增益'],
-          desc: '攻击力+10%，防御+5%；友方阵亡时将同伴的意志传承下去，为全体友方恢复15%最大生命值，并使其攻击力+15%，持续2回合。',
+          desc: '攻击力+10%，防御+5%；友方阵亡时将同伴的意志传承下去，为全体友方恢复8%最大生命值，并使其攻击力+10%，持续2回合。',
           stats: { atk: 0.10, def: 0.05 },
           triggers: [{ on: 'on_ally_death', effects: [
-            { type: 'heal', pct: 0.15, to: 'ally_all' },
-            { type: 'buff', stat: 'atk', value: 0.15, turns: 2, to: 'ally_all' }
+            { type: 'heal', pct: 0.08, to: 'ally_all' },
+            { type: 'buff', stat: 'atk', value: 0.1, turns: 2, to: 'ally_all' }
           ] }]
         }
       }
@@ -289,9 +288,9 @@
       quote: '我可是要成为火影的男人！',
       art: {
         type: 'human', skin: '#f3d9c4', hair: 'spiky', hairColor: '#1b1b1f',
-        eyes: 'sharingan', outfit: 'jacket', outfitColor: '#1f3b73', accentColor: '#ff8f00',
+        eyes: 'sharingan_2tomoe', outfit: 'jacket', outfitColor: '#1f3b73', accentColor: '#ff8f00',
         headband: 'konoha', headbandSlash: false, headbandPos: 'forehead',
-        marks: [], mask: 'none', hat: 'none', accessory: 'kunai', aura: '#ff7043'
+        marks: [], mask: 'none', hat: 'none', accessory: 'goggles', accessory2: 'kunai', aura: '#ff7043'
       },
       skills: {
         passive: {
@@ -321,7 +320,7 @@
           ]
         },
         ult: {
-          name: '神无毗桥之战', tags: ['嘲讽', '护盾', '群攻'], fx: 'shield', target: 'all',
+          name: '神无毗桥的誓言', tags: ['嘲讽', '护盾', '群攻'], fx: 'shield', target: 'all',
           desc: '在神无毗桥挺身而出守护同伴：对全体敌人造成100%攻击力伤害，嘲讽敌方2回合，并为全体友方提供15%最大生命值的护盾，持续2回合。',
           effects: [
             { type: 'dmg', mult: 1.0 },
@@ -331,11 +330,11 @@
         },
         awaken: {
           name: '托付的左眼', tags: ['护盾', '回能'],
-          desc: '生命值+10%，攻击力+10%；阵亡时将写轮眼托付给同伴，使全体友方获得15%最大生命值的护盾（持续2回合），并获得30点查克拉。',
+          desc: '生命值+10%，攻击力+10%；阵亡时将写轮眼托付给同伴，使全体友方获得15%最大生命值的护盾（持续2回合），并获得20点查克拉。',
           stats: { hp: 0.10, atk: 0.10 },
           triggers: [{ on: 'on_death', effects: [
             { type: 'shield', pct: 0.15, turns: 2, to: 'ally_all' },
-            { type: 'chakra', value: 30, to: 'ally_all' }
+            { type: 'chakra', value: 20, to: 'ally_all' }
           ] }]
         }
       }
@@ -349,10 +348,10 @@
       bio: '波风水门班的医疗忍者，与卡卡西、带土是队友。她被雾隐村强行封入三尾成为人柱力，为了不让尾兽在木叶暴走，主动撞上卡卡西的千鸟而死。',
       quote: '带土，我会一直看着你的。',
       art: {
-        type: 'human', skin: '#f6dcc6', hair: 'bob', hairColor: '#6b4a36',
+        type: 'human', gender: 'f', skin: '#f6dcc6', hair: 'bob', hairColor: '#6b4a36',
         eyes: 'normal', eyeColor: '#5a3b2a', outfit: 'shirt', outfitColor: '#4e4a8e', accentColor: '#e8e8f0',
         headband: 'konoha', headbandSlash: false, headbandPos: 'forehead',
-        marks: [], mask: 'none', hat: 'none', accessory: 'none', aura: '#69f0ae'
+        marks: ['cheek_rects'], paintColor: '#7b2fa0', mask: 'none', hat: 'none', accessory: 'none', aura: '#69f0ae'
       },
       skills: {
         passive: {
@@ -370,7 +369,7 @@
           ]
         },
         s2: {
-          name: '掌仙术', tags: ['治疗', '净化'], fx: 'heal', target: 'ally_lowest', cd: 2,
+          name: '掌仙术', tags: ['治疗', '净化'], fx: 'heal', target: 'ally_lowest', cd: 3,
           desc: '以掌仙术治愈伤口：为生命比例最低的友方恢复160%攻击力的生命值，并清除其减益与异常状态。',
           effects: [
             { type: 'heal', mult: 1.6 },
@@ -434,10 +433,10 @@
         },
         ult: {
           name: '须佐能乎', tags: ['群攻', '爆发', '控制'], fx: 'susanoo', target: 'all',
-          desc: '召唤须佐能乎挥刀横扫，对全体敌人造成3段共186%攻击力伤害，并有50%概率使其眩晕1回合。',
+          desc: '召唤须佐能乎挥刀横扫，对全体敌人造成3段共186%攻击力伤害，并有40%概率使其眩晕1回合。',
           effects: [
             { type: 'dmg', mult: 0.62, hits: 3 },
-            { type: 'status', status: 'stun', turns: 1, chance: 0.5 }
+            { type: 'status', status: 'stun', turns: 1, chance: 0.4 }
           ]
         },
         awaken: {
@@ -459,7 +458,7 @@
       art: {
         type: 'human', skin: '#d9cfc4', hair: 'wild_long', hairColor: '#141420',
         eyes: 'rinnegan', outfit: 'armor', outfitColor: '#7a1a20', accentColor: '#1c1c26',
-        headband: 'none', marks: [], mask: 'none', hat: 'none', accessory: 'gunbai', aura: '#9c27b0'
+        headband: 'none', marks: ['edo_cracks'], mask: 'none', hat: 'none', accessory: 'gunbai', aura: '#9c27b0'
       },
       skills: {
         passive: {
@@ -498,10 +497,10 @@
         },
         awaken: {
           name: '完成体须佐能乎', tags: ['护盾', '回能'],
-          desc: '攻击力+12%，防御+8%；战斗开始时以完成体须佐能乎包裹全身，获得25%最大生命值的护盾，持续3回合；每击败一名敌人获得40点查克拉。',
+          desc: '攻击力+12%，防御+8%；战斗开始时以完成体须佐能乎包裹全身，获得20%最大生命值的护盾，持续3回合；每击败一名敌人获得40点查克拉。',
           stats: { atk: 0.12, def: 0.08 },
           triggers: [
-            { on: 'battle_start', effects: [{ type: 'shield', pct: 0.25, turns: 3 }] },
+            { on: 'battle_start', effects: [{ type: 'shield', pct: 0.2, turns: 3 }] },
             { on: 'on_kill', effects: [{ type: 'chakra', value: 40 }] }
           ]
         }
@@ -731,9 +730,9 @@
       skills: {
         passive: {
           name: '龙地洞仙术', tags: ['增益', '治疗'],
-          desc: '以龙地洞的仙术吸收自然能量，并拥有白蛇般的再生力：攻击力+10%，防御+8%；每回合开始时恢复4%最大生命值。',
+          desc: '以龙地洞的仙术吸收自然能量，并拥有白蛇般的再生力：攻击力+10%，防御+8%；每回合开始时恢复3%最大生命值。',
           stats: { atk: 0.10, def: 0.08 },
-          triggers: [{ on: 'turn_start', effects: [{ type: 'heal', pct: 0.04 }] }]
+          triggers: [{ on: 'turn_start', effects: [{ type: 'heal', pct: 0.03 }] }]
         },
         s1: {
           name: '仙法·无机转生', tags: ['输出', '控制'], fx: 'earth', target: 'single', cd: 0,
@@ -745,10 +744,10 @@
         },
         s2: {
           name: '仙法·白激之术', tags: ['控制', '群攻'], fx: 'sound', target: 'all', cd: 3,
-          desc: '自体内放出白龙，发出令人麻痹的高频音波与气浪，对全体敌人造成100%攻击力伤害，并有40%概率使其眩晕1回合。',
+          desc: '自体内放出白龙，发出令人麻痹的高频音波与气浪，对全体敌人造成90%攻击力伤害，并有30%概率使其眩晕1回合。',
           effects: [
-            { type: 'dmg', mult: 1.0 },
-            { type: 'status', status: 'stun', turns: 1, chance: 0.4 }
+            { type: 'dmg', mult: 0.9 },
+            { type: 'status', status: 'stun', turns: 1, chance: 0.3 }
           ]
         },
         ult: {
@@ -831,7 +830,7 @@
       bio: '大蛇丸麾下“音忍四人众”之一，以魔笛的音色操控通灵出的三只怒鬼，并能施展听觉幻术。在佐助夺还战中与奈良鹿丸交手，最终败给了前来支援的砂隐手鞠。',
       quote: '吵死了，你们这些垃圾！',
       art: {
-        type: 'human', skin: '#f6dcc6', hair: 'long_straight', hairColor: '#c2185b',
+        type: 'human', gender: 'f', skin: '#f6dcc6', hair: 'long_straight', hairColor: '#c2185b',
         eyes: 'normal', eyeColor: '#6b4a36', outfit: 'robe', outfitColor: SOUND_ROBE, accentColor: SOUND_ROPE,
         headband: 'oto', headbandSlash: false, headbandPos: 'forehead',
         marks: ['curse_mark'], mask: 'none', hat: 'bandana_cap', capColor: '#1e1e24', accessory: 'flute', aura: '#ab47bc'
@@ -852,7 +851,7 @@
           ]
         },
         s2: {
-          name: '口寄·怒鬼', tags: ['召唤', '群攻'], fx: 'summon', target: 'random', count: 3, cd: 3,
+          name: '通灵·怒鬼', tags: ['召唤', '群攻'], fx: 'summon', target: 'random', count: 3, cd: 3,
           desc: '通灵出三只怒鬼随笛声扑向敌阵，攻击随机3名敌人，各造成2段共80%攻击力伤害。',
           effects: [{ type: 'dmg', mult: 0.4, hits: 2 }]
         },
@@ -888,10 +887,13 @@
       },
       skills: {
         passive: {
-          name: '双魔之攻', tags: ['输出', '增益'],
-          desc: '左近与右近同时出手：暴击率+8%；攻击后有30%概率由右近追加一击，造成45%攻击力伤害。',
-          stats: { crit: 0.08 },
-          triggers: [{ on: 'on_attack', chance: 0.3, effects: [{ type: 'dmg', mult: 0.45 }] }]
+          name: '双魔之攻', tags: ['输出', '增益', '回能'],
+          desc: '左近与右近同时出手，并由一人替另一人分担伤害：暴击率+8%，伤害减免+10%；战斗开始时获得20点查克拉；攻击后有30%概率由右近追加一击，造成45%攻击力伤害。',
+          stats: { crit: 0.08, dr: 0.1 },
+          triggers: [
+            { on: 'battle_start', effects: [{ type: 'chakra', value: 20 }] },
+            { on: 'on_attack', chance: 0.3, effects: [{ type: 'dmg', mult: 0.45 }] }
+          ]
         },
         s1: {
           name: '多连拳', tags: ['输出'], fx: 'fist', target: 'single', cd: 0,
@@ -899,19 +901,20 @@
           effects: [{ type: 'dmg', mult: 0.55, hits: 2 }]
         },
         s2: {
-          name: '多连脚', tags: ['输出', '减益'], fx: 'fist', target: 'single', cd: 3,
-          desc: '兄弟二人连环踢击，造成3段共165%攻击力伤害，并降低目标防御15%，持续2回合。',
+          name: '多连脚', tags: ['输出', '减益'], fx: 'fist', target: 'random', count: 2, cd: 3,
+          desc: '兄弟二人分头连环踢击，对随机2名敌人各造成3段共165%攻击力伤害，并降低其防御15%，持续2回合。',
           effects: [
             { type: 'dmg', mult: 0.55, hits: 3 },
             { type: 'debuff', stat: 'def', value: 0.15, turns: 2 }
           ]
         },
         ult: {
-          name: '寄生鬼坏之术', tags: ['爆发', '持续', '穿透'], fx: 'poison', target: 'single',
-          desc: '右近钻入敌人体内，从细胞层面破坏其身体：造成300%攻击力伤害（无视50%防御），并使其流血3回合（每回合40%攻击力）。',
+          name: '寄生鬼坏之术', tags: ['爆发', '持续', '控制'], fx: 'poison', target: 'single',
+          desc: '右近钻入敌人体内，从细胞层面破坏其身体：造成300%攻击力伤害（无视50%防御），使其流血3回合（每回合40%攻击力），并有50%概率使其眩晕1回合。',
           effects: [
             { type: 'dmg', mult: 3.0, pierce: 0.5 },
-            { type: 'status', status: 'bleed', turns: 3, value: 0.4 }
+            { type: 'status', status: 'bleed', turns: 3, value: 0.4 },
+            { type: 'status', status: 'stun', turns: 1, chance: 0.5 }
           ]
         },
         awaken: {
@@ -992,7 +995,7 @@
         type: 'human', skin: '#d9b08a', hair: 'high_ponytail', hairColor: '#3a2a22',
         eyes: 'normal', eyeColor: '#2b2b2b', outfit: 'robe', outfitColor: SOUND_ROBE, accentColor: SOUND_ROPE,
         headband: 'oto', headbandSlash: false, headbandPos: 'forehead',
-        marks: ['curse_mark'], mask: 'none', hat: 'none', accessory: 'none', aura: '#ffd54f'
+        marks: ['curse_mark'], mask: 'none', hat: 'none', accessory: 'bow', aura: '#ffd54f'
       },
       skills: {
         passive: {
@@ -1010,10 +1013,10 @@
         },
         s2: {
           name: '蜘蛛巢网', tags: ['群攻', '减益'], fx: 'web', target: 'all', cd: 3,
-          desc: '在战场上张开巨大的蜘蛛网，对全体敌人造成75%攻击力伤害，并降低其速度25%，持续2回合。',
+          desc: '在战场上张开巨大的蜘蛛网，对全体敌人造成75%攻击力伤害，并降低其速度20%，持续2回合。',
           effects: [
             { type: 'dmg', mult: 0.75 },
-            { type: 'debuff', stat: 'spd', value: 0.25, turns: 2 }
+            { type: 'debuff', stat: 'spd', value: 0.2, turns: 2 }
           ]
         },
         ult: {
@@ -1088,7 +1091,7 @@
     {
       id: 'zaku', name: '扎库', form: '', en: 'Abumi Zaku', title: '傲慢的音忍',
       faction: 'oto', rarity: 'R', role: 'atk', element: 'wind', tags: ['输出', '群攻'],
-      stats: { hp: 0.92, atk: 1.12, def: 0.95, spd: 110 },
+      stats: { hp: 0.92, atk: 1.12, def: 0.95, spd: 116 },
       bio: '音隐村的下忍，双手掌心植入了能放出超音波与高压空气的气孔，以“斩空波”攻击敌人。在死亡森林中被佐助折断双臂，中忍考试预选赛败给油女志乃后，被大蛇丸当作秽土转生的祭品。',
       quote: '看我把你们全都轰飞！',
       art: {
@@ -1110,8 +1113,8 @@
         },
         s2: {
           name: '斩空波·连射', tags: ['群攻', '消耗'], fx: 'wind', target: 'random', count: 3, cd: 3,
-          desc: '双掌交替连射斩空波，攻击随机3名敌人，各造成80%攻击力伤害。',
-          effects: [{ type: 'dmg', mult: 0.8 }]
+          desc: '双掌交替连射斩空波，攻击随机3名敌人，各造成90%攻击力伤害。',
+          effects: [{ type: 'dmg', mult: 0.9 }]
         },
         ult: {
           name: '斩空极波', tags: ['群攻', '减益', '爆发'], fx: 'wind', target: 'all',
@@ -1138,7 +1141,7 @@
       bio: '音隐村的下忍，擅长以系着铃铛的千本与丝线施展幻术，用铃声扰乱敌人的感知。中忍考试预选赛中败给了奈良鹿丸，之后被大蛇丸当作秽土转生的祭品。',
       quote: '听见铃声了吗？',
       art: {
-        type: 'human', skin: '#f5dcc8', hair: 'very_long', hairColor: '#1a1a22',
+        type: 'human', gender: 'f', skin: '#f5dcc8', hair: 'very_long', hairColor: '#1a1a22',
         eyes: 'normal', eyeColor: '#4a3a2a', outfit: 'shirt', outfitColor: '#4f6b4a', accentColor: '#c9b28a',
         headband: 'oto', headbandSlash: false, headbandPos: 'forehead',
         marks: [], mask: 'none', hat: 'none', accessory: 'none', aura: '#ffd54f'
@@ -1188,7 +1191,7 @@
       bio: '拥有漩涡一族血统的感知型忍者，曾负责看守大蛇丸的据点，后加入佐助的鹰小队。她能以“神乐心眼”感知远处的查克拉，让同伴咬伤自己便能为其恢复体力与查克拉。',
       quote: '才、才不是为了佐助呢！',
       art: {
-        type: 'human', skin: '#f6dcc6', hair: 'long_straight', hairColor: '#d9283a',
+        type: 'human', gender: 'f', skin: '#f6dcc6', hair: 'long_straight', hairColor: '#d9283a',
         eyes: 'normal', eyeColor: '#c62828', outfit: 'highcollar', outfitColor: '#a58fc7', accentColor: '#2a2a3a',
         headband: 'none', marks: ['glasses'], mask: 'none', hat: 'none', accessory: 'none', aura: '#ff5252'
       },
@@ -1223,9 +1226,9 @@
         },
         awaken: {
           name: '漩涡一族之血', tags: ['治疗', '增益'],
-          desc: '生命值+10%，攻击力+10%；漩涡一族旺盛的生命力，每回合开始时为生命比例最低的友方恢复6%最大生命值。',
+          desc: '生命值+10%，攻击力+10%；漩涡一族旺盛的生命力，每回合开始时为生命比例最低的友方恢复4%最大生命值。',
           stats: { hp: 0.10, atk: 0.10 },
-          triggers: [{ on: 'turn_start', effects: [{ type: 'heal', pct: 0.06, to: 'ally_lowest' }] }]
+          triggers: [{ on: 'turn_start', effects: [{ type: 'heal', pct: 0.04, to: 'ally_lowest' }] }]
         }
       }
     },
@@ -1290,7 +1293,7 @@
       art: {
         type: 'human', skin: '#f2e6dc', hair: 'shaggy', hairColor: '#d8e6ee',
         eyes: 'normal', eyeColor: '#8a5fbf', outfit: 'sleeveless', outfitColor: '#7a5aa8', accentColor: '#3a3a4a',
-        headband: 'none', marks: [], mask: 'none', hat: 'none', accessory: 'big_sword', aura: '#3a8dff'
+        headband: 'none', marks: ['sharp_teeth'], mask: 'none', hat: 'none', accessory: 'big_sword', aura: '#3a8dff'
       },
       skills: {
         passive: {
@@ -1321,7 +1324,7 @@
           ]
         },
         awaken: {
-          name: '鬼灯之血', tags: ['反击', '闪避'],
+          name: '鬼灯之血', tags: ['反击', '增益'],
           desc: '攻击力+12%；受到攻击时有20%概率水化躲开要害并反击，造成60%攻击力伤害。',
           stats: { atk: 0.12 },
           triggers: [{ on: 'on_hit', chance: 0.2, effects: [{ type: 'dmg', mult: 0.6, to: 'attacker' }] }]
