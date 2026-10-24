@@ -25,6 +25,7 @@
     otsutsuki: { name: '大筒木一族', short: '大筒木', color: '#e6e1f5', kanji: '月' },
     bijuu:     { name: '尾兽',     short: '尾兽', color: '#ff7a45', kanji: '兽' },
     legend:    { name: '战国传说', short: '战国', color: '#c0392b', kanji: '战' },
+    summon:    { name: '通灵兽',   short: '通灵', color: '#e09a3e', kanji: '灵' },
     other:     { name: '忍界散人', short: '散人', color: '#9aa3ad', kanji: '忍' }
   };
 

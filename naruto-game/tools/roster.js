@@ -185,6 +185,12 @@ chomei|重明|七尾|bijuu|SSR|bijuu
 gyuki|牛鬼|八尾|bijuu|SSR|bijuu
 kurama|九喇嘛|九尾|bijuu|UR|bijuu
 juubi|十尾||bijuu|UR|bijuu
+gamabunta|蛤蟆文太|妙木山|summon|SSR|summons
+shima|志麻仙人|妙木山|summon|SR|summons
+manda|万蛇|龙地洞|summon|SSR|summons
+katsuyu|蛞蝓|湿骨林|summon|SSR|summons
+enma|猿魔|猴王|summon|SR|summons
+pakkun|帕克|忍犬|summon|R|summons
 `;
 
 var ROSTER = ROSTER_TEXT.trim().split('\n').map(function (line) {
