@@ -423,11 +423,29 @@ section('campaign');
   var i1 = G.idle();
   eq(i1.seconds, 3600, 'idle seconds after 1h');
   ok(i1.coins > 0 && i1.exp > 0 && i1.scrolls > 0, 'idle accrues coins/exp/scrolls');
+  ok([i1.gems, i1.tickets].every(function (v) { return finite(v) && v >= 0 && v === Math.floor(v); }), 'idle() also reports whole gems/tickets');
   NOW += 48 * 3600 * 1000;
-  eq(G.idle().seconds, 12 * 3600, 'idle capped at 12h');
-  var c2 = G.state.coins, cl = G.claimIdle();
+  var i12 = G.idle();
+  eq(i12.seconds, 12 * 3600, 'idle capped at 12h');
+  ok(i12.gems > 0 && i12.tickets >= 1, 'a full 12h chest holds gems and at least one ticket (' + i12.gems + ' gems, ' + i12.tickets + ' tickets)');
+  var rt = G.idleRate();
+  ok(i12.gems <= Math.ceil(rt.gems * 12) && i12.tickets <= Math.ceil(rt.tickets * 12), 'gems/tickets also respect the 12h cap');
+  var c2 = G.state.coins, g2 = G.state.gems, t2 = G.state.tickets, cl = G.claimIdle();
   ok(cl.ok && G.state.coins - c2 === cl.coins, 'claimIdle grants coins');
+  ok(G.state.gems - g2 === cl.gems && G.state.tickets - t2 === cl.tickets && cl.gems === i12.gems && cl.tickets === i12.tickets, 'claimIdle grants the previewed gems/tickets');
   eq(G.idle().seconds, 0, 'claimIdle resets timer');
+  ok(G.idle().gems === 0 && G.idle().tickets === 0, 'nothing pending right after claiming');
+  // fractional gems/tickets carry over: 72 claims every 10 min pay the same as one 12h claim
+  G.state.idleFrac = { gems: 0, tickets: 0 };
+  var gA = G.state.gems, tA = G.state.tickets;
+  for (var ci = 0; ci < 72; ci++) { NOW += 600 * 1000; G.claimIdle(); }
+  var gotFreq = [G.state.gems - gA, G.state.tickets - tA];
+  G.state.idleFrac = { gems: 0, tickets: 0 };
+  NOW += 12 * 3600 * 1000;
+  var one = G.claimIdle();
+  ok(Math.abs(gotFreq[0] - one.gems) <= 1 && Math.abs(gotFreq[1] - one.tickets) <= 1, 'frequent claims lose no gems/tickets (10-min claims ' + gotFreq.join('/') + ' vs one 12h claim ' + one.gems + '/' + one.tickets + ')');
+  var fr = G.state.idleFrac;
+  ok(fr && fr.gems >= 0 && fr.gems < 1 && fr.tickets >= 0 && fr.tickets < 1, 'idleFrac remainder stays in [0,1)');
   // enemies whose data is missing are filtered out (a stage left empty gets deterministic stand-ins)
   var cm = makeContext({ quiet: true }), N2 = cm.NG;
   ['manda', 'gamabunta'].forEach(function (id) { var c = N2.CHAR_MAP[id]; if (c) { N2.CHARS.splice(N2.CHARS.indexOf(c), 1); delete N2.CHAR_MAP[id]; } });
@@ -442,9 +460,21 @@ section('campaign');
   var sg = cg.NG.game.init();
   ok(sg.progress['1-3'] === 1 && sg.progress['1-4'] === 3 && !sg.progress['1-6'], 'progress gaps from older stage layouts are filled (1★) on load');
   eq(cg.NG.game.nextStage(), '1-6', 'nextStage after gap fill is the real frontier');
-  var rateEarly = G.idleRate().coins;
+  var rateEarly = G.idleRate();
   chs.slice(0, 6).forEach(function (ch) { ch.stages.forEach(function (st) { G.state.progress[st.id] = 3; }); });
-  ok(G.idleRate().coins > rateEarly, 'idle rate scales with progress');
+  var rateMid = G.idleRate();
+  ok(rateMid.coins > rateEarly.coins, 'idle rate scales with progress');
+  ok(rateMid.gems > rateEarly.gems && rateMid.tickets > rateEarly.tickets, 'idle gems/tickets scale with progress');
+  chs.forEach(function (ch) { ch.stages.forEach(function (st) { G.state.progress[st.id] = 3; }); });
+  var rateEnd = G.idleRate(), pulls12 = rateEnd.tickets * 12 + rateEnd.gems * 12 / G.cfg.gemsPerPull;
+  ok(pulls12 >= 8 && pulls12 <= 12, 'late-game 12h chest ≈ 10 pulls of gems + tickets (got ' + pulls12.toFixed(1) + ')');
+  ok(rateEarly.tickets * 12 + rateEarly.gems * 12 / G.cfg.gemsPerPull < 4, 'early-game AFK pulls stay small');
+  // a corrupt idleFrac in a save is clamped on load
+  var cf = makeContext({ quiet: true }), svf = JSON.parse(ctx._store[NG.SAVE_KEY]);
+  svf.idleFrac = { gems: 5, tickets: 'x' };
+  cf._store[cf.NG.SAVE_KEY] = JSON.stringify(svf);
+  var sf = cf.NG.game.init();
+  ok(sf.idleFrac && sf.idleFrac.gems < 1 && sf.idleFrac.gems >= 0 && sf.idleFrac.tickets === 0, 'corrupt idleFrac is clamped on load');
 })();
 
 /* ------------------------------------------------------------------ 6. battle determinism & events */

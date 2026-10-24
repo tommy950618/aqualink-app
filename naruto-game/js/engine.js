@@ -9,7 +9,8 @@
  *                                    between levels, or the elite factor beyond Lv400)
  *   NG.game.nextStage()           -> first uncleared (hence unlocked) stage id, or null when all cleared
  *   NG.game.chapterState(chId)    -> {unlocked, stars, maxStars, cleared, total}
- *   NG.game.idleRate()            -> {coins, exp, scrolls} per hour at current progress
+ *   NG.game.idleRate()            -> {coins, exp, scrolls, gems, tickets} per hour at current progress (gems/tickets
+ *                                    are fractional rates; idle()/claimIdle() carry the remainders in state.idleFrac)
  *   NG.game.expNeed(lv), setSetting(k,v), setFlag(k,v), setName(s), teamEntries(), stages(), skillLevel(id,k)
  *   NG.game.cfg (tunables, e.g. cfg.gemsPerPull, cfg.maxRounds), NG.game.econ
  *   Every mutation saves and emits NG.emit('change', {what, keys:[…], id?}).
@@ -1108,7 +1109,7 @@
     { name: '第四次忍界大战·下', bg: 'battlefield', desc: '尾兽现身战场，十尾复活，宇智波带土成为十尾人柱力，宇智波斑也迎来了真正的复活。', s: [
       ['尾兽现身', '带土以外道魔像操纵二尾、三尾与四尾，尾兽玉漫天飞舞。', ['matatabi', 'isobu', 'son_goku']],
       ['尾兽之怒', '五尾、六尾与七尾横扫联军阵地。', ['kokuo', 'saiken', 'chomei']],
-      ['面具碎裂', '卡卡西的雷切劈开面具，背后竟是宇智波带土。', ['obito', 'zetsu', 'zetsu']],
+      ['面具碎裂', '鸣人与卡卡西联手击碎了面具，背后竟是宇智波带土。', ['obito', 'zetsu', 'zetsu']],
       ['回忆·神无毗桥', '神无毗桥之战中，带土为救同伴被巨石压住，将写轮眼托付给卡卡西。', ['obito_kid', 'rin'], 'forest'],
       ['五影对斑', '宇智波斑以木遁分身与须佐能乎，一人压制五影。', ['madara_edo', 'zetsu', 'zetsu'], 'desert'],
       ['十尾复活', '外道魔像吸收八尾与九尾的部分查克拉，十尾降临战场。', ['juubi', 'obito']],
@@ -1167,7 +1168,11 @@
     enemyFactor: 1.0,     // enemy power target = refTeamPower × this
     coinsFirst: 1.15,     // first clear pays this × the coin cost of the next lvEq step for 5 chars
     coinsRepeat: 0.25,    // repeat clears pay this × first-clear coins
-    idleCoinsPerHour: 0.8 // AFK coins/h = this × first-clear coins of the best stage
+    idleCoinsPerHour: 0.8, // AFK coins/h = this × first-clear coins of the best stage
+    // AFK 勾玉 / 招募券 per hour, linear in campaign progress [nothing cleared, everything cleared]. Late game a full
+    // 12h chest ≈ 6 tickets + 600 gems ≈ 10 pulls, so a player stuck on star caps still earns shards while away.
+    idleGemsPerHour: [10, 50],
+    idleTicketsPerHour: [0.1, 0.5]
   };
 
   function levelStepCost(L) { return Math.floor(400 + 55 * L * L); }        // coins for L → L+1
@@ -1325,7 +1330,7 @@
   function defaultState() {
     var now = clock();
     return {
-      v: 1, created: now, lastIdle: now,
+      v: 1, created: now, lastIdle: now, idleFrac: { gems: 0, tickets: 0 },
       player: { name: '无名忍者', lv: 1, exp: 0 },
       coins: CFG.start.coins, gems: CFG.start.gems, tickets: CFG.start.tickets, scrolls: CFG.start.scrolls,
       roster: {},
@@ -1353,6 +1358,10 @@
     var o = {
       v: 1,
       created: num(s.created, d.created), lastIdle: num(s.lastIdle, d.lastIdle),
+      idleFrac: {
+        gems: clamp(num(s.idleFrac && s.idleFrac.gems, 0), 0, 0.999999),
+        tickets: clamp(num(s.idleFrac && s.idleFrac.tickets, 0), 0, 0.999999)
+      },
       player: {
         name: (s.player && typeof s.player.name === 'string' && s.player.name) ? s.player.name.slice(0, 16) : d.player.name,
         lv: Math.max(1, int(s.player && s.player.lv, 1)), exp: Math.max(0, int(s.player && s.player.exp, 0))
@@ -1716,29 +1725,49 @@
     for (var i = 0; i < list.length; i++) if (s.progress[list[i].id] > 0) k = i;
     return k;
   }
+  function lerpRate(pair, p, d) {
+    var a = Array.isArray(pair) ? pair : [pair, pair];
+    return Math.max(0, num(a[0], d) + (num(a[1], num(a[0], d)) - num(a[0], d)) * p);
+  }
   game.idleRate = function () {        // per hour
-    var k = bestClearedIndex(), list = buildCampaign().stages;
-    if (k < 0) return { coins: 300000, exp: 150, scrolls: 10 };
+    var k = bestClearedIndex(), list = buildCampaign().stages, p = list.length ? (k + 1) / list.length : 0;
+    var gems = Math.round(lerpRate(ECON.idleGemsPerHour, p, 0) * 100) / 100;
+    var tickets = Math.round(lerpRate(ECON.idleTicketsPerHour, p, 0) * 1000) / 1000;
+    if (k < 0) return { coins: 300000, exp: 150, scrolls: 10, gems: gems, tickets: tickets };
     var stg = list[k];
     return {
       coins: nice(stg.firstRewards.coins * ECON.idleCoinsPerHour + 300000),
       exp: 150 + 12 * k,
-      scrolls: 10 + Math.floor(k / 5)
+      scrolls: 10 + Math.floor(k / 5),
+      gems: gems, tickets: tickets
     };
   };
-  game.idle = function () {
+  // Pending AFK income. 勾玉/招募券 accrue at fractional hourly rates, so the part below one unit is carried over
+  // in state.idleFrac when claiming (frequent claims lose nothing); the 12h cap applies to time as before.
+  function idlePending() {
     var s = st(), now = clock();
     var secs = clamp((now - num(s.lastIdle, now)) / 1000, 0, CFG.idleCap);
-    var r = game.idleRate();
-    return { coins: Math.floor(r.coins * secs / 3600), exp: Math.floor(r.exp * secs / 3600), scrolls: Math.floor(r.scrolls * secs / 3600), seconds: Math.floor(secs), cap: CFG.idleCap };
+    var r = game.idleRate(), h = secs / 3600, fr = s.idleFrac || {};
+    var gx = r.gems * h + clamp(num(fr.gems, 0), 0, 0.999999), tx = r.tickets * h + clamp(num(fr.tickets, 0), 0, 0.999999);
+    var gi = Math.floor(gx + 1e-9), ti = Math.floor(tx + 1e-9);
+    return {
+      coins: Math.floor(r.coins * h), exp: Math.floor(r.exp * h), scrolls: Math.floor(r.scrolls * h),
+      gems: gi, tickets: ti, seconds: Math.floor(secs), cap: CFG.idleCap,
+      frac: { gems: clamp(gx - gi, 0, 0.999999), tickets: clamp(tx - ti, 0, 0.999999) }
+    };
+  }
+  game.idle = function () {
+    var i = idlePending();
+    return { coins: i.coins, exp: i.exp, scrolls: i.scrolls, gems: i.gems, tickets: i.tickets, seconds: i.seconds, cap: i.cap };
   };
   game.claimIdle = function () {
-    var s = st(), i = game.idle();
-    if (i.seconds < 1 || !(i.coins || i.exp || i.scrolls)) return { ok: false, coins: 0, exp: 0, scrolls: 0, seconds: i.seconds, reason: '暂无挂机收益' };
-    var g = grant({ coins: i.coins, exp: i.exp, scrolls: i.scrolls });
+    var s = st(), i = idlePending();
+    if (i.seconds < 1 || !(i.coins || i.exp || i.scrolls || i.gems || i.tickets)) return { ok: false, coins: 0, exp: 0, scrolls: 0, gems: 0, tickets: 0, seconds: i.seconds, reason: '暂无挂机收益' };
+    var g = grant({ coins: i.coins, exp: i.exp, scrolls: i.scrolls, gems: i.gems, tickets: i.tickets });
     s.lastIdle = clock();
-    changed('idle', ['coins', 'scrolls', 'player']);
-    return { ok: true, coins: i.coins, exp: i.exp, scrolls: i.scrolls, seconds: i.seconds, playerLvUp: g.lvUps };
+    s.idleFrac = { gems: i.frac.gems, tickets: i.frac.tickets };
+    changed('idle', ['coins', 'gems', 'tickets', 'scrolls', 'player']);
+    return { ok: true, coins: i.coins, exp: i.exp, scrolls: i.scrolls, gems: i.gems, tickets: i.tickets, seconds: i.seconds, playerLvUp: g.lvUps };
   };
 
   /* ---------------- misc settings ---------------- */

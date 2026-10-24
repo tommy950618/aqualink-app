@@ -722,7 +722,7 @@
         type: 'human', skin: '#f0e6dc', hair: 'spiky', hairColor: '#e8e8e8',
         eyes: 'rinnegan', eyeL: 'ms_obito', eyeR: 'rinnegan',
         outfit: 'six_paths', outfitColor: '#f2f2f2', accentColor: '#1c1c1c',
-        headband: 'none', marks: ['face_lines'], mask: 'none', hat: 'horns', accessory: 'truth_orbs', aura: '#cfd8dc'
+        headband: 'none', marks: [], mask: 'none', hat: 'horns', accessory: 'truth_orbs', aura: '#cfd8dc'
       },
       skills: {
         passive: {

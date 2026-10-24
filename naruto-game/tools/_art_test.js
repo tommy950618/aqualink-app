@@ -25,8 +25,20 @@ function xmlErr(s) {
   }
   return stack.length ? 'unclosed ' + stack.join(',') : null;
 }
+// reference integrity: every url(#id) / href="#id" must resolve to an element of the same picture, ids unique;
+// and no SVG filters at all (they dominate paint cost on phones)
+function refErr(s) {
+  var ids = {}, m, re = / id="([^"]+)"/g;
+  while ((m = re.exec(s))) { if (ids[m[1]]) return 'duplicate id ' + m[1]; ids[m[1]] = 1; }
+  var rr = /url\(#([^)]+)\)|href="#([^"]+)"/g;
+  while ((m = rr.exec(s))) { var id = m[1] || m[2]; if (!ids[id]) return 'dangling reference #' + id; }
+  if (/<filter|filter="/.test(s)) return 'uses an SVG filter';
+  if (/<mask/.test(s)) return 'uses an SVG mask';
+  if (/<clipPath[^>]*>(?:<[^>]+\/>){2,}<\/clipPath>/.test(s)) return 'multi-child clipPath (slow mask-based clip)';
+  return null;
+}
 function chk(label, s) {
-  var xe = typeof s === 'string' ? xmlErr(s) : 'not string';
+  var xe = typeof s === 'string' ? (xmlErr(s) || refErr(s)) : 'not string';
   if (xe) { bad++; console.log('XML', label, xe); return; } if (typeof s !== 'string' || s.length < 200 || s.indexOf('<svg') !== 0 || /NaN|undefined/.test(s)) { bad++; console.log('BAD', label, typeof s === 'string' ? s.slice(0, 160) : s, (s && s.match && (s.match(/.{40}(NaN|undefined).{40}/) || [])[0])); } }
 t = Date.now();
 NG.CHARS.forEach(function (c) {
@@ -96,6 +108,16 @@ if (c0) {
   t = process.hrtime.bigint(); for (var r = 0; r < 1000; r++) A.bust(c0); var hit = Number(process.hrtime.bigint() - t) / 1e6 / 1000;
   console.log('perf: bust ' + per.toFixed(2) + ' ms/char (cold, warmed JIT), avatar64 ' + pera.toFixed(2) + ' ms, cached hit ' + (hit * 1000).toFixed(2) + ' µs, avg bust size ' + Math.round(avg / 1024) + ' KB, max ' + Math.round(Math.max.apply(null, sz) / 1024) + ' KB');
 }
+// size budgets (phones decode these as <img> data URLs): avatars ≤ 8 KB & ≤ 100 elements, busts ≤ 18 KB on average
+(function () {
+  var els = function (s) { return (s.match(/<[a-zA-Z]/g) || []).length; }, N = NG.CHARS.length || 1;
+  var av = NG.CHARS.map(function (c) { return A.avatar(c, 128); }), bu = NG.CHARS.map(function (c) { return A.bust(c); });
+  var avKB = av.reduce(function (t, s) { return t + s.length; }, 0) / N / 1024, avEl = av.reduce(function (t, s) { return t + els(s); }, 0) / N;
+  var buKB = bu.reduce(function (t, s) { return t + s.length; }, 0) / N / 1024, buEl = bu.reduce(function (t, s) { return t + els(s); }, 0) / N;
+  console.log('budget: avatar avg ' + avKB.toFixed(2) + ' KB / ' + avEl.toFixed(0) + ' elements, bust avg ' + buKB.toFixed(2) + ' KB / ' + buEl.toFixed(0) + ' elements');
+  if (avKB > 8 || avEl > 100) { bad++; console.log('BUDGET avatar over 8 KB / 100 elements'); }
+  if (buKB > 18) { bad++; console.log('BUDGET bust over 18 KB'); }
+})();
 console.log('vocab cases', n, '| first full pass', tAll, 'ms | problems:', bad, '| warnings:', warns.length);
 if (warns.length) console.log(warns.slice(0, 10).join('\n'));
 process.exit(bad ? 1 : 0);

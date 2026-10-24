@@ -9,6 +9,16 @@
  *   aura · back accessory · back hair · arms · neck · torso/outfit · collar · draped hair ·
  *   ear · face · eyes/brows/nose/mouth · marks · mask · glasses · top hair + fringe ·
  *   headband · hat · front accessory
+ *
+ * Phone budget (the UI shows these as <img> data URLs, so XML parse + paint is what costs):
+ *   · no SVG <filter>s and no <mask>s — glows are stacked translucent strokes / radial gradients, the rim
+ *     light is a third cel tone; every clip is a single shape (a one-path clip is a plain path clip, several
+ *     children force an offscreen mask layer);
+ *   · path data is written once and re-used: outlines and clips <use> the shaded shape, the top-hair union is
+ *     shared by outline, cast shadow, shine clip, halo and volume tint;
+ *   · avatars are culled to their viewBox, shade each hair layer as one shape and drop sub-pixel details;
+ *   · finish() merges same-paint siblings, drops unused defs and writes compact relative path data.
+ *   Budgets (checked by tools/_art_test.js): avatar ≤ 8 KB / ≤ 100 elements, bust ≤ 18 KB on average.
  */
 (function (root) {
   'use strict';
@@ -69,19 +79,153 @@
   function inVocab(v, list) { return !!list && list.indexOf(v) >= 0; }
   function pick(v, list, d) { return inVocab(v, list) ? v : d; }
 
+  /* ---------- path data walker: absolute points, bbox, translation, orientation ---------- */
+  var PARGS = { M: 2, L: 2, H: 1, V: 1, C: 6, S: 4, Q: 4, T: 2, A: 7, Z: 0 };
+  // calls fn(cmdUpper, absArgs[], isRel) for every segment; absArgs has absolute coordinates (arcs: rx,ry,rot,laf,sf,x,y).
+  // Hand-rolled scanner (this runs over every path of every picture, so no regex / temporary arrays per token).
+  function walkPath(d, fn) {
+    d = String(d);
+    var L = d.length, i = 0, cmd = '', U = '', rel = false, x = 0, y = 0, sx = 0, sy = 0, c;
+    function sp() { while (i < L) { c = d.charCodeAt(i); if (c === 32 || c === 44 || c === 10 || c === 13 || c === 9) i++; else break; } }
+    function num() {
+      sp();
+      var st = i, dig = false, dot = false;
+      c = d.charCodeAt(i);
+      if (c === 45 || c === 43) i++;
+      while (i < L) { c = d.charCodeAt(i); if (c >= 48 && c <= 57) { dig = true; i++; } else if (c === 46 && !dot) { dot = true; i++; } else break; }
+      if (dig && (c === 101 || c === 69)) { var j = i + 1, e = d.charCodeAt(j); if (e === 45 || e === 43) j++; if ((e = d.charCodeAt(j)) >= 48 && e <= 57) { i = j; while (i < L && (e = d.charCodeAt(i)) >= 48 && e <= 57) i++; } }
+      if (!dig) { i = st; return NaN; }
+      return +d.slice(st, i);
+    }
+    while (true) {
+      sp();
+      if (i >= L) return;
+      c = d.charCodeAt(i);
+      var ch = d.charAt(i);
+      if (PARGS[ch.toUpperCase()] != null && (c > 64)) { cmd = ch; U = ch.toUpperCase(); rel = ch !== U; i++; }
+      else if (!cmd || U === 'Z') return;
+      if (U === 'Z') { x = sx; y = sy; fn('Z', [], false); continue; }
+      var n = PARGS[U], v = new Array(n);
+      for (var k = 0; k < n; k++) { v[k] = num(); if (v[k] !== v[k]) return; }
+      var ox = rel ? x : 0, oy = rel ? y : 0, a;
+      if (U === 'H') { a = [v[0] + ox]; x = a[0]; }
+      else if (U === 'V') { a = [v[0] + oy]; y = a[0]; }
+      else if (U === 'A') { v[5] += ox; v[6] += oy; a = v; x = a[5]; y = a[6]; }
+      else { for (k = 0; k < n; k += 2) { v[k] += ox; v[k + 1] += oy; } a = v; x = a[n - 2]; y = a[n - 1]; }
+      fn(U, a, rel, x, y);
+      if (U === 'M') { sx = x; sy = y; cmd = rel ? 'l' : 'L'; U = 'L'; }
+    }
+  }
+  // path data repeats a lot between pictures (shared head/body geometry), so per-string results are cached
+  function pmemo(fn) {
+    var m = Object.create(null), n = 0;
+    return function (d) { var v = m[d]; if (v === undefined) { if (++n > 4000) { m = Object.create(null); n = 1; } v = m[d] = fn(d); } return v; };
+  }
+  var pathBox = pmemo(pathBox_);
+  function pathBox_(d) {
+    var b = [1e9, 1e9, -1e9, -1e9], cx = 0, cy = 0;
+    function add(px, py, r) { r = r || 0; if (px - r < b[0]) b[0] = px - r; if (py - r < b[1]) b[1] = py - r; if (px + r > b[2]) b[2] = px + r; if (py + r > b[3]) b[3] = py + r; }
+    walkPath(d, function (U, a) {
+      if (U === 'H') { add(a[0], cy); cx = a[0]; return; }
+      if (U === 'V') { add(cx, a[0]); cy = a[0]; return; }
+      if (U === 'Z') return;
+      if (U === 'A') { var pad = 0.08 * Math.max(Math.abs(a[0]), Math.abs(a[1])); arcPts(cx, cy, a[0], a[1], a[2], +a[3], +a[4], a[5], a[6], 8).forEach(function (q) { add(q[0], q[1], pad); }); cx = a[5]; cy = a[6]; return; }
+      for (var k = 0; k < a.length; k += 2) add(a[k], a[k + 1]);
+      cx = a[a.length - 2]; cy = a[a.length - 1];
+    });
+    return b[0] > b[2] ? null : b;
+  }
+  // points along an SVG arc (endpoint → centre parameterisation, SVG spec F.6.5)
+  function arcPts(x1, y1, rx, ry, phi, fa, fs, x2, y2, n) {
+    rx = Math.abs(rx); ry = Math.abs(ry);
+    if (!rx || !ry) return [[x2, y2]];
+    var c = Math.cos(phi * Math.PI / 180), s = Math.sin(phi * Math.PI / 180), dx = (x1 - x2) / 2, dy = (y1 - y2) / 2;
+    var xp = c * dx + s * dy, yp = -s * dx + c * dy, l = xp * xp / (rx * rx) + yp * yp / (ry * ry);
+    if (l > 1) { rx *= Math.sqrt(l); ry *= Math.sqrt(l); }
+    var num = rx * rx * ry * ry - rx * rx * yp * yp - ry * ry * xp * xp, den = rx * rx * yp * yp + ry * ry * xp * xp;
+    var k = (fa === fs ? -1 : 1) * Math.sqrt(Math.max(0, num / (den || 1))), cxp = k * rx * yp / ry, cyp = -k * ry * xp / rx;
+    var cx = c * cxp - s * cyp + (x1 + x2) / 2, cy = s * cxp + c * cyp + (y1 + y2) / 2;
+    var a1 = Math.atan2((yp - cyp) / ry, (xp - cxp) / rx), a2 = Math.atan2((-yp - cyp) / ry, (-xp - cxp) / rx), da = a2 - a1;
+    if (fs && da < 0) da += 2 * Math.PI; else if (!fs && da > 0) da -= 2 * Math.PI;
+    var o = [];
+    for (var i = 1; i <= n; i++) { var t = a1 + da * i / n, ex = rx * Math.cos(t), ey = ry * Math.sin(t); o.push([cx + c * ex - s * ey, cy + s * ex + c * ey]); }
+    return o;
+  }
+  // orientation of a closed shape: sign of the area of its (curve-sampled) control polygon
+  var pathSign = pmemo(pathSign_);
+  function pathSign_(d) {
+    var pts = [], s = 0, cx = 0, cy = 0;
+    walkPath(d, function (U, a) {
+      if (U === 'A') { pts = pts.concat(arcPts(cx, cy, a[0], a[1], a[2], +a[3], +a[4], a[5], a[6], 8)); cx = a[5]; cy = a[6]; }
+      else if (U === 'H') { cx = a[0]; pts.push([cx, cy]); }
+      else if (U === 'V') { cy = a[0]; pts.push([cx, cy]); }
+      else if (U !== 'Z') { for (var k = 0; k < a.length; k += 2) pts.push([a[k], a[k + 1]]); cx = a[a.length - 2]; cy = a[a.length - 1]; }
+    });
+    for (var i = 0; i < pts.length; i++) { var p = pts[i], q = pts[(i + 1) % pts.length]; s += p[0] * q[1] - q[0] * p[1]; }
+    return s >= 0 ? 1 : -1;
+  }
+  // the same outline traversed backwards (closed sub-paths stay closed)
+  function reversePath(d) {
+    var subs = [], cur = null, x = 0, y = 0, lc = null, lq = null;
+    walkPath(d, function (U, a) {
+      if (U === 'M') { cur = { s: [a[0], a[1]], g: [], z: false }; subs.push(cur); x = a[0]; y = a[1]; lc = lq = null; return; }
+      if (!cur) { cur = { s: [x, y], g: [], z: false }; subs.push(cur); }
+      if (U === 'Z') { cur.z = true; x = cur.s[0]; y = cur.s[1]; cur = null; lc = lq = null; return; }
+      var p0 = [x, y], sg;
+      if (U === 'H') a = [a[0], y], U = 'L';
+      else if (U === 'V') a = [x, a[0]], U = 'L';
+      if (U === 'S') { a = [lc ? 2 * x - lc[0] : x, lc ? 2 * y - lc[1] : y].concat(a); U = 'C'; }
+      if (U === 'T') { a = [lq ? 2 * x - lq[0] : x, lq ? 2 * y - lq[1] : y].concat(a); U = 'Q'; }
+      sg = { U: U, a: a, p0: p0 };
+      lc = U === 'C' ? [a[2], a[3]] : null; lq = U === 'Q' ? [a[0], a[1]] : null;
+      cur.g.push(sg); x = a[a.length - 2]; y = a[a.length - 1];
+    });
+    var o = '';
+    subs.forEach(function (sp) {
+      var g = sp.g, n = g.length;
+      if (!n) return;
+      var end = g[n - 1].a.slice(-2);
+      o += 'M' + P(end[0], end[1]);
+      for (var i = n - 1; i >= 0; i--) {
+        var s = g[i], a = s.a, p = s.p0;
+        if (s.U === 'L') o += 'L' + P(p[0], p[1]);
+        else if (s.U === 'C') o += 'C' + P(a[2], a[3]) + ' ' + P(a[0], a[1]) + ' ' + P(p[0], p[1]);
+        else if (s.U === 'Q') o += 'Q' + P(a[0], a[1]) + ' ' + P(p[0], p[1]);
+        else if (s.U === 'A') o += 'A' + a[0] + ',' + a[1] + ' ' + a[2] + ' ' + a[3] + ',' + (+a[4] ? 0 : 1) + ' ' + P(p[0], p[1]);
+      }
+      if (sp.z) o += 'Z';
+    });
+    return o;
+  }
+  // non-zero union of closed shapes as ONE path: every piece re-oriented the same way first
+  function unionD(list) {
+    if (list.length < 2) return list[0] || '';
+    var sg = pathSign(list[0]), o = list[0];
+    for (var i = 1; i < list.length; i++) o += pathSign(list[i]) === sg ? list[i] : reversePath(list[i]);
+    return o;
+  }
+
   var FONT = "'Noto Sans SC','PingFang SC','Microsoft YaHei','Hiragino Sans GB','Source Han Sans SC','WenQuanYi Zen Hei',sans-serif";
   var BRUSH = "'Ma Shan Zheng','ZCOOL XiaoWei','Noto Serif SC','STKaiti','KaiTi','WenQuanYi Zen Hei',serif";
 
   /* ======================================================================
    * 2. render context (unique ids, gradients, clips)
    * ==================================================================== */
-  function Ctx(pfx, lw) { this.p = pfx; this.n = 0; this.defs = []; this.lw = lw || 3; this.m = {}; }
+  var CUR = null, OLP = {}; // context being drawn; outline ids → path data (fallback when no cel() claims them)
+  function Ctx(pfx, lw) { this.p = pfx; this.n = 0; this.defs = []; this.lw = lw || 3; this.m = {}; this.olq = {}; CUR = this; }
   Ctx.prototype.uid = function () { return this.p + (this.n++).toString(36); };
+  // short fixed-width id prefix (letter + 2 base-36 chars of a hash): ids stay unique within a picture and are
+  // unlikely to clash even if several pictures are inlined into one page
+  function pfx(ch, key) { return ch + ('0' + (hash(key) % 1296).toString(36)).slice(-2); }
+  // outline/cel id handshake: outlineOf() reserves an id for each shape, the following cel() of the same
+  // shape takes it for its shadow path, so the outline can <use> it instead of repeating the path data
+  Ctx.prototype.olReserve = function (d) { var id = this.uid(); (this.olq[d] || (this.olq[d] = [])).push(id); OLP[id] = d; return id; };
+  Ctx.prototype.olTake = function (d) { var q = this.olq[d]; return q && q.length ? q.shift() : this.uid(); };
   function stopsStr(stops) {
     var s = '';
     for (var i = 0; i < stops.length; i++) {
       var t = stops[i];
-      s += '<stop offset="' + t[0] + '" stop-color="' + t[1] + '"' + (t[2] != null && t[2] !== 1 ? ' stop-opacity="' + t[2] + '"' : '') + '/>';
+      s += '<stop' + (t[0] ? ' offset="' + t[0] + '"' : '') + ' stop-color="' + t[1] + '"' + (t[2] != null && t[2] !== 1 ? ' stop-opacity="' + t[2] + '"' : '') + '/>';
     }
     return s;
   }
@@ -90,14 +234,18 @@
     var key = 'l' + JSON.stringify(stops) + [x1, y1, x2, y2, u].join();
     if (this.m[key]) return this.m[key];
     var id = this.uid();
-    this.defs.push('<linearGradient id="' + id + '" x1="' + (x1 == null ? 0 : x1) + '" y1="' + (y1 == null ? 0 : y1) + '" x2="' + (x2 == null ? 0 : x2) + '" y2="' + (y2 == null ? 1 : y2) + '"' + (u ? ' gradientUnits="userSpaceOnUse"' : '') + '>' + stopsStr(stops) + '</linearGradient>');
+    // (bounding-box gradients leave out attributes equal to the SVG defaults: x1 y1 = 0, x2 = 1, y2 = 0)
+    x1 = x1 || 0; y1 = y1 || 0; x2 = x2 == null ? 0 : x2; y2 = y2 == null ? 1 : y2;
+    var at_ = (x1 || u ? ' x1="' + x1 + '"' : '') + (y1 || u ? ' y1="' + y1 + '"' : '') + (x2 !== 1 || u ? ' x2="' + x2 + '"' : '') + (y2 !== 0 || u ? ' y2="' + y2 + '"' : '');
+    this.defs.push('<linearGradient id="' + id + '"' + at_ + (u ? ' gradientUnits="userSpaceOnUse"' : '') + '>' + stopsStr(stops) + '</linearGradient>');
     return (this.m[key] = 'url(#' + id + ')');
   };
   Ctx.prototype.rad = function (stops, cx, cy, r, fx, fy, u) {
     var key = 'r' + JSON.stringify(stops) + [cx, cy, r, fx, fy, u].join();
     if (this.m[key]) return this.m[key];
     var id = this.uid();
-    this.defs.push('<radialGradient id="' + id + '" cx="' + (cx == null ? 0.5 : cx) + '" cy="' + (cy == null ? 0.5 : cy) + '" r="' + (r == null ? 0.5 : r) + '"' +
+    cx = cx == null ? 0.5 : cx; cy = cy == null ? 0.5 : cy; r = r == null ? 0.5 : r;
+    this.defs.push('<radialGradient id="' + id + '"' + (cx !== 0.5 || u ? ' cx="' + cx + '"' : '') + (cy !== 0.5 || u ? ' cy="' + cy + '"' : '') + (r !== 0.5 || u ? ' r="' + r + '"' : '') +
       (fx != null ? ' fx="' + fx + '" fy="' + fy + '"' : '') + (u ? ' gradientUnits="userSpaceOnUse"' : '') + '>' + stopsStr(stops) + '</radialGradient>');
     return (this.m[key] = 'url(#' + id + ')');
   };
@@ -108,35 +256,57 @@
     this.defs.push('<clipPath id="' + id + '">' + inner + '</clipPath>');
     return (this.m[key] = 'url(#' + id + ')');
   };
-  Ctx.prototype.clipPaths = function (list) {
-    var s = '';
-    for (var i = 0; i < list.length; i++) s += '<path d="' + list[i] + '"/>';
-    return this.clip(s);
+  // element placed in <defs> for <use> (id injected); memoized by markup
+  Ctx.prototype.def = function (el) {
+    var key = 'd' + el;
+    if (this.m[key]) return this.m[key];
+    var id = this.uid();
+    this.defs.push(el.replace(/^<(\w+)/, '<$1 id="' + id + '"'));
+    return (this.m[key] = id);
   };
-  Ctx.prototype.filter = function (key, inner, pad) {
-    if (this.m['f' + key]) return this.m['f' + key];
-    var id = this.uid(); pad = pad || 40;
-    this.defs.push('<filter id="' + id + '" x="-' + pad + '%" y="-' + pad + '%" width="' + (100 + 2 * pad) + '%" height="' + (100 + 2 * pad) + '%">' + inner + '</filter>');
-    return (this.m['f' + key] = 'url(#' + id + ')');
-  };
-  Ctx.prototype.blur = function (sd) { return this.filter('b' + sd, '<feGaussianBlur stdDeviation="' + sd + '"/>'); };
+  // union clip of several closed paths. A clipPath with a single <path> child is rasterised as a plain path
+  // clip; several children force a (much slower) mask layer — so the pieces are joined into one path, all
+  // oriented the same way (its non-zero fill is then exactly the union).
+  Ctx.prototype.clipPaths = function (list) { return this.clip('<path d="' + unionD(list) + '"/>'); };
+  // (no SVG <filter>s anywhere: the blur filter was the single biggest paint cost of a bust — glows are built
+  //  from gradients and stacked translucent strokes instead)
 
   /* ---------- paint helpers ---------- */
   function path(d, fill, extra) { return '<path d="' + d + '" fill="' + fill + '"' + (extra ? ' ' + extra : '') + '/>'; }
   function line(d, stroke, w, extra) {
-    return '<path d="' + d + '" fill="none" stroke="' + stroke + '" stroke-width="' + r1(w) + '" stroke-linecap="round" stroke-linejoin="round"' + (extra ? ' ' + extra : '') + '/>';
+    return '<path d="' + d + '" fill="none" stroke="' + stroke + '" stroke-width="' + r1(w) + '"' + (extra ? ' ' + extra : '') + '/>';
   }
   function circ(x, y, r, fill, extra) { return '<circle cx="' + r1(x) + '" cy="' + r1(y) + '" r="' + r1(r) + '" fill="' + fill + '"' + (extra ? ' ' + extra : '') + '/>'; }
   function ell(x, y, rx, ry, fill, extra) { return '<ellipse cx="' + r1(x) + '" cy="' + r1(y) + '" rx="' + r1(rx) + '" ry="' + r1(ry) + '" fill="' + fill + '"' + (extra ? ' ' + extra : '') + '/>'; }
-  // union outline of several closed paths (stroke drawn behind the fills)
+  // union outline of several closed paths (stroke drawn behind the fills). Each shape is referenced with
+  // <use> (its shadow path, emitted by the cel() that follows); finish() folds a single-shape outline into
+  // that path (paint-order="stroke") and turns references nobody claimed back into plain path data.
   function outlineOf(list, ink, w) {
     if (!list.length) return '';
-    return '<path d="' + list.join('') + '" fill="' + ink + '" stroke="' + ink + '" stroke-width="' + r1(w) + '" stroke-linejoin="round"/>';
+    var X = CUR, s = '';
+    if (!X) return '<path d="' + list.join('') + '" fill="' + ink + '" stroke="' + ink + '" stroke-width="' + r1(w) + '"/>';
+    for (var i = 0; i < list.length; i++) s += '<use href="#' + X.olReserve(list[i]) + '"/>';
+    return '<g fill="' + ink + '" stroke="' + ink + '" stroke-width="' + r1(w) + '">' + s + '</g>';
   }
-  // cel shading: base colour with a shadow band on the bottom-right edges (light from top-left)
-  function cel(X, d, base, shadow, sx, sy) {
-    var c = X.clip('<path d="' + d + '"/>');
-    return path(d, shadow) + '<g clip-path="' + c + '"><path d="' + d + '" fill="' + base + '" transform="translate(' + r1(-sx) + ',' + r1(-sy) + ')"/></g>';
+  // cel shading: base colour with a shadow band on the bottom-right edges (light from top-left).
+  // The base is the shape clipped by itself shifted towards the light (D ∩ (D − s): same pixels as drawing
+  // D − s clipped by D); the clip re-uses the shadow path, so the path data appears twice, not four times.
+  // Large shapes go one step further: the path is written once, painted in the shadow colour through a
+  // wrapper group, and the base is a <use> of it (one element more, half the bytes).
+  // With `rim` (bust body pieces) a third tone lights the edges facing the light: the base is further clipped
+  // by the shape pushed away from the light, uncovering a band of rim colour along the top-left edges.
+  var BIG = 300;
+  function cel(X, d, base, shadow, sx, sy, rim) {
+    if (!sx && !sy) return path(d, base);
+    var id = X.olTake(d), c = X.clip('<use href="#' + id + '"' + uxy(-sx, -sy) + '/>');
+    (X.idOf || (X.idOf = {}))[d] = id;
+    if (rim) {
+      var c2 = X.clip('<use href="#' + id + '" x="7" y="4"/>');
+      return '<g fill="' + shadow + '"><path id="' + id + '" d="' + d + '"/></g><use href="#' + id + '" fill="' + mix(base, rim, 0.62) + '" clip-path="' + c + '"/>' +
+        '<g clip-path="' + c2 + '"><use href="#' + id + '" fill="' + base + '" clip-path="' + c + '"/></g>';
+    }
+    if (d.length >= BIG) return '<g fill="' + shadow + '"><path id="' + id + '" d="' + d + '"/></g><use href="#' + id + '" fill="' + base + '" clip-path="' + c + '"/>';
+    return '<path id="' + id + '" d="' + d + '" fill="' + shadow + '"/>' + path(d, base, 'clip-path="' + c + '"');
   }
   // paint a group of shapes: outline union + cel fills
   function paintGroup(X, list, base, o) {
@@ -144,8 +314,19 @@
     o = o || {};
     var ink = o.ink || inkOf(base), sh = o.shadow || dk(base, 0.3);
     var s = outlineOf(list, ink, X.lw * (o.lwm || 2));
-    for (var i = 0; i < list.length; i++) s += cel(X, list[i], base, sh, o.sx == null ? 5 : o.sx, o.sy == null ? 7 : o.sy);
+    for (var i = 0; i < list.length; i++) s += cel(X, list[i], base, sh, o.sx == null ? 5 : o.sx, o.sy == null ? 7 : o.sy, o.rim);
     return s;
+  }
+  // <use> offset written as x/y (shorter than a translate transform)
+  function uxy(x, y) { x = r1(x); y = r1(y); return (x ? ' x="' + x + '"' : '') + (y ? ' y="' + y + '"' : ''); }
+  // a single filled shape with its ink outline painted underneath (stroke first, then fill)
+  function outlined(d, fill, ink, w, id) { return '<path' + (id ? ' id="' + id + '"' : '') + ' d="' + d + '" fill="' + fill + '" stroke="' + ink + '" stroke-width="' + r1(w) + '" paint-order="stroke"/>'; }
+  // many small discs → one <path> per (colour, opacity bucket) instead of one element each
+  function dots(list, fill) {
+    var by = {}, o = '';
+    list.forEach(function (q) { var k = q[3] == null ? 1 : Math.round(q[3] * 4) / 4; (by[k] = by[k] || []).push(circleD(q[0], q[1], q[2])); });
+    Object.keys(by).sort().forEach(function (k) { o += path(by[k].join(''), fill, +k < 1 ? 'opacity="' + k + '"' : ''); });
+    return o;
   }
   function tr(x, y, inner, extra) { return '<g transform="translate(' + r1(x) + ',' + r1(y) + ')' + (extra || '') + '">' + inner + '</g>'; }
 
@@ -186,28 +367,48 @@
   var DOJ = toSet('sharingan sharingan_2tomoe ms_sasuke ms_itachi ms_obito ms_madara ms_shisui ms_eternal ms_izuna ms_indra rinnegan rinne_sharingan tomoe_rinnegan byakugan');
   var RIPPLE = toSet('rinnegan tomoe_rinnegan');
 
-  function tomoe(x, y, s, rot, fill) {
-    return '<path d="M-1,0A1,1 0 1,0 1,0C1.15,-1.25 0.35,-2.05 -1.05,-2.5C-0.3,-1.85 -0.6,-0.9 -1,0Z" fill="' + fill + '" transform="translate(' + r1(x * 100) / 100 + ',' + r1(y * 100) / 100 + ') rotate(' + r1(rot) + ') scale(' + s + ')"/>';
+  // affine-transform absolute path data (similarity transforms: arcs keep their shape); p = decimals
+  function fx(v, p) { var k = Math.pow(10, p); return Math.round(v * k) / k; }
+  function xfD(d, M, p) {
+    var o = '', sc = Math.sqrt(Math.abs(M[0] * M[3] - M[1] * M[2])), rot = Math.atan2(M[1], M[0]) * 180 / Math.PI, flip = M[0] * M[3] - M[1] * M[2] < 0, cx = 0, cy = 0;
+    function T(x, y) { return fx(M[0] * x + M[2] * y + M[4], p) + ',' + fx(M[1] * x + M[3] * y + M[5], p); }
+    walkPath(d, function (U, a) {
+      if (U === 'Z') { o += 'Z'; return; }
+      if (U === 'H') { a = [a[0], cy]; U = 'L'; } else if (U === 'V') { a = [cx, a[0]]; U = 'L'; }
+      if (U === 'A') { o += 'A' + fx(a[0] * sc, p) + ',' + fx(a[1] * sc, p) + ' ' + fx(a[2] + rot, 1) + ' ' + a[3] + ',' + (flip ? 1 - a[4] : a[4]) + ' ' + T(a[5], a[6]); cx = a[5]; cy = a[6]; return; }
+      o += U; for (var k = 0; k < a.length; k += 2) o += (k ? ' ' : '') + T(a[k], a[k + 1]);
+      cx = a[a.length - 2]; cy = a[a.length - 1];
+    });
+    return o;
   }
+  function tsr(x, y, rot, s) { var r = rot * Math.PI / 180, c = Math.cos(r) * s, n = Math.sin(r) * s; return [c, n, -n, c, x, y]; }
+  var TOMOE = 'M-1,0A1,1 0 1,0 1,0C1.15,-1.25 0.35,-2.05 -1.05,-2.5C-0.3,-1.85 -0.6,-0.9 -1,0Z';
+  // tomoe path data (s < 2: unit-space iris → 3 decimals)
+  function tomoeD(x, y, s, rot) { return xfD(TOMOE, tsr(x, y, rot, s), s < 2 ? 3 : 1); }
+  function tomoe(x, y, s, rot, fill) { return '<path d="' + tomoeD(x, y, s, rot) + '" fill="' + fill + '"/>'; }
   function ringTomoe(n, R, s, start, fill) {
     var o = '';
     for (var i = 0; i < n; i++) {
       var th = start + i * 360 / n, p = pol(0, 0, R, th);
-      o += tomoe(p[0], p[1], s, th + 180, fill);
+      o += tomoeD(p[0], p[1], s, th + 180);
     }
-    return o;
+    return '<path d="' + o + '" fill="' + fill + '"/>';
   }
   function rotN(d, n, fill, base) {
     var o = '';
-    for (var i = 0; i < n; i++) o += '<path d="' + d + '" fill="' + fill + '" transform="rotate(' + r1(base + i * 360 / n) + ')"/>';
-    return o;
+    for (var i = 0; i < n; i++) o += xfD(d, tsr(0, 0, base + i * 360 / n, 1), 3);
+    return '<path d="' + o + '" fill="' + fill + '"/>';
   }
+  function ringD(r) { return 'M' + (-r) + ',0A' + r + ',' + r + ' 0 1,0 ' + r + ',0A' + r + ',' + r + ' 0 1,0 ' + (-r) + ',0Z'; } // unit-space circle
   function redBase(X) { return '<circle r="1" fill="' + X.rad([[0, '#ff5a4a'], [0.55, '#e3121c'], [1, '#7c0008']]) + '"/>'; }
   var RIM = '<circle r="0.97" fill="none" stroke="#1a0508" stroke-width="0.08"/>';
 
-  // unit iris (radius 1). color = eyeColor for normal-type eyes.
+  // unit iris (radius 1). color = eyeColor for normal-type eyes. Only these patterns sweep past the rim and
+  // need the unit clip; every other pattern stays inside r ≤ 1.
+  var IRIS_CLIP = toSet('ms_sasuke ms_obito ms_shisui ms_izuna');
   function irisUnit(X, kind, color) {
-    return '<g clip-path="' + X.clip('<circle r="1"/>') + '">' + irisRaw(X, kind, color) + '</g>';
+    var r = irisRaw(X, kind, color);
+    return IRIS_CLIP[kind] ? '<g clip-path="' + X.clip('<circle r="1"/>') + '">' + r + '</g>' : r;
   }
   function irisRaw(X, kind, color) {
     var c = col(color, '#3a2a1e');
@@ -241,12 +442,14 @@
       case 'rinnegan':
       case 'tomoe_rinnegan':
         var rings = '';
-        [0.17, 0.34, 0.51, 0.68, 0.85].forEach(function (r) { rings += '<circle r="' + r + '" fill="none" stroke="#3e2e74" stroke-width="0.045"/>'; });
+        [0.17, 0.34, 0.51, 0.68, 0.85].forEach(function (r) { rings += ringD(r); });
+        rings = '<path d="' + rings + '" fill="none" stroke="#3e2e74" stroke-width="0.045"/>';
         var tm = kind === 'tomoe_rinnegan' ? ringTomoe(3, 0.34, 0.075, -90, '#1a1030') + ringTomoe(3, 0.51, 0.075, -30, '#1a1030') : '';
         return '<circle r="1" fill="' + X.rad([[0, '#eee6ff'], [0.6, '#b9a2ea'], [1, '#7a62bf']]) + '"/>' + rings + tm + '<circle r="0.08" fill="#2a1d55"/>';
       case 'rinne_sharingan':
         var rr = '';
-        [0.3, 0.55, 0.8].forEach(function (r) { rr += '<circle r="' + r + '" fill="none" stroke="#3a0006" stroke-width="0.05"/>'; });
+        [0.3, 0.55, 0.8].forEach(function (r) { rr += ringD(r); });
+        rr = '<path d="' + rr + '" fill="none" stroke="#3a0006" stroke-width="0.05"/>';
         return redBase(X) + rr + ringTomoe(3, 0.3, 0.07, -90, K) + ringTomoe(3, 0.55, 0.08, -30, K) + ringTomoe(3, 0.8, 0.085, -90, K) + '<circle r="0.12" fill="' + K + '"/>' + RIM;
       case 'byakugan':
         return '<circle r="1" fill="' + X.rad([[0, '#ffffff'], [0.7, '#ebe6f7'], [1, '#c9bfe3']]) + '"/><circle r="0.9" fill="none" stroke="#b7abd6" stroke-width="0.06"/><circle r="0.5" fill="none" stroke="#d9d1ee" stroke-width="0.05"/>';
@@ -291,22 +494,21 @@
       'Q' + P(cx - s * w * 0.34, cy + h * 0.48) + ' ' + PP(I) + 'Z';
     var dark = kind === 'dark';
     var sclFill = dark ? '#241a24' : (F.edo ? '#2e262c' : (RIPPLE[kind] ? '#cfc2f0' : (kind === 'beast' ? lt(col(color, '#ffcf3a'), 0.3) : '#fbf8f4')));
-    var o = path(scl, sclFill);
-    // soft shadow of the upper lid on the eyeball
-    var cp = X.clip('<path d="' + scl + '"/>');
+    var sid = X.uid(), o = '<path id="' + sid + '" d="' + scl + '" fill="' + sclFill + '"/>';
+    var cp = X.clip('<use href="#' + sid + '"/>'); // everything inside the eye is clipped to the sclera
     var rx = w * (big ? 0.33 : 0.29), ry = rx * 1.14;
     if (RIPPLE[kind]) { rx = w * 0.46; ry = rx; }
     if (kind === 'byakugan') { rx = w * 0.3; ry = rx * 1.1; }
     var icx = cx + s * w * 0.02, icy = cy + h * 0.06;
     var g = '';
     if (kind !== 'blank') {
-      g += '<g transform="translate(' + r1(icx) + ',' + r1(icy) + ') scale(' + r1(rx * 100) / 100 + ',' + r1(ry * 100) / 100 + ')">' + irisUnit(X, kind, color) + '</g>';
+      g += '<g transform="translate(' + r1(icx) + ',' + r1(icy) + ') scale(' + fx(rx, 2) + ',' + fx(ry, 2) + ')">' + irisUnit(X, kind, color) + '</g>';
     }
-    g += path('M' + P(cx - w, cy - h * 1.2) + 'L' + P(cx + w, cy - h * 1.2) + 'L' + P(cx + w, cy - h * 0.25) + 'Q' + P(cx, cy - h * 0.05) + ' ' + P(cx - w, cy - h * 0.25) + 'Z', dark ? '#000' : '#5a3a4a', 'opacity="' + (dark ? 0.3 : 0.18) + '"');
+    // soft shadow of the upper lid on the eyeball (too faint to register on a 48–128 px avatar)
+    if (!X.av || dark) g += path('M' + P(cx - w, cy - h * 1.2) + 'L' + P(cx + w, cy - h * 1.2) + 'L' + P(cx + w, cy - h * 0.25) + 'Q' + P(cx, cy - h * 0.05) + ' ' + P(cx - w, cy - h * 0.25) + 'Z', dark ? '#000' : '#5a3a4a', 'opacity="' + (dark ? 0.3 : 0.18) + '"');
     if (kind !== 'blank' && kind !== 'byakugan') {
-      // highlights (light from top-left, same for both eyes)
-      g += circ(icx - rx * 0.36, icy - ry * 0.4, rx * (DOJ[kind] ? 0.2 : 0.3), '#fff', 'opacity="0.95"');
-      g += circ(icx + rx * 0.34, icy + ry * 0.38, rx * 0.12, '#fff', 'opacity="0.85"');
+      // highlights (light from top-left, same for both eyes): one element, two discs
+      g += path(circleD(icx - rx * 0.36, icy - ry * 0.4, rx * (DOJ[kind] ? 0.2 : 0.3)) + circleD(icx + rx * 0.34, icy + ry * 0.38, rx * 0.12), '#fff', 'opacity="0.92"');
     } else if (kind === 'byakugan') {
       g += circ(icx - rx * 0.3, icy - ry * 0.35, rx * 0.18, '#fff');
     }
@@ -319,13 +521,12 @@
       'Q' + P(cx - s * w * 0.22, cy - h * (big ? 0.72 : 0.6)) + ' ' + P(cx - s * w * 0.54, cy + h * 0.24) + 'Z';
     o += path(lid, ink);
     if (big) { // lashes
-      o += line('M' + P(cx + s * w * 0.6, cy - h * 0.3) + 'l' + P(s * w * 0.16, -h * 0.22), ink, L * 0.9);
-      o += line('M' + P(cx + s * w * 0.42, cy - h * 0.55) + 'l' + P(s * w * 0.12, -h * 0.3), ink, L * 0.8);
+      o += line('M' + P(cx + s * w * 0.6, cy - h * 0.3) + 'l' + P(s * w * 0.16, -h * 0.22) + 'M' + P(cx + s * w * 0.42, cy - h * 0.55) + 'l' + P(s * w * 0.12, -h * 0.3), ink, L * 0.85);
     }
     // lower lid
     o += line('M' + P(cx + s * w * 0.46, cy + h * 0.06) + 'Q' + P(cx + s * w * 0.24, cy + h * 0.62) + ' ' + P(cx - s * w * 0.12, cy + h * 0.52), ink, L * 0.55, 'opacity="0.8"');
-    // double-lid crease
-    o += line('M' + P(cx - s * w * 0.2, cy - h * (big ? 1.08 : 0.98)) + 'Q' + P(cx + s * w * 0.2, cy - h * (big ? 1.08 : 0.95)) + ' ' + P(cx + s * w * 0.46, cy - h * 0.72), ink, L * 0.45, 'opacity="0.5"');
+    // double-lid crease (sub-pixel on avatars)
+    if (!X.av) o += line('M' + P(cx - s * w * 0.2, cy - h * (big ? 1.08 : 0.98)) + 'Q' + P(cx + s * w * 0.2, cy - h * (big ? 1.08 : 0.95)) + ' ' + P(cx + s * w * 0.46, cy - h * 0.72), ink, L * 0.45, 'opacity="0.5"');
     return o;
   }
 
@@ -337,7 +538,7 @@
       by = cy - h * 1.5;
       d = 'M' + P(cx - s * w * 0.66, by + h * 0.6) + 'C' + P(cx - s * w * 0.24, by - h * 0.2) + ' ' + P(cx + s * w * 0.42, by - h * 0.56) + ' ' + P(cx + s * w * 0.9, by - h * 0.16) +
         'L' + P(cx + s * w * 0.82, by + h * 0.42) + 'C' + P(cx + s * w * 0.42, by + h * 0.18) + ' ' + P(cx - s * w * 0.12, by + h * 0.5) + ' ' + P(cx - s * w * 0.62, by + h * 1.3) + 'Z';
-      return path(d, color, 'stroke="' + dk(color, 0.4) + '" stroke-width="' + r1(X.lw * 0.6) + '" stroke-linejoin="round"') +
+      return path(d, color, 'stroke="' + dk(color, 0.4) + '" stroke-width="' + r1(X.lw * 0.6) + '"') +
         line('M' + P(cx - s * w * 0.3, by + h * 0.5) + 'q' + r1(s * w * 0.3) + ',' + r1(-h * 0.4) + ' ' + r1(s * w * 0.7) + ',' + r1(-h * 0.5), lt(color, 0.35), X.lw * 0.5, 'opacity="0.55"');
     }
     if (F.fem) {
@@ -371,7 +572,11 @@
   var NECK = 'M252,282L248,354Q278,366 309,352L305,280Z';
   // the head is drawn in its own space and placed on the neck with a slight scale + tilt
   var HEAD_S = 0.9, HEAD_R = 2.5, HEAD_PX = 278, HEAD_PY = 332;
-  var HT = 'translate(' + HEAD_PX + ',' + HEAD_PY + ') rotate(' + HEAD_R + ') scale(' + HEAD_S + ') translate(' + (-HEAD_PX) + ',' + (-HEAD_PY) + ')';
+  // = translate(PX,PY) rotate(R) scale(S) translate(-PX,-PY), written as one matrix (it is repeated a lot)
+  var HT = (function () {
+    var a = HEAD_R * Math.PI / 180, ca = HEAD_S * Math.cos(a), sa = HEAD_S * Math.sin(a);
+    return 'matrix(' + [ca, sa, -sa, ca, HEAD_PX - ca * HEAD_PX + sa * HEAD_PY, HEAD_PY - sa * HEAD_PX - ca * HEAD_PY].map(function (v) { return Math.round(v * 1e4) / 1e4; }).join(' ') + ')';
+  })();
   function headPt(x, y) {
     var dx = (x - HEAD_PX) * HEAD_S, dy = (y - HEAD_PY) * HEAD_S, a = HEAD_R * Math.PI / 180;
     return [HEAD_PX + dx * Math.cos(a) - dy * Math.sin(a), HEAD_PY + dx * Math.sin(a) + dy * Math.cos(a)];
@@ -629,10 +834,10 @@
   }
 
   // the anime "angel ring" highlight / spike glints, clipped to the hair top
-  function hairShine(X, H, base) {
+  function hairShine(X, H, base, clipId) {
     var lb = lum(base), hl = lb < 0.22 ? mix(base, '#9fb4ff', 0.42) : lt(base, lb > 0.7 ? 0.6 : 0.42), s = '';
     if (H.shine === 'none' || !H.top.length) return '';
-    var clip = X.clipPaths(H.top.concat(H.front));
+    var clip = clipId ? X.clip('<use href="#' + clipId + '"/>') : X.clipPaths(H.top.concat(H.front));
     if (H.shine === 'gloss') {
       s += path('M214,180C222,132 252,118 280,116C250,128 236,150 232,190Z', hl, 'opacity="0.8"');
       s += path('M248,140Q281,124 318,136L314,146Q281,134 252,150Z', '#fff', 'opacity="0.55"');
@@ -665,17 +870,17 @@
    * unit space: roughly -1..1, stroke-based, drawn in `c`
    * ==================================================================== */
   function spiralD(turns, r0, r1_, a0) {
-    var d = '', n = Math.round(turns * 28);
+    var d = '', n = Math.round(turns * 18);
     for (var i = 0; i <= n; i++) {
       var t = i / n, a = a0 + t * turns * 360, r = r0 + (r1_ - r0) * t, p = pol(0, 0, r, a);
-      d += (i ? 'L' : 'M') + r1(p[0] * 100) / 100 + ',' + r1(p[1] * 100) / 100;
+      d += (i ? 'L' : 'M') + fx(p[0], 2) + ',' + fx(p[1], 2);
     }
     return d;
   }
   var SYM_KONOHA = spiralD(1.15, 0.06, 0.62, 140);
   function symbol(key, c, sw) {
     sw = sw || 0.16;
-    var st = ' fill="none" stroke="' + c + '" stroke-width="' + sw + '" stroke-linecap="round" stroke-linejoin="round"';
+    var st = ' fill="none" stroke="' + c + '" stroke-width="' + sw + '"';
     switch (key) {
       case 'konoha':
         return '<path d="' + SYM_KONOHA + 'L0.86,-0.72L0.5,-0.3"' + st + '/><path d="M-0.5,0.5L-0.85,0.86"' + st + '/>';
@@ -726,7 +931,7 @@
   var NL = { crew: 'Q278,360 250,334', high: 'L307,312Q278,324 249,312L250,334', v: 'L266,440L250,334', vdeep: 'L264,520L250,334', round: 'Q278,376 250,334' };
 
   function konohaSwirl(x, y, r, c) {
-    return '<g transform="translate(' + r1(x) + ',' + r1(y) + ') scale(' + r + ')"><path d="' + spiralD(1.6, 0.05, 1, 0) + '" fill="none" stroke="' + c + '" stroke-width="0.28" stroke-linecap="round"/></g>';
+    return '<g transform="translate(' + r1(x) + ',' + r1(y) + ') scale(' + r + ')"><path d="' + spiralD(1.6, 0.05, 1, 0) + '" fill="none" stroke="' + c + '" stroke-width="0.28"/></g>';
   }
   function cloudD(x, y, s) { // akatsuki cloud
     return 'M' + P(x - 1.0 * s, y + 0.32 * s) + 'C' + P(x - 1.3 * s, y + 0.3 * s) + ' ' + P(x - 1.25 * s, y - 0.22 * s) + ' ' + P(x - 0.88 * s, y - 0.16 * s) +
@@ -783,8 +988,11 @@
     var armCol = armSkin ? skin : sleeves;
     var armSh = armSkin ? Cc.skinSh : dk(armCol, 0.28);
     out.armCol = armCol; out.armSkin = armSkin;
-    out.arms = paintGroup(X, [G.armF, G.armN], armCol, { shadow: armSh, sx: 16, sy: 4, ink: armSkin ? Cc.skinInk : inkOf(armCol) });
+    // (the arms start below an avatar's crop — everything on them is skipped there, except the chakra-cloak
+    //  flames that rise above the shoulders)
+    out.arms = X.av ? '' : paintGroup(X, [G.armF, G.armN], armCol, { shadow: armSh, sx: 16, sy: 4, ink: armSkin ? Cc.skinInk : inkOf(armCol), rim: X.rimC });
     var fk = armSkin ? Cc.skinInk : inkOf(armCol);
+    if (!X.av) {
     if (!armSkin) out.arms += line('M' + x(-178) + ',548Q' + x(-160) + ',556 ' + x(-146) + ',546M' + x(-182) + ',586Q' + x(-162) + ',592 ' + x(-150) + ',580M' + x(-128) + ',470Q' + x(-140) + ',500 ' + x(-134) + ',530' +
       'M' + x(192) + ',552Q' + x(176) + ',562 ' + x(160) + ',550M' + x(198) + ',592Q' + x(180) + ',598 ' + x(166) + ',586M' + x(140) + ',476Q' + x(152) + ',506 ' + x(146) + ',536', fk, L * 0.6, 'opacity="0.45"');
     else out.arms += line('M' + x(-150) + ',560Q' + x(-140) + ',566 ' + x(-132) + ',560M' + x(164) + ',566Q' + x(154) + ',572 ' + x(146) + ',566', fk, L * 0.5, 'opacity="0.4"');
@@ -798,17 +1006,18 @@
     if (o === 'akatsuki') {
       out.arms += '<g clip-path="' + X.clipPaths([G.armF, G.armN]) + '">' + path(cloudD(x(-150), 520, 26), '#ffffff') + path(cloudD(x(-150), 520, 22), acc) + path(cloudD(x(166), 560, 26), '#ffffff') + path(cloudD(x(166), 560, 22), acc) + '</g>';
     }
+    }
     if (o === 'chakra_cloak') { // 九喇嘛模式: glowing chakra shroud with black seal lines
       var seal = '#1a1206', flick = '';
       [[-150, 392, -14], [-118, 376, -6], [134, 380, 8], [166, 396, 16], [-176, 440, -22], [190, 446, 24]].forEach(function (f, i) { flick += tongue(x(f[0]), f[1] + 6, 46 + (i % 3) * 12, 26, f[2]); });
       out.arms = path(flick, lt(main, 0.45), 'opacity="0.85"') + out.arms;
-      out.arms += '<g clip-path="' + X.clipPaths([G.armF, G.armN]) + '">' + path('M0,380H560V660H0Z', X.lin([[0, lt(main, 0.5), 0.55], [0.6, main, 0], [1, dk(main, 0.2), 0.3]], 0, 0, 1, 0)) +
+      if (!X.av) out.arms += '<g clip-path="' + X.clipPaths([G.armF, G.armN]) + '">' + path('M0,380H560V660H0Z', X.lin([[0, lt(main, 0.5), 0.55], [0.6, main, 0], [1, dk(main, 0.2), 0.3]], 0, 0, 1, 0)) +
         line('M' + x(-150) + ',430Q' + x(-170) + ',520 ' + x(-176) + ',650M' + x(170) + ',436Q' + x(186) + ',520 ' + x(196) + ',650', seal, L * 1.4) +
         line('M' + x(-196) + ',560Q' + x(-160) + ',570 ' + x(-124) + ',556M' + x(210) + ',566Q' + x(176) + ',576 ' + x(140) + ',562', seal, L * 2.2) + '</g>';
     }
     // torso
     var tsh = torsoFill === skin ? Cc.skinSh : dk(torsoFill, 0.28);
-    var t = outlineOf([torsoD], torsoFill === skin ? Cc.skinInk : inkOf(torsoFill), L * 2) + cel(X, torsoD, torsoFill, tsh, 26, 6);
+    var t = outlineOf([torsoD], torsoFill === skin ? Cc.skinInk : inkOf(torsoFill), L * 2) + cel(X, torsoD, torsoFill, tsh, 26, 6, X.rimC);
     clipT = X.clipPaths([torsoD]);
     var fold = inkOf(main);
     switch (o) {
@@ -884,7 +1093,8 @@
         for (var ai = 0; ai < 6; ai++) {
           var yy = 440 + ai * 34;
           details += path('M0,' + yy + 'H560V' + (yy + 30) + 'H0Z', ai % 2 ? dk(main, 0.08) : main) + line('M0,' + (yy + 30) + 'H560', inkOf(main), L * 0.8);
-          for (var lj = -3; lj <= 3; lj++) details += circ(x(lj * 32), yy + 15, 2.4, acc);
+          var rv = ''; for (var lj = -3; lj <= 3; lj++) rv += circleD(x(lj * 32), yy + 15, 2.4);
+          details += path(rv, acc);
         }
         details += path('M' + x(-90) + ',380Q' + x(0) + ',404 ' + x(100) + ',380L' + x(110) + ',440Q' + x(0) + ',470 ' + x(-100) + ',440Z', dk(main, 0.12), 'stroke="' + inkOf(main) + '" stroke-width="' + r1(L) + '"');
         collar = path('M236,348L240,304Q278,318 316,302L320,348Q279,364 236,348Z', dk(acc, 0.2), 'stroke="' + inkOf(acc) + '" stroke-width="' + r1(L) + '"');
@@ -1011,7 +1221,8 @@
     var s = '<g transform="translate(' + r1(cx) + ',' + r1(cy) + ')' + (rot ? ' rotate(' + rot + ')' : '') + '">';
     s += '<rect x="' + r1(-w / 2) + '" y="' + r1(-h / 2) + '" width="' + r1(w) + '" height="' + r1(h) + '" rx="' + r1(h * 0.18) + '" fill="' + g + '" stroke="#3a4250" stroke-width="' + r1(L) + '"/>';
     s += '<rect x="' + r1(-w / 2 + 3) + '" y="' + r1(-h / 2 + 3) + '" width="' + r1(w - 6) + '" height="' + r1(h * 0.28) + '" rx="' + r1(h * 0.12) + '" fill="#fff" opacity="0.45"/>';
-    [-1, 1].forEach(function (sx) { [-1, 1].forEach(function (sy) { s += circ(sx * (w / 2 - 6), sy * (h / 2 - 6), 1.8, '#5a6372'); }); });
+    var rv = ''; [-1, 1].forEach(function (sx) { [-1, 1].forEach(function (sy) { rv += circleD(sx * (w / 2 - 6), sy * (h / 2 - 6), 1.8); }); });
+    if (!X.av) s += path(rv, '#5a6372'); // rivets: sub-pixel on avatars
     s += '<g transform="scale(' + r1(h * 0.36) + ')">' + symbol(sym, '#2a303a', 0.17) + '</g>';
     if (slash) s += line('M' + P(-w * 0.42, h * 0.1) + 'L' + P(w * 0.42, -h * 0.12), '#1a1d24', L * 1.2) + line('M' + P(-w * 0.42, h * 0.1 + 2) + 'L' + P(w * 0.42, -h * 0.12 + 2), '#ffffff', L * 0.4, 'opacity="0.6"');
     return s + '</g>';
@@ -1163,7 +1374,7 @@
           sp += 'M' + P(xl, yy) + 'l' + r1(14 - u * 4) + ',' + r1(-4) + 'l' + r1(-12 + u * 4) + ',' + r1(9) + 'Z';
           sp += 'M' + P(xr, yy) + 'l' + r1(-14 + u * 4) + ',' + r1(-4) + 'l' + r1(12 - u * 4) + ',' + r1(9) + 'Z';
         }
-        s += path(sp, '#f4f0dc', 'stroke="' + inkOf(lc) + '" stroke-width="' + r1(L * 0.5) + '" stroke-linejoin="round"');
+        s += path(sp, '#f4f0dc', 'stroke="' + inkOf(lc) + '" stroke-width="' + r1(L * 0.5) + '"');
         break;
       case 'puppet_mouth':
         s += line('M256,296L254,320M290,294L292,316', '#3a2a24', L * 0.9) + line('M238,250Q240,270 252,282M322,250Q320,270 308,282', '#3a2a24', L * 0.5, 'opacity="0.5"');
@@ -1205,15 +1416,22 @@
       fierce: !fem && (DOJ[eyes] && eyes !== 'byakugan' || mood === 'smirk') && !young, calm: mood === 'smile' || mood === 'soft' };
     var G = bodyGeom(buildOf(c, a, fem), fem ? 0.78 : (young ? 0.88 : 1));
     var H = hairDef(hairSt, F, hasHB ? hbPos : 'none', hat);
+    // the top hair as one union path, written once and re-used (avatars: the painted path itself; busts: a
+    // <defs> path behind the outline, the forehead cast shadow, the shine clip, the halo and the volume tint)
+    var topList = H.top.concat(H.front), hairId = topList.length ? (X.av ? X.uid() : X.def('<path d="' + unionD(topList) + '"/>')) : null;
     var faction = c.faction || '';
     var ctxc = { konoha: a.headband === 'konoha' || faction === 'konoha', kumo: a.flakStyle ? a.flakStyle === 'kumo' : (a.headband === 'kumo' || faction === 'kumo') };
 
     var P_ = { back: '', body: '', head: '', front: '', sil: [] };
+    X.rimC = mode === 'bust' ? lt(auraColor(c, a), 0.6) : null;
 
     // ---- back hair + back accessory
     var back = '';
     back += accessoryBack(X, acc_, G, Cc, L, c);
     if (acc2 !== 'none') back += accessoryBack(X, acc2, G, Cc, L, c);
+    // avatars (48–128 px): each hair layer is shaded as one merged shape — same silhouette and outline,
+    // a fraction of the elements; busts keep per-lock shading
+    if (X.av && H.back.length > 1) H.back = [unionD(H.back)];
     back += inHead(paintHair(X, H.back, hairC, true));
     P_.back = back;
 
@@ -1232,8 +1450,10 @@
     }
     body += OF.arms;
     // neck
-    body += outlineOf([NECK], skinInk, L * 2) + cel(X, NECK, skin, skinSh, -10, 0);
-    body += '<g clip-path="' + X.clip('<path d="' + NECK + '"/>') + '">' + path(g.d, skinSh, 'transform="' + HT + ' translate(4,16)"') + '</g>';
+    body += outlineOf([NECK], skinInk, L * 2);
+    var neckId = X.olq[NECK][0];
+    body += cel(X, NECK, skin, skinSh, -10, 0);
+    body += '<g clip-path="' + X.clip('<use href="#' + neckId + '"/>') + '">' + path(g.d, skinSh, 'transform="' + HT + ' translate(4,16)"') + '</g>';
     if (OF.chest) {
       var chest = 'M232,330L324,330L340,650L216,650Z';
       body += cel(X, chest, skin, skinSh, -12, 0) + line('M238,372Q256,380 270,376M290,376Q306,382 322,372', skinInk, L * 0.6, 'opacity="0.5"');
@@ -1243,8 +1463,9 @@
     body += OF.torso;
     if (OF.armsOver) body += '';
     var pose = a.pose || (isRaise(acc_, a) || isRaise(acc2, a) || OF.kind === 'cloak' || acc_ === 'bow' ? 'stand' : (c.role === 'tank' || c.role === 'ctrl') ? 'cross' : (c.role === 'sup' || c.role === 'heal') ? 'seal' : 'stand');
-    if (mode === 'bust') body += volume(X, [G.armF, G.armN, OF.torsoD, NECK], auraColor(c, a));
-    if (pose === 'cross') body += crossedArms(X, G, Cc, L, OF.armCol, OF.armSkin);
+    if (mode === 'bust') { P_.bodySil = X.def('<path d="' + unionD([G.armF, G.armN, OF.torsoD, NECK]) + '"/>'); body += volume(X, [], auraColor(c, a), false, false, P_.bodySil); }
+    if (X.av) { /* folded arms / hand seal sit below an avatar's crop */ }
+    else if (pose === 'cross') body += crossedArms(X, G, Cc, L, OF.armCol, OF.armSkin);
     else if (pose === 'seal') body += handSeal(X, G, Cc, L, OF.armCol, OF.armSkin, auraColor(c, a));
     body += OF.collar;
     G.torsoD = OF.torsoD;
@@ -1264,12 +1485,12 @@
     var head = '';
     // near ear
     var ear = 'M352,226C366,214 380,222 376,240C374,256 366,268 352,266Z';
-    head += outlineOf([ear], skinInk, L * 2) + cel(X, ear, skin, skinSh, 3, 3) + line('M358,232Q368,232 366,246Q364,254 358,256', skinInk, L * 0.6, 'opacity="0.6"');
+    head += (X.av ? outlined(ear, skin, skinInk, L * 2) : outlineOf([ear], skinInk, L * 2) + cel(X, ear, skin, skinSh, 3, 3)) + line('M358,232Q368,232 366,246Q364,254 358,256', skinInk, L * 0.6, 'opacity="0.6"');
     if (has(marks, 'piercings')) head += circ(366, 230, 2.6, '#c9ced6', 'stroke="#333" stroke-width="0.8"') + circ(370, 240, 2.6, '#c9ced6', 'stroke="#333" stroke-width="0.8"') + circ(368, 252, 2.6, '#c9ced6', 'stroke="#333" stroke-width="0.8"');
     // face
-    head += outlineOf([g.d], skinInk, L * 2.1);
-    var faceClip = X.clip('<path d="' + g.d + '"/>');
-    head += path(g.d, skin);
+    var faceId = X.uid();
+    head += outlined(g.d, skin, skinInk, L * 2.1, faceId);
+    var faceClip = X.fc = X.clip('<use href="#' + faceId + '"/>');
     var fs = '';
     fs += path(g.sh, skinSh, 'opacity="0.9"');
     if (a.mask === 'zetsu' && a.zetsuHalf !== false) { // Zetsu: black half (his right = viewer's left) split down a ragged centre line
@@ -1277,7 +1498,8 @@
       fs += path('M120,90L276,90Q268,150 274,196Q266,226 272,252Q266,284 274,312L272,360L120,360Z', zb) + line('M276,90Q268,150 274,196Q266,226 272,252Q266,284 274,312L272,360', '#000', L * 0.8, 'opacity="0.5"');
     }
     // hair cast shadow on forehead
-    var castList = H.top.concat(H.front);
+    var castList = [];
+    if (hairId) fs += '<use href="#' + hairId + '" x="5" y="10" fill="' + skinSh + '"/>';
     if (H.hood || hat === 'hood_up') castList = castList.concat(['M184,270C168,180 200,92 281,88C362,92 394,180 378,272L356,250C356,212 340,176 281,170C222,176 206,212 206,250Z']);
     if (castList.length) fs += '<g transform="translate(5,10)" fill="' + skinSh + '">' + castList.map(function (d) { return '<path d="' + d + '"/>'; }).join('') + '</g>';
     if (hasHB && (hbPos === 'forehead' || hbPos === 'bandana')) fs += path('M200,196Q281,170 362,196L362,216Q281,190 201,216Z', skinSh, 'opacity="0.8"');
@@ -1331,12 +1553,15 @@
 
     // hair top + front
     if (H.hood && hat !== 'hood_up') head += drawHat(X, merge(a, { hat: 'hood_up', _id: c.id }), Cc, L);
-    var topList = H.top.concat(H.front);
-    if (topList.length) {
-      head += outlineOf(topList, inkOf(hairC), L * 2);
-      for (var i = 0; i < H.top.length; i++) head += cel(X, H.top[i], hairC, dk(hairC, 0.3), 5, 8);
+    if (topList.length && X.av) { // one path for all the top hair: outline, shadow, base, shine clip and the cast shadow above all re-use it
+      head += '<g fill="' + dk(hairC, 0.3) + '" stroke="' + inkOf(hairC) + '" stroke-width="' + r1(L * 2) + '" paint-order="stroke"><path id="' + hairId + '" d="' + unionD(topList) + '"/></g>' +
+        '<use href="#' + hairId + '" fill="' + hairC + '" clip-path="' + X.clip('<use href="#' + hairId + '" x="-4" y="-7"/>') + '"/>' + hairShine(X, H, hairC, hairId);
+      if (H.lines.length) head += line(H.lines.join(''), inkOf(hairC), L * 0.6, 'opacity="0.6"');
+    } else if (topList.length) {
+      head += '<use href="#' + hairId + '" fill="' + inkOf(hairC) + '" stroke="' + inkOf(hairC) + '" stroke-width="' + r1(L * 2) + '"/>';
+      for (var i = 0; i < H.top.length; i++) head += cel(X, H.top[i], hairC, dk(hairC, 0.3), 5, 8, X.rimC);
       for (var j = 0; j < H.front.length; j++) head += cel(X, H.front[j], hairC, dk(hairC, 0.28), 4, 6);
-      head += hairShine(X, H, hairC);
+      head += hairShine(X, H, hairC, hairId);
       if (H.lines.length) head += line(H.lines.join(''), inkOf(hairC), L * 0.6, 'opacity="0.6"');
       if (coverL) { /* bang covers far eye */ }
     }
@@ -1350,15 +1575,16 @@
     if (acc_ === 'kiseru') head += kiseru(L);
     P_.head = inHead(head);
     if (a.twinHead || c.id === 'sakon') {
-      P_.body += '<g transform="translate(262,200) scale(0.6) rotate(12 281 214)"><g transform="' + HT + '">' + paintHair(X, H.back, hairC, true) + head + '</g></g>';
+      P_.body += '<g transform="translate(262,200) scale(0.6) rotate(12 281 214)"><g transform="' + HT + '">' + paintHair(X, H.back, hairC, true) + head.replace(/ id="[^"]*"/g, '') + '</g></g>';
     }
 
     // ---- front accessory
     P_.front = accessoryFront(X, acc_, G, Cc, L, c, a) + (acc2 !== 'none' ? accessoryFront(X, acc2, G, Cc, L, c, a) : '');
     P_.G = G; P_.H = H; P_.OF = OF; P_.Cc = Cc;
     P_.sil = [G.armF, G.armN, OF.torsoD, NECK];
-    P_.silHead = [g.d].concat(H.back, H.top, H.front, H.mid);
-    P_.silHeadV = H.top.slice();
+    // halo silhouette of the head: face + back hair + tails + the top-hair union, by reference where possible
+    P_.silHead = [g.d]; P_.silHeadIds = []; P_.hairSil = hairId;
+    H.back.concat(H.mid).forEach(function (d) { var i = X.idOf && X.idOf[d]; if (i) P_.silHeadIds.push(i); else P_.silHead.push(d); });
     var hc = headPt(282, 214), half = 128;
     P_.avatarVB = r1(hc[0] - half) + ' ' + r1(hc[1] - half + 6) + ' ' + (half * 2) + ' ' + (half * 2);
     return P_;
@@ -1375,7 +1601,7 @@
     }
     if (sharp && mood !== 'grin') { // shark grin (Kisame, Suigetsu, Hōzuki clan, Kiri swordsmen)
       var td = 'M' + P(mx - w * 0.62, my - 3) + 'Q' + P(mx, my + 1) + ' ' + P(mx + w * 0.72, my - 6) + 'Q' + P(mx + w * 0.42, my + 10) + ' ' + P(mx, my + 10) + 'Q' + P(mx - w * 0.42, my + 9) + ' ' + P(mx - w * 0.62, my - 3) + 'Z';
-      s += path(td, '#5a1420', 'stroke="' + ink + '" stroke-width="' + r1(L * 0.8) + '" stroke-linejoin="round"');
+      s += path(td, '#5a1420', 'stroke="' + ink + '" stroke-width="' + r1(L * 0.8) + '"');
       s += path(saw(mx - w * 0.56, mx + w * 0.64, my - 3.5, my + 4, 6), '#fbfaf6', 'stroke="' + ink + '" stroke-width="0.7"') + path(saw(mx - w * 0.38, mx + w * 0.42, my + 9, my + 3, 5), '#ecebe6', 'stroke="' + ink + '" stroke-width="0.7"');
       if (has(marks, 'red_lips')) s += line(td.replace(/Z$/, ''), '#c8102e', L * 0.5, 'opacity="0.7"');
       return s;
@@ -1383,7 +1609,7 @@
     switch (mood) {
       case 'grin':
         var gd = 'M' + P(mx - w * 0.75, my - 5) + 'Q' + P(mx, my + 2) + ' ' + P(mx + w * 0.8, my - 7) + 'Q' + P(mx + w * 0.5, my + 15) + ' ' + P(mx, my + 16) + 'Q' + P(mx - w * 0.5, my + 14) + ' ' + P(mx - w * 0.75, my - 5) + 'Z';
-        s += path(gd, '#7a1e2a', 'stroke="' + ink + '" stroke-width="' + r1(L * 0.9) + '" stroke-linejoin="round"');
+        s += path(gd, '#7a1e2a', 'stroke="' + ink + '" stroke-width="' + r1(L * 0.9) + '"');
         if (sharp) {
           s += path(saw(mx - w * 0.68, mx + w * 0.74, my - 4, my + 5, 7), '#fbfaf6', 'stroke="' + ink + '" stroke-width="0.7"') + path(saw(mx - w * 0.46, mx + w * 0.5, my + 14, my + 7, 6), '#ecebe6', 'stroke="' + ink + '" stroke-width="0.7"');
           break;
@@ -1481,8 +1707,8 @@
           s += line('M' + P(g.eL[0] - 10, g.eL[1] + 14) + 'q8,6 16,0M' + P(g.eR[0] - 8, g.eR[1] + 15) + 'q8,6 16,0', dk(Cc.skin, 0.45), L * 0.7);
           break;
         case 'swirl_cheeks':
-          s += '<g transform="translate(226,276) scale(11)"><path d="' + spiralD(1.4, 0.05, 1, 0) + '" fill="none" stroke="#c8102e" stroke-width="0.22" stroke-linecap="round"/></g>';
-          s += '<g transform="translate(336,276) scale(12)"><path d="' + spiralD(1.4, 0.05, 1, 180) + '" fill="none" stroke="#c8102e" stroke-width="0.22" stroke-linecap="round"/></g>';
+          s += '<g transform="translate(226,276) scale(11)"><path d="' + spiralD(1.4, 0.05, 1, 0) + '" fill="none" stroke="#c8102e" stroke-width="0.22"/></g>';
+          s += '<g transform="translate(336,276) scale(12)"><path d="' + spiralD(1.4, 0.05, 1, 180) + '" fill="none" stroke="#c8102e" stroke-width="0.22"/></g>';
           break;
         case 'b_tattoo':
           s += path('M330,262Q348,250 352,236Q344,262 334,272Z', '#1a1010') + path('M336,276Q350,270 356,256Q350,278 340,284Z', '#1a1010');
@@ -1513,7 +1739,7 @@
           cd += 'M' + P(R_[0] + 10, R_[1] + 15) + 'l6,10l-5,9l8,12l-2,10M' + P(R_[0] + 16, R_[1] + 25) + 'l13,-2M' + P(R_[0] + 17, R_[1] + 46) + 'l10,5';
           cd += 'M' + P(R_[0] - 14, R_[1] + 16) + 'l-3,9l5,6';
           cd += 'M' + P(g.mouth[0] + 22, g.chin - 20) + 'l8,-6l4,-10';
-          s += '<g clip-path="' + X.clip('<path d="' + g.d + '"/>') + '">' + line(cd, '#ffffff', L * 0.75, 'opacity="0.35" transform="translate(1.2,1.4)"') + line(cd, cr, L * 0.72, 'opacity="0.9"') + '</g>';
+          s += '<g clip-path="' + (X.fc || X.clip('<path d="' + g.d + '"/>')) + '">' + line(cd, '#ffffff', L * 0.75, 'opacity="0.35" transform="translate(1.2,1.4)"') + line(cd, cr, L * 0.72, 'opacity="0.9"') + '</g>';
           break;
         case 'cheek_rects': // Rin: one purple rectangle on each cheek
           var rc = col(a.paintColor, '#7b2fa0');
@@ -1523,8 +1749,8 @@
           var bsc = mix(Cc.skin, '#a83a3a', 0.3), bsk = mix(Cc.skin, '#5a1a1a', 0.55), nx_ = g.nose[0], ny_ = g.nose[1], ex_ = g.eR[0], ey_ = g.eR[1];
           var bd = 'M' + P(nx_ - 12, ny_ - 30) + 'L' + P(nx_ + 4, ny_ - 24) + 'L' + P(ex_ - 18, ey_ + 14) + 'L' + P(ex_ - 2, ey_ + 18) + 'L' + P(ex_ + 14, ey_ + 14) + 'L' + P(ex_ + 30, ey_ + 20) + 'L' + P(ex_ + 44, ey_ + 16) +
             'L' + P(ex_ + 46, ey_ + 40) + 'L' + P(ex_ + 34, ey_ + 52) + 'L' + P(ex_ + 20, ey_ + 48) + 'L' + P(ex_ + 8, ey_ + 60) + 'L' + P(ex_ - 8, ey_ + 50) + 'L' + P(nx_ + 10, ny_ - 2) + 'L' + P(nx_ - 2, ny_ - 12) + 'L' + P(nx_ - 16, ny_ - 18) + 'Z';
-          var bcl = X.clip('<path d="' + g.d + '"/>');
-          s += '<g clip-path="' + bcl + '">' + path(bd, bsc, 'stroke="' + bsk + '" stroke-width="' + r1(L * 0.7) + '" stroke-linejoin="round"') +
+          var bcl = (X.fc || X.clip('<path d="' + g.d + '"/>'));
+          s += '<g clip-path="' + bcl + '">' + path(bd, bsc, 'stroke="' + bsk + '" stroke-width="' + r1(L * 0.7) + '"') +
             line('M' + P(nx_ - 6, ny_ - 24) + 'l14,6M' + P(ex_ - 10, ey_ + 24) + 'l18,4l12,-3M' + P(ex_ + 2, ey_ + 36) + 'l16,2l14,-6M' + P(ex_ + 8, ey_ + 48) + 'l12,-4', bsk, L * 0.55, 'opacity="0.75"') +
             line('M' + P(ex_ - 4, ey_ + 28) + 'l14,2M' + P(ex_ + 14, ey_ + 42) + 'l12,-2', lt(bsc, 0.35), L * 0.5, 'opacity="0.7"') +
             circ(ex_ + 26, ey_ + 30, 4, bsk, 'opacity="0.5"') + circ(ex_ - 8, ey_ + 38, 3, bsk, 'opacity="0.45"') + circ(nx_ + 2, ny_ - 18, 2.6, bsk, 'opacity="0.5"') + '</g>';
@@ -1545,7 +1771,7 @@
           }
           break;
         case 'bandage_face': // wrapped from the nose down (Zabuza / Mu); a single nose strip otherwise (Kotetsu)
-          var bclip = X.clip('<path d="' + g.d + '"/>');
+          var bclip = (X.fc || X.clip('<path d="' + g.d + '"/>'));
           if (!(a.bandageFull || c.id === 'zabuza' || c.id === 'mu')) {
             s += '<g clip-path="' + bclip + '">' + path('M196,254L366,242L366,266L196,278Z', '#efe9dc', 'stroke="#9a9484" stroke-width="' + r1(L * 0.7) + '"') + line('M232,252L234,274M300,248L302,270', '#c8c2b0', L * 0.6) + '</g>';
             break;
@@ -1728,7 +1954,7 @@
           var fa = 20 + fb * 90, t1 = pol(fx, fy, 128, fa), c1 = pol(fx, fy, 70, fa - 34), b1 = pol(fx, fy, 26, fa - 60), b2 = pol(fx, fy, 26, fa + 30);
           fm += 'M' + PP(b2) + 'L' + PP(t1) + 'Q' + PP(c1) + ' ' + PP(b1) + 'Z';
         }
-        s += path(fm, X.lin([[0, '#eef2f6'], [0.5, '#a8b2be'], [1, '#5a6472']], 0, 0, 1, 1), 'stroke="#1a1d24" stroke-width="' + r1(L * 1.6) + '" stroke-linejoin="round"');
+        s += path(fm, X.lin([[0, '#eef2f6'], [0.5, '#a8b2be'], [1, '#5a6472']], 0, 0, 1, 1), 'stroke="#1a1d24" stroke-width="' + r1(L * 1.6) + '"');
         s += circ(fx, fy, 30, '#7a8492', 'stroke="#1a1d24" stroke-width="' + r1(L * 1.6) + '"') + circ(fx, fy, 12, '#2a2e36') + line('M' + P(fx - 20, fy - 14) + 'q16,-10 34,-2', '#fff', L * 0.8, 'opacity="0.6"');
         break;
       case 'kiseru':
@@ -1800,7 +2026,7 @@
       var hx = x(70), hy = 478;
       var sleeveCol = Cc.armCol || (Cc.armSkin ? Cc.skin : Cc.main);
       var fa = 'M' + x(134) + ',660C' + x(140) + ',600 ' + P(hx + 10, hy + 70) + ' ' + P(hx - 14, hy + 8) + 'L' + P(hx + 34, hy - 6) + 'C' + P(hx + 50, hy + 50) + ' ' + x(200) + ',580 ' + x(212) + ',660Z';
-      s += outlineOf([fa], inkOf(sleeveCol), L * 2) + cel(X, fa, sleeveCol, dk(sleeveCol, 0.25), 6, 0);
+      if (!X.av) s += outlineOf([fa], inkOf(sleeveCol), L * 2) + cel(X, fa, sleeveCol, dk(sleeveCol, 0.25), 6, 0); // (arm + fist: below an avatar's crop; the held item may reach into it)
       var item = '';
       if (k === 'kunai') item = path('M' + P(hx - 8, hy - 8) + 'L' + P(hx - 40, hy - 70) + 'L' + P(hx - 78, hy - 150) + 'L' + P(hx - 20, hy - 82) + 'L' + P(hx + 4, hy - 20) + 'Z', X.lin([[0, '#f4f8fc'], [1, '#98a4b2']]), 'stroke="#20252e" stroke-width="' + r1(L * 1.1) + '"') +
         line('M' + P(hx - 12, hy - 22) + 'L' + P(hx - 70, hy - 136), '#ffffff', L * 0.8, 'opacity="0.8"') + seg(hx + 2, hy + 4, hx + 26, hy + 48, 10, '#3a3a44', '#111', L) + circ(hx + 32, hy + 60, 10, 'none', 'stroke="#222" stroke-width="' + r1(L * 1.6) + '"');
@@ -1817,7 +2043,7 @@
       if (k === 'senbon') { // fan of needles between the fingers (Haku)
         [-34, -22, -10].forEach(function (an) { var e = pol(hx - 4, hy - 6, 120, an - 90); item += line('M' + P(hx - 4, hy - 6) + 'L' + PP(e), '#3a3f4a', 4.2) + line('M' + P(hx - 4, hy - 6) + 'L' + PP(e), '#e6edf5', 2.2); });
       }
-      s += item + '<g transform="translate(' + r1(hx) + ',' + r1(hy) + ') scale(1.55) translate(' + r1(-hx) + ',' + r1(-hy) + ')">' + hand(X, hx, hy, -40, Cc.skin, Cc.skinInk, L / 1.55) + '</g>';
+      s += item + (X.av ? '' : '<g transform="translate(' + r1(hx) + ',' + r1(hy) + ') scale(1.55) translate(' + r1(-hx) + ',' + r1(-hy) + ')">' + hand(X, hx, hy, -40, Cc.skin, Cc.skinInk, L / 1.55) + '</g>');
     }
     if (k === 'dog') {
       s += '<g transform="translate(' + x(150) + ',372) scale(1.55) translate(' + (-x(150)) + ',-372)">';
@@ -1864,7 +2090,7 @@
     [[E1, -1], [E2, 1]].forEach(function (e) {
       var E_ = e[0], rx = E_[2] * 0.78, ry = E_[3] * 1.15 + 4, d = ellD(E_[0], E_[1] + 1, rx, ry);
       s += path(d, fc, 'fill-opacity="0.34" stroke="#22222a" stroke-width="' + r1(L * 2.2) + '"') + path(d, 'none', 'stroke="' + lt(fc, 0.35) + '" stroke-width="' + r1(L * 0.8) + '"');
-      s += path('M' + P(E_[0] - rx * 0.6, E_[1] - ry * 0.2) + 'q' + r1(rx * 0.3) + ',' + r1(-ry * 0.6) + ' ' + r1(rx * 0.8) + ',' + r1(-ry * 0.62), 'none', 'stroke="#fff" stroke-width="' + r1(L * 0.9) + '" opacity="0.75" stroke-linecap="round"');
+      s += path('M' + P(E_[0] - rx * 0.6, E_[1] - ry * 0.2) + 'q' + r1(rx * 0.3) + ',' + r1(-ry * 0.6) + ' ' + r1(rx * 0.8) + ',' + r1(-ry * 0.62), 'none', 'stroke="#fff" stroke-width="' + r1(L * 0.9) + '" opacity="0.75"');
     });
     s += line('M' + P(E1[0] + E1[2] * 0.78, E1[1] - 2) + 'Q' + P((E1[0] + E2[0]) / 2, E1[1] - 9) + ' ' + P(E2[0] - E2[2] * 0.78, E2[1] - 2), '#22222a', L * 1.6);
     return s;
@@ -2017,8 +2243,8 @@
         s += body(['M236,184L224,132L256,176Z', 'M282,176L282,120L300,174Z', 'M328,184L346,134L310,176Z']);
         s += body([hd]);
         var plate = 'M192,212L280,192L276,292L188,282Z';
-        s += path(plate, lt(bc, 0.25), 'stroke="' + ink + '" stroke-width="' + r1(L * 1.4) + '" stroke-linejoin="round"') + line('M200,236L274,224M198,260L272,252', dk(bc, 0.2), L, 'opacity="0.7"') + path('M196,214L180,186L218,208ZM236,204L230,174L256,200Z', lt(bc, 0.45), 'stroke="' + ink + '" stroke-width="' + r1(L) + '"');
-        s += beastEye(X, 324, 244, 54, 34, 1, eye, ec) + path('M294,222Q326,204 360,222', 'none', 'stroke="' + dk(bc, 0.45) + '" stroke-width="' + r1(L * 2.4) + '" stroke-linecap="round"');
+        s += path(plate, lt(bc, 0.25), 'stroke="' + ink + '" stroke-width="' + r1(L * 1.4) + '"') + line('M200,236L274,224M198,260L272,252', dk(bc, 0.2), L, 'opacity="0.7"') + path('M196,214L180,186L218,208ZM236,204L230,174L256,200Z', lt(bc, 0.45), 'stroke="' + ink + '" stroke-width="' + r1(L) + '"');
+        s += beastEye(X, 324, 244, 54, 34, 1, eye, ec) + path('M294,222Q326,204 360,222', 'none', 'stroke="' + dk(bc, 0.45) + '" stroke-width="' + r1(L * 2.4) + '"');
         s += path('M222,306Q282,336 346,302L338,334Q282,360 230,334Z', '#3a0a10', 'stroke="#1a0606" stroke-width="' + r1(L) + '"') + mouthTeeth(228, 340, 310, 8, 9);
         s += path('M206,300L190,330L220,322ZM358,296L376,326L346,318Z', lt(bc, 0.35), 'stroke="' + ink + '" stroke-width="' + r1(L) + '"');
         break;
@@ -2052,7 +2278,7 @@
         var snout = 'M242,300C240,278 320,278 318,300C322,340 306,366 280,368C254,366 238,340 242,300Z';
         s += outlineOf([snout], inkOf(bc), L * 2) + cel(X, snout, lt(bc, 0.3), dk(bc, 0.12), 5, 6);
         s += line('M226,318Q252,346 280,344Q308,346 334,318', inkOf(bc), L * 1.4) + path('M268,300Q280,292 292,300Q286,306 280,306Q274,306 268,300Z', dk(bc, 0.45));
-        s += path('M252,290Q262,280 278,282', 'none', 'stroke="#fff" stroke-width="' + r1(L * 1.2) + '" stroke-linecap="round" opacity="0.8"');
+        s += path('M252,290Q262,280 278,282', 'none', 'stroke="#fff" stroke-width="' + r1(L * 1.2) + '" opacity="0.8"');
         s += path('M214,236Q240,220 262,242Q238,252 214,236ZM346,236Q320,220 298,242Q322,252 346,236Z', ac);
         s += beastEye(X, 240, 240, 30, 18, -1, 'beast', ec) + beastEye(X, 320, 240, 30, 18, 1, 'beast', ec);
         break;
@@ -2088,7 +2314,7 @@
           var r = pug ? 13 : 9;
           s += circ(e[0], 244, r, '#1e140c', 'stroke="' + ink + '" stroke-width="' + r1(L * 0.8) + '"') + circ(e[0] - r * 0.35, 244 - r * 0.4, r * 0.32, '#fff');
           if (pug) s += path('M' + (e[0] - 15) + ',' + 236 + 'Q' + e[0] + ',' + 222 + ' ' + (e[0] + 15) + ',' + 236 + 'L' + (e[0] + 15) + ',' + 241 + 'Q' + e[0] + ',' + 232 + ' ' + (e[0] - 15) + ',' + 241 + 'Z', dk(bc, 0.1), 'stroke="' + ink + '" stroke-width="' + r1(L * 0.7) + '"');
-          s += path('M' + (e[0] - 14 * e[1]) + ',' + 224 + 'Q' + (e[0]) + ',' + 214 + ' ' + (e[0] + 12 * e[1]) + ',' + 220, 'none', 'stroke="' + dk(bc, 0.5) + '" stroke-width="' + r1(L * 1.6) + '" stroke-linecap="round"');
+          s += path('M' + (e[0] - 14 * e[1]) + ',' + 224 + 'Q' + (e[0]) + ',' + 214 + ' ' + (e[0] + 12 * e[1]) + ',' + 220, 'none', 'stroke="' + dk(bc, 0.5) + '" stroke-width="' + r1(L * 1.6) + '"');
         });
         s += path('M264,270Q280,260 296,270Q294,286 280,288Q266,286 264,270Z', '#141010', 'stroke="#000" stroke-width="' + r1(L * 0.6) + '"') + ell(274, 268, 4, 2.5, '#fff', 'opacity="0.6"');
         s += line('M280,288V300M262,306Q272,312 280,302Q288,312 298,306', '#1a0a0a', L * 1.1);
@@ -2177,11 +2403,15 @@
     var L = X.lw, b = pick(a.beast, ART.beast, 'fox'), bc = col(a.bodyColor, '#ff7a1a'), ac = col(a.accentColor, dk(bc, 0.6));
     var n = a.tails != null && isFinite(+a.tails) ? clamp(Math.round(+a.tails), 0, 10) : BEAST_TAILS[b];
     var P_ = { back: '', body: '', head: '', front: '', beast: true };
+    // small creatures (ninken, the elder sage toads) sit compactly: no humanoid neck/shoulders, and in the bust
+    // the whole figure is drawn at ~3/4 size so it reads as small next to the giant summons
+    var small = a.small != null ? !!a.small : (b === 'dog' || (b === 'toad' && (isHex(a.brows) || isHex(a.cape))));
     P_.back = beastTails(X, b, n, bc, ac, L);
     if (b !== 'snake') {
       var bd = 'M80,660C70,540 150,440 280,430C410,440 490,540 480,660Z';
       var arms = ['M84,660C70,560 110,480 170,470L214,660Z', 'M476,660C490,560 450,480 390,470L346,660Z'];
-      if (b === 'toad') { bd = 'M60,660C50,520 150,410 280,400C410,410 510,520 500,660Z'; arms = []; }
+      if (b === 'toad') { bd = small ? 'M112,660C100,540 168,444 280,438C392,444 460,540 448,660Z' : 'M60,660C50,520 150,410 280,400C410,410 510,520 500,660Z'; arms = []; }
+      if (b === 'dog' && small) { bd = 'M184,660C174,560 200,454 280,442C360,454 386,560 376,660Z'; arms = ['M146,660C140,596 156,526 198,514C232,520 244,596 238,660Z', mirrorD('M146,660C140,596 156,526 198,514C232,520 244,596 238,660Z')]; }
       if (b === 'slug') { bd = 'M70,660C60,560 120,470 280,450C440,470 500,560 490,660Z'; arms = []; }
       if (b === 'beetle') {
         bd = 'M150,660C140,560 190,470 280,460C370,470 420,560 410,660Z';
@@ -2196,14 +2426,14 @@
           var tip = pol(rb[0], rb[1], ln, ta), b0 = pol(rb[0], rb[1], 18, ta - 90), b1 = pol(rb[0], rb[1], 18, ta + 90), br = pol(rb[0], rb[1], ln * 0.55, ta), bt = pol(br[0], br[1], ln * 0.5, ta + (ti % 2 ? 40 : -40));
           sp += 'M' + PP(b0) + 'L' + PP(tip) + 'L' + PP(b1) + 'Z' + 'M' + PP(pol(br[0], br[1], 7, ta - 90)) + 'L' + PP(bt) + 'L' + PP(pol(br[0], br[1], 7, ta + 90)) + 'Z';
         }
-        P_.back += path(sp, cor, 'stroke="' + inkOf(bc) + '" stroke-width="' + r1(L * 1.4) + '" stroke-linejoin="round"');
+        P_.back += path(sp, cor, 'stroke="' + inkOf(bc) + '" stroke-width="' + r1(L * 1.4) + '"');
       }
-      var neck = { slug: 1, toad: 1 }[b] ? null : 'M228,330C224,384 206,432 170,486L390,486C354,432 336,384 332,330Z';
+      var neck = { slug: 1, toad: 1 }[b] || small ? null : 'M228,330C224,384 206,432 170,486L390,486C354,432 336,384 332,330Z';
       P_.body = outlineOf([bd].concat(arms, neck ? [neck] : []), inkOf(bc), L * 2.2) + (neck ? cel(X, neck, bc, dk(bc, 0.3), 16, 0) : '') + cel(X, bd, bc, dk(bc, 0.3), 30, 10);
       if (b === 'fox' || b === 'monkey' || b === 'tanuki' || b === 'ox') {
         var fur = '';
         for (var fi = 0; fi < 6; fi++) { fur += 'M' + P(110 + fi * 18, 520 - fi * 14) + 'l' + r1(-30 + fi * 3) + ',' + r1(-18 - fi * 2) + 'l' + r1(34 - fi * 2) + ',' + r1(6) + 'Z'; fur += 'M' + P(450 - fi * 18, 520 - fi * 14) + 'l' + r1(30 - fi * 3) + ',' + r1(-18 - fi * 2) + 'l' + r1(-34 + fi * 2) + ',' + r1(6) + 'Z'; }
-        P_.body += path(fur, bc, 'stroke="' + inkOf(bc) + '" stroke-width="' + r1(L) + '" stroke-linejoin="round"');
+        P_.body += path(fur, bc, 'stroke="' + inkOf(bc) + '" stroke-width="' + r1(L) + '"');
       }
       if (b === 'turtle') { // hexagonal scutes on the shell
         var sc3 = '';
@@ -2213,42 +2443,55 @@
       arms.forEach(function (d) { P_.body += cel(X, d, bc, dk(bc, 0.3), 14, 6); });
       if (b === 'beetle') P_.body += line('M170,540Q280,510 390,540M160,590Q280,560 400,590M280,470V660', dk(bc, 0.4), L * 1.2);
       else if (b === 'slug') {
-        P_.body += path('M140,600C170,540 230,520 280,520C330,520 390,540 420,600', 'none', 'stroke="' + lt(bc, 0.5) + '" stroke-width="10" opacity="0.6" stroke-linecap="round"');
+        P_.body += path('M140,600C170,540 230,520 280,520C330,520 390,540 420,600', 'none', 'stroke="' + lt(bc, 0.5) + '" stroke-width="10" opacity="0.6"');
         if (a.stripes) P_.body += '<g clip-path="' + X.clipPaths([bd]) + '">' + line('M176,486Q120,560 108,660M384,486Q440,560 452,660', ac, 18, 'opacity="0.8"') + '</g>';
       }
       else P_.body += path('M200,660C200,560 236,500 280,496C324,500 360,560 360,660Z', lt(bc, b === 'fox' || b === 'monkey' ? 0.2 : 0.12), 'opacity="0.7"');
       if (b === 'monkey') { // bony white spurs on the shoulders
         var spur = 'M118,528L104,452L140,504L150,446L166,512Z';
-        P_.body += path(spur + mirrorD(spur), '#f2ead8', 'stroke="#3a1a10" stroke-width="' + r1(L * 1.2) + '" stroke-linejoin="round"');
+        P_.body += path(spur + mirrorD(spur), '#f2ead8', 'stroke="#3a1a10" stroke-width="' + r1(L * 1.2) + '"');
       }
       if (b === 'dog' && isHex(a.vestColor)) { // ninken vest
-        var vc = col(a.vestColor), vd = 'M96,660C92,566 150,482 222,470L280,552L338,470C410,482 468,566 464,660Z';
-        P_.body += outlineOf([vd], inkOf(vc), L * 2) + cel(X, vd, vc, dk(vc, 0.3), 16, 8) + line('M222,470L280,552L338,470', lt(vc, 0.35), L * 1.2, 'opacity="0.8"');
+        var vc = col(a.vestColor), vd = small ? 'M182,660C176,580 206,472 246,452L280,522L314,452C354,472 384,580 378,660Z' : 'M96,660C92,566 150,482 222,470L280,552L338,470C410,482 468,566 464,660Z';
+        P_.body += outlineOf([vd], inkOf(vc), L * 2) + cel(X, vd, vc, dk(vc, 0.3), 16, 8) + line(small ? 'M246,452L280,522L314,452' : 'M222,470L280,552L338,470', lt(vc, 0.35), L * 1.2, 'opacity="0.8"');
       }
       if (b === 'toad' && isHex(a.cape)) { // elder sage's cape tied at the throat
-        var cc = col(a.cape), cd = 'M30,660C34,540 130,446 236,420L274,458C236,520 222,600 226,660Z', cd2 = mirrorD(cd);
-        P_.body += outlineOf([cd, cd2], inkOf(cc), L * 2) + cel(X, cd, cc, dk(cc, 0.32), 20, 8) + cel(X, cd2, cc, dk(cc, 0.32), 20, 8) + line('M120,560Q160,600 150,660M440,560Q400,600 410,660', dk(cc, 0.4), L, 'opacity="0.6"');
+        var cc = col(a.cape), cd = small ? 'M86,660C92,552 160,462 236,436L270,464C240,524 228,600 230,660Z' : 'M30,660C34,540 130,446 236,420L274,458C236,520 222,600 226,660Z', cd2 = mirrorD(cd);
+        P_.body += outlineOf([cd, cd2], inkOf(cc), L * 2) + cel(X, cd, cc, dk(cc, 0.32), 20, 8) + cel(X, cd2, cc, dk(cc, 0.32), 20, 8) + line(small ? 'M160,570Q190,610 182,660M400,570Q370,610 378,660' : 'M120,560Q160,600 150,660M440,560Q400,600 410,660', dk(cc, 0.4), L, 'opacity="0.6"');
         P_.body += path('M226,416L280,462L334,416L324,406L280,440L236,406Z', lt(cc, 0.3), 'stroke="' + inkOf(cc) + '" stroke-width="' + r1(L) + '"') + line('M262,470Q280,486 298,470', '#d8b040', L * 1.6) + circ(280, 462, 9, '#d8b040', 'stroke="#4a3a10" stroke-width="' + r1(L * 0.8) + '"');
       }
+      if (b === 'toad' && small) { // little webbed hands folded over the belly
+        var tH = 'M188,652C176,624 188,594 214,592C238,592 250,616 246,636L238,630L234,648L224,640L218,656Z';
+        P_.body += outlineOf([tH, mirrorD(tH)], inkOf(bc), L * 2) + cel(X, tH, bc, dk(bc, 0.3), 6, 6) + cel(X, mirrorD(tH), bc, dk(bc, 0.3), -6, 6);
+      }
       if ({ fox: 1, monkey: 1, tanuki: 1, ox: 1, juubi: 1, cat: 1, dog: 1 }[b]) {
-        [[150, 1], [410, -1]].forEach(function (pw) {
-          var px = pw[0], sg = pw[1];
+        (small ? [[192, 1], [368, -1]] : [[150, 1], [410, -1]]).forEach(function (pw) {
+          var px = pw[0], sg = pw[1], pk = small ? '<g transform="translate(' + px + ',660) scale(0.72) translate(' + (-px) + ',-660)">' : '';
+          P_.body += pk;
           var pd = 'M' + (px - 64) + ',660C' + (px - 70) + ',596 ' + (px - 30) + ',560 ' + px + ',562C' + (px + 34) + ',564 ' + (px + 70) + ',598 ' + (px + 64) + ',660Z';
           P_.body += outlineOf([pd], inkOf(bc), L * 2) + cel(X, pd, bc, dk(bc, 0.3), 10 * sg, 8);
           for (var ci = 0; ci < 4; ci++) {
             var cx_ = px - 42 + ci * 28, cy_ = 572 + Math.abs(ci - 1.5) * 8;
             P_.body += path('M' + (cx_ - 8) + ',' + (cy_ + 6) + 'Q' + (cx_ - 4) + ',' + (cy_ - 22) + ' ' + (cx_ + 4 * sg) + ',' + (cy_ - 30) + 'Q' + (cx_ + 4) + ',' + (cy_ - 12) + ' ' + (cx_ + 8) + ',' + (cy_ + 6) + 'Z', '#f4ece0', 'stroke="#2a1a10" stroke-width="' + r1(L * 0.9) + '"');
           }
-          P_.body += line('M' + (px - 30) + ',600Q' + (px - 26) + ',620 ' + (px - 30) + ',640M' + px + ',598Q' + (px + 4) + ',620 ' + px + ',640M' + (px + 30) + ',600Q' + (px + 32) + ',620 ' + (px + 28) + ',640', inkOf(bc), L * 0.7, 'opacity="0.6"');
+          P_.body += line('M' + (px - 30) + ',600Q' + (px - 26) + ',620 ' + (px - 30) + ',640M' + px + ',598Q' + (px + 4) + ',620 ' + px + ',640M' + (px + 30) + ',600Q' + (px + 32) + ',620 ' + (px + 28) + ',640', inkOf(bc), L * 0.7, 'opacity="0.6"') + (pk ? '</g>' : '');
         });
       }
       if (b === 'cat') P_.back += path(flameRow(70, 490, 470, 120, 9, 9), lt(bc, 0.35), 'opacity="0.8"') + path(flameRow(110, 450, 470, 80, 7, 19), lt(bc, 0.6), 'opacity="0.6"');
       P_.sil = [bd].concat(arms);
     } else P_.sil = [];
     var H = beastHead(X, b, bc, ac, a, L);
-    P_.head = H.s;
+    // no-neck creatures (toads, slugs, the compact ninken) rest the head on the body in the bust instead of leaving a
+    // gap above it; the avatar crops to the head, so it keeps the original placement
+    var drop = mode !== 'bust' ? 0 : b === 'toad' ? (small ? 70 : 34) : b === 'slug' ? 74 : (b === 'dog' && small) ? 104 : 0;
+    P_.head = drop ? '<g transform="translate(0,' + drop + ')">' + H.s + '</g>' : H.s;
     P_.silHead = [];
-    if (H.hd) P_.sil.push(H.hd);
+    if (H.hd) P_.sil.push(drop ? H.hd.replace(/(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/g, function (m, x, y) { return x + ',' + r1(+y + drop); }) : H.hd);
+    if (small && mode === 'bust') {
+      var SM = 'translate(280,660) scale(0.76) translate(-280,-660)';
+      ['back', 'body', 'head'].forEach(function (k) { if (P_[k]) P_[k] = '<g transform="' + SM + '">' + P_[k] + '</g>'; });
+      P_.silT = SM;
+    }
     P_.avatarVB = { toad: '130 120 300 300', snake: '140 110 290 290', horse: '146 90 270 270', juubi: '130 100 300 300', turtle: '140 120 280 280', beetle: '146 96 270 270' }[b] || '140 110 280 280';
     return P_;
   };
@@ -2267,7 +2510,8 @@
     return 'M' + P(bx - w / 2, by) + 'C' + P(bx - w * 0.75, by - h * 0.35) + ' ' + P(bx + lean * 0.2 - w * 0.55, by - h * 0.62) + ' ' + P(bx + lean, by - h) +
       'C' + P(bx + lean * 0.35 + w * 0.2, by - h * 0.62) + ' ' + P(bx + w * 0.75, by - h * 0.4) + ' ' + P(bx + w / 2, by) + 'Z';
   }
-  function renderAura(X, c, a, sil, silHead) {
+  function renderAura(X, c, a, p) {
+    var sil = p.sil, silHead = p.silHead;
     var ac = auraColor(c, a), R = rng(hash(c.id || 'x') ^ 0x9e37), s = '', i;
     s += ell(280, 320, 300, 340, X.rad([[0, lt(ac, 0.25), 0.7], [0.45, ac, 0.3], [1, ac, 0]]));
     // light rays
@@ -2291,13 +2535,20 @@
     var sl = '';
     for (i = 0; i < 18; i++) {
       var a2 = R() * 360, r0 = 250 + R() * 50, r2 = r0 + 60 + R() * 110, p0 = pol(280, 300, r0, a2), p1 = pol(280, 300, r2, a2);
-      sl += 'M' + PP(p0) + 'L' + PP(p1);
+      if (i % 3 !== 2) sl += 'M' + PP(p0) + 'L' + PP(p1); // (12 of the 18 random streaks; rng sequence unchanged)
     }
     s += line(sl, lt(ac, 0.7), 2, 'opacity="0.35"');
-    // glowing silhouette rim
+    // glowing silhouette halo: the silhouette is defined once and re-used as concentric translucent strokes
+    // (outer → inner, fading out) — the look of a blurred rim without a filter
     if (sil && sil.length) {
-      var st = '" fill="' + ac + '" stroke="' + lt(ac, 0.35) + '" stroke-width="24" stroke-linejoin="round"/>';
-      s += '<g filter="' + X.blur(8) + '" opacity="0.85"><path d="' + sil.join('') + st + (silHead && silHead.length ? '<path transform="' + HT + '" d="' + silHead.join('') + st : '') + '</g>';
+      var gid = X.def('<g>' + (p.bodySil ? '<use href="#' + p.bodySil + '"/>' : '<path' + (p.silT ? ' transform="' + p.silT + '"' : '') + ' d="' + sil.join('') + '"/>') +
+        (silHead && silHead.length || p.hairSil ? '<g transform="' + HT + '">' + (silHead && silHead.length ? '<path d="' + silHead.join('') + '"/>' : '') +
+          (p.silHeadIds || []).map(function (i) { return '<use href="#' + i + '"/>'; }).join('') + (p.hairSil ? '<use href="#' + p.hairSil + '"/>' : '') + '</g>' : '') + '</g>');
+      s += '<g fill="none">';
+      [[36, lt(ac, 0.15), 0.1], [27, lt(ac, 0.3), 0.16], [19, lt(ac, 0.4), 0.22], [11, lt(ac, 0.5), 0.3]].forEach(function (g) {
+        s += '<use href="#' + gid + '" stroke="' + g[1] + '" stroke-width="' + g[0] + '" stroke-opacity="' + g[2] + '"/>';
+      });
+      s += '</g>';
     }
     s += elementParticles(X, c, ac, R);
     if (a && (a.wings || c.id === 'choji_butterfly')) s += chakraWings(X, ac);
@@ -2308,7 +2559,8 @@
       var sp = '';
       for (var k = 0; k < (ro >= 4 ? 22 : 10); k++) {
         var sx = 30 + R() * 500, sy = 40 + R() * 560, sz = 2.5 + R() * (ro >= 4 ? 6 : 4);
-        sp += 'M' + P(sx, sy - sz * 2) + 'L' + P(sx + sz * 0.45, sy - sz * 0.45) + 'L' + P(sx + sz * 2, sy) + 'L' + P(sx + sz * 0.45, sy + sz * 0.45) + 'L' + P(sx, sy + sz * 2) + 'L' + P(sx - sz * 0.45, sy + sz * 0.45) + 'L' + P(sx - sz * 2, sy) + 'L' + P(sx - sz * 0.45, sy - sz * 0.45) + 'Z';
+        var sc_ = P(sx, sy); // 4-point twinkle: quadratic sides pulled to the centre (same outline as the old 8-vertex star)
+        sp += 'M' + P(sx, sy - sz * 2) + 'Q' + sc_ + ' ' + P(sx + sz * 2, sy) + 'Q' + sc_ + ' ' + P(sx, sy + sz * 2) + 'Q' + sc_ + ' ' + P(sx - sz * 2, sy) + 'Q' + sc_ + ' ' + P(sx, sy - sz * 2) + 'Z';
       }
       s += path(sp, ro >= 4 ? '#fff0b0' : '#ffffff', 'opacity="0.85"');
     }
@@ -2324,33 +2576,27 @@
     o += '<g transform="translate(560,0) scale(-1,1)">' + line('M270,384Q150,250 60,210M270,388Q160,330 80,300M270,404Q190,460 140,540', lt(ac, 0.85), 2, 'opacity="0.8"') + '</g>';
     return '<g opacity="0.9">' + o + '</g>';
   }
-  // light from the top-left: soft volume gradient + aura-coloured rim light on the lit outer edges (mask = union minus shifted union)
-  Ctx.prototype.mask = function (inner) {
-    var id = this.uid();
-    this.defs.push('<mask id="' + id + '" maskUnits="userSpaceOnUse" x="-100" y="-100" width="800" height="900">' + inner + '</mask>');
-    return 'url(#' + id + ')';
-  };
-  function volume(X, list, ac, xf, soft) {
-    if (!list || !list.length) return '';
-    var d = list.join(''), o = '';
-    var cp = X.clipPaths(list);
-    o += '<g clip-path="' + cp + '">' + path(d, X.lin([[0, '#ffffff', soft ? 0.05 : 0.1], [0.45, '#ffffff', 0], [1, '#000018', soft ? 0.12 : 0.26]], 0, 0, 1, 1)) + '</g>';
-    if (ac) {
-      var m = X.mask('<path d="' + d + '" fill="#fff"/><path d="' + d + '" fill="#000" transform="translate(7,4)"/>');
-      o += '<g mask="' + m + '"><rect x="0" y="0" width="560" height="660" fill="' + lt(ac, 0.6) + '" opacity="0.7"/></g>';
-    }
+  // light from the top-left: soft volume gradient over the silhouette pieces (no clip needed: the fill of the
+  // joined path is the region the old union clip allowed)
+  function volume(X, list, ac, xf, soft, useId) {
+    if (!useId && (!list || !list.length)) return '';
+    var gr = X.lin([[0, '#ffffff', soft ? 0.05 : 0.1], [0.45, '#ffffff', 0], [1, '#000018', soft ? 0.12 : 0.26]], 0, 0, 1, 1);
+    var o = useId ? '<use href="#' + useId + '" fill="' + gr + '"/>' : path(list.join(''), gr);
     return xf ? '<g transform="' + HT + '">' + o + '</g>' : o;
   }
   function elementParticles(X, c, ac, R) {
     var el = c.element, s = '', i, x, y;
     if (el === 'lightning') {
+      var bolts = '';
       for (i = 0; i < 4; i++) {
-        x = 60 + R() * 440; y = 80 + R() * 420; var d = 'M' + P(x, y);
-        for (var k = 0; k < 5; k++) { x += (R() - 0.5) * 50; y += 18 + R() * 22; d += 'L' + P(x, y); }
-        s += line(d, '#ffffff', 3, 'opacity="0.85"') + line(d, ac, 7, 'opacity="0.35"');
+        x = 60 + R() * 440; y = 80 + R() * 420; bolts += 'M' + P(x, y);
+        for (var k = 0; k < 5; k++) { x += (R() - 0.5) * 50; y += 18 + R() * 22; bolts += 'L' + P(x, y); }
       }
+      s += line(bolts, '#ffffff', 3, 'opacity="0.85"') + line(bolts, ac, 7, 'opacity="0.35"');
     } else if (el === 'fire') {
-      for (i = 0; i < 14; i++) { x = 40 + R() * 480; y = 60 + R() * 520; s += circ(x, y, 2 + R() * 4, i % 2 ? '#ffd54f' : '#ff7b00', 'opacity="' + r1(0.5 + R() * 0.5) + '"'); }
+      var ember = [[], []];
+      for (i = 0; i < 14; i++) { x = 40 + R() * 480; y = 60 + R() * 520; ember[i % 2].push([x, y, 2 + R() * 4, 0.5 + R() * 0.5]); }
+      s += dots(ember[0], '#ff7b00') + dots(ember[1], '#ffd54f');
     } else if (el === 'wind') {
       for (i = 0; i < 5; i++) { x = 40 + R() * 460; y = 80 + R() * 440; s += line('M' + P(x, y) + 'q40,-30 90,-6', '#e6fff6', 3, 'opacity="0.6"'); }
     } else if (el === 'water') {
@@ -2358,7 +2604,9 @@
     } else if (el === 'earth') {
       for (i = 0; i < 8; i++) { x = 40 + R() * 480; y = 300 + R() * 300; s += path('M' + P(x, y) + 'l10,-8l10,6l-4,10l-12,2Z', '#8d6e63', 'opacity="0.8"'); }
     } else if (el === 'yin') {
-      for (i = 0; i < 6; i++) { x = 40 + R() * 480; y = 100 + R() * 460; s += circ(x, y, 10 + R() * 18, '#2a1a40', 'opacity="0.35"'); }
+      var orbs = [];
+      for (i = 0; i < 6; i++) { x = 40 + R() * 480; y = 100 + R() * 460; orbs.push([x, y, 10 + R() * 18]); }
+      s += path(orbs.map(function (q) { return circleD(q[0], q[1], q[2]); }).join(''), '#2a1a40', 'opacity="0.35"');
     } else if (el === 'yang') {
       for (i = 0; i < 12; i++) { x = 40 + R() * 480; y = 60 + R() * 520; s += path('M' + P(x, y - 7) + 'L' + P(x + 2, y - 2) + 'L' + P(x + 7, y) + 'L' + P(x + 2, y + 2) + 'L' + P(x, y + 7) + 'L' + P(x - 2, y + 2) + 'L' + P(x - 7, y) + 'L' + P(x - 2, y - 2) + 'Z', '#fff8d0', 'opacity="0.85"'); }
     }
@@ -2384,11 +2632,232 @@
     if (!a || typeof a !== 'object') return GENERIC;
     return a;
   }
+  /* ---------- output optimizer ----------
+   * The drawing code favours clarity; before an SVG leaves this module it is post-processed on a tiny tree:
+   *  · cull: (avatars, crops) elements whose bounds miss the viewBox are dropped — an avatar is a crop of the
+   *    full bust drawing, so most of the outfit below the collar never reaches the picture;
+   *  · merge: consecutive sibling <path>s with identical paint attributes become one element;
+   *  · defs that nothing references any more are dropped; numbers lose leading zeros; round caps/joins are
+   *    set once on the root and stripped from the elements.
+   * Fewer elements / bytes = less XML parsing and DOM building every time the browser decodes the image. */
+  var TOK = /<(\/?)([a-zA-Z][\w:-]*)([^>]*?)(\/?)>|([^<]+)/g;
+  function parseTree(s, ids) { // (ids: optional set filled with every id="…")
+    var root = { c: [] }, st = [root], m;
+    TOK.lastIndex = 0;
+    while ((m = TOK.exec(s))) {
+      var top = st[st.length - 1];
+      if (m[5] != null) { top.c.push({ t: m[5] }); continue; }
+      if (m[1]) { if (st.length > 1) st.pop(); continue; }
+      var n = { n: m[2], a: m[3], c: [] };
+      if (ids && m[3].indexOf(' id="') >= 0) ids[at(n, 'id')] = 1;
+      top.c.push(n);
+      if (!m[4]) st.push(n);
+    }
+    return root.c;
+  }
+  // (path data is written in its compact form here — see compactPath)
+  function serial(list) {
+    var o = '';
+    for (var i = 0; i < list.length; i++) {
+      var n = list[i];
+      if (n.t != null) { o += n.t; continue; }
+      var a = n.n === 'path' ? n.a.replace(DRE, compactD) : n.a;
+      o += '<' + n.n + a + (n.c.length ? '>' + serial(n.c) + '</' + n.n + '>' : '/>');
+    }
+    return o;
+  }
+  function at(n, k) { var i = n.a.indexOf(' ' + k + '="'); if (i < 0) return null; i += k.length + 3; return n.a.slice(i, n.a.indexOf('"', i)); }
+  // 2-D affine matrices [a b c d e f]
+  function mmul(m, n) { return [m[0] * n[0] + m[2] * n[1], m[1] * n[0] + m[3] * n[1], m[0] * n[2] + m[2] * n[3], m[1] * n[2] + m[3] * n[3], m[0] * n[4] + m[2] * n[5] + m[4], m[1] * n[4] + m[3] * n[5] + m[5]]; }
+  function parseTf(s) {
+    var M = [1, 0, 0, 1, 0, 0], re = /(\w+)\s*\(([^)]*)\)/g, m;
+    while ((m = re.exec(s))) {
+      var v = m[2].split(/[\s,]+/).filter(function (x) { return x !== ''; }).map(Number), T;
+      switch (m[1]) {
+        case 'translate': T = [1, 0, 0, 1, v[0] || 0, v[1] || 0]; break;
+        case 'scale': T = [v[0], 0, 0, v[1] == null ? v[0] : v[1], 0, 0]; break;
+        case 'rotate':
+          var r = (v[0] || 0) * Math.PI / 180, co = Math.cos(r), si = Math.sin(r), cx = v[1] || 0, cy = v[2] || 0;
+          T = [co, si, -si, co, cx - co * cx + si * cy, cy - si * cx - co * cy]; break;
+        case 'matrix': T = v.slice(0, 6); break;
+        default: return null; // skew etc.: unknown → caller keeps the element
+      }
+      M = mmul(M, T);
+    }
+    return M;
+  }
+  function nodeBox(n) {
+    var f = function (k) { return +at(n, k) || 0; };
+    switch (n.n) {
+      case 'path': return pathBox(at(n, 'd') || '');
+      case 'circle': return [f('cx') - f('r'), f('cy') - f('r'), f('cx') + f('r'), f('cy') + f('r')];
+      case 'ellipse': return [f('cx') - f('rx'), f('cy') - f('ry'), f('cx') + f('rx'), f('cy') + f('ry')];
+      case 'rect': return [f('x'), f('y'), f('x') + f('width'), f('y') + f('height')];
+      case 'text':
+        var fs = f('font-size') || 16, len = ((n.c[0] && n.c[0].t) || '').length + 1;
+        return [f('x') - fs * len, f('y') - fs * 1.2, f('x') + fs * len, f('y') + fs * 0.5];
+    }
+    return null; // use / svg / unknown: always kept
+  }
+  // drop elements entirely outside vb [x0,y0,x1,y1]; M = current transform
+  function cull(list, M, vb) {
+    var out = [];
+    for (var i = 0; i < list.length; i++) {
+      var n = list[i];
+      if (n.t != null) { out.push(n); continue; }
+      var tf = at(n, 'transform'), T = tf ? parseTf(tf) : null;
+      if (tf && !T) { out.push(n); continue; }
+      var M2 = T ? mmul(M, T) : M;
+      if (n.n === 'g') { n.c = cull(n.c, M2, vb); if (n.c.length) out.push(n); continue; }
+      if (n.n === 'svg') { // nested viewport (awaken icon portrait): cull against its own viewBox
+        var iv = (at(n, 'viewBox') || '').split(' ').map(Number);
+        if (iv.length === 4) n.c = cull(n.c, [1, 0, 0, 1, 0, 0], [iv[0], iv[1], iv[0] + iv[2], iv[1] + iv[3]]);
+        out.push(n); continue;
+      }
+      var b = nodeBox(n);
+      if (!b) { out.push(n); continue; }
+      // (+8 covers strokes inherited from a parent group, e.g. the avatar outline at its widest)
+      var pad = (+at(n, 'stroke-width') || 0) / 2 + 8, x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+      [[b[0] - pad, b[1] - pad], [b[2] + pad, b[1] - pad], [b[0] - pad, b[3] + pad], [b[2] + pad, b[3] + pad]].forEach(function (p) {
+        var x = M2[0] * p[0] + M2[2] * p[1] + M2[4], y = M2[1] * p[0] + M2[3] * p[1] + M2[5];
+        if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+      });
+      if (x1 >= vb[0] && x0 <= vb[2] && y1 >= vb[1] && y0 <= vb[3]) out.push(n);
+    }
+    return out;
+  }
+  // merge consecutive <path> siblings that differ only in d (paint, opacity, clip identical; no transform/id)
+  var DRE = / d="([^"]*)"/;
+  function mergePaths(list) {
+    var out = [];
+    for (var i = 0; i < list.length; i++) {
+      var n = list[i];
+      if (n.c && n.c.length) n.c = mergePaths(n.c);
+      var p = out[out.length - 1];
+      if (p && n.n === 'path' && p.n === 'path' && !n.c.length && !p.c.length) {
+        var dn = DRE.exec(n.a), dp = DRE.exec(p.a);
+        if (dn && dp && dn[1].charAt(0) === 'M' && n.a.replace(DRE, '') === p.a.replace(DRE, '') && !/ (transform|id|fill-rule)="/.test(n.a)) {
+          p.a = p.a.replace(DRE, function () { return ' d="' + dp[1] + dn[1] + '"'; });
+          continue;
+        }
+      }
+      out.push(n);
+    }
+    return out;
+  }
+  // ids referenced as url(#id) or href="#id" (indexOf scan: this runs over every finished picture)
+  function refs(s, set) {
+    ['url(#', 'href="#'].forEach(function (k) {
+      var i = 0, j;
+      while ((i = s.indexOf(k, i)) >= 0) { i += k.length; j = s.indexOf(k.length === 5 ? ')' : '"', i); if (j < 0) return; set[s.slice(i, j)] = 1; i = j; }
+    });
+  }
+  // keep only the defs (transitively) referenced from body
+  function liveDefs(defs, body) {
+    var need = {}, byId = {}, done = {}, keep = [], changed = true;
+    refs(body, need);
+    defs.forEach(function (d) { var m = /^<\w+ id="([\w-]+)"/.exec(d); if (m) byId[m[1]] = d; });
+    while (changed) {
+      changed = false;
+      for (var id in need) if (byId[id] && !done[id]) { done[id] = 1; changed = true; refs(byId[id], need); }
+    }
+    defs.forEach(function (d) { var m = /^<\w+ id="([\w-]+)"/.exec(d); if (!m || need[m[1]]) keep.push(d); });
+    return keep;
+  }
+  // shortest path data for the same geometry: absolute points rounded first (to the precision the drawing
+  // used, ≤ 3 decimals), then written as relative deltas between those rounded points (no drift), with
+  // repeated command letters and redundant separators dropped
+  var DECRE = /\.(\d+)/g;
+  var compactPath = pmemo(compactPath_);
+  function compactPath_(d) {
+    var p = 0, m;
+    DECRE.lastIndex = 0;
+    while ((m = DECRE.exec(d))) if (m[1].length > p) p = m[1].length;
+    if (p > 3) p = 3;
+    var k = Math.pow(10, p), o = '', last = '', prev = '', cx = 0, cy = 0, sx = 0, sy = 0, first = true;
+    function R(v) { return Math.round(v * k) / k; }
+    function num(v) {
+      v = R(v);
+      var neg = v < 0, t = '' + (neg ? -v : v), c0;
+      if (t.indexOf('e') >= 0) t = (neg ? -v : v).toFixed(p);
+      if (t.length > 1 && t.charCodeAt(0) === 48) t = t.slice(1); // 0.5 → .5
+      if (neg && t !== '0') t = '-' + t;
+      c0 = t.charCodeAt(0);
+      var sep = prev === '' || c0 === 45 || (c0 === 46 && prev.indexOf('.') >= 0) ? '' : ' ';
+      prev = t;
+      return sep + t;
+    }
+    function cmd(c) { if (c !== last || c === 'm' || c === 'M') { o += c; last = c; prev = ''; } }
+    walkPath(d, function (U, a) {
+      var i;
+      if (U === 'Z') { o += 'z'; last = 'z'; prev = ''; cx = sx; cy = sy; return; }
+      if (U === 'M') {
+        var x = R(a[0]), y = R(a[1]);
+        if (first) { cmd('M'); o += num(x) + num(y); last = 'L'; } else { cmd('m'); o += num(x - cx) + num(y - cy); last = 'l'; } // (implicit lineto after a moveto has its case)
+        first = false; cx = sx = x; cy = sy = y; return;
+      }
+      first = false;
+      if (U === 'H') { var hx = R(a[0]); cmd('h'); o += num(hx - cx); cx = hx; return; }
+      if (U === 'V') { var vy = R(a[0]); cmd('v'); o += num(vy - cy); cy = vy; return; }
+      if (U === 'A') {
+        var ax = R(a[5]), ay = R(a[6]);
+        cmd('a'); o += num(a[0]) + num(a[1]) + num(a[2]) + ' ' + (+a[3] ? 1 : 0) + ' ' + (+a[4] ? 1 : 0); prev = '0';
+        o += num(ax - cx) + num(ay - cy); cx = ax; cy = ay; return;
+      }
+      cmd(U.toLowerCase());
+      for (i = 0; i < a.length; i += 2) o += num(R(a[i]) - cx) + num(R(a[i + 1]) - cy);
+      cx = R(a[a.length - 2]); cy = R(a[a.length - 1]);
+    });
+    return o.length < d.length ? o : d;
+  }
+  function compactD(m0, d) { return ' d="' + compactPath(d) + '"'; }
+  function minify(s) {
+    return s
+      .replace(/(^|[^\d.])0\.(?=\d)/g, '$1.')
+      .replace(/((?:fill|stroke|stop-color)="#)([0-9a-f])\2([0-9a-f])\3([0-9a-f])\4"/gi, '$1$2$3$4"');
+  }
   function svgOpen(vb, w, h, extra) {
     return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="' + vb + '" width="' + w + '" height="' + h + '"' + (extra || '') + '>';
   }
-  function finish(X, vb, w, h, body, extra) {
-    return svgOpen(vb, w, h, extra) + (X.defs.length ? '<defs>' + X.defs.join('') + '</defs>' : '') + body + '</svg>';
+  var ROUND = ' stroke-linecap="round" stroke-linejoin="round"'; // set once on the root; elements never repeat it
+  var IDRE = / id="([\w-]+)"/g, HREF = / href="#([\w-]+)"/;
+  // outline <use>s: unclaimed ids → the path data itself; ids culled away → drop; a lone outline directly
+  // followed by its shape → one element (stroke painted under the fill)
+  function fixOutlines(list, ids, phase) {
+    var out = [];
+    for (var i = 0; i < list.length; i++) {
+      var n = list[i];
+      if (n.t != null) { out.push(n); continue; }
+      if (n.n === 'use' && !n.c.length) {
+        var m = HREF.exec(n.a), id = m && m[1];
+        if (id && OLP[id] != null && !ids[id]) { if (phase === 0) out.push({ n: 'path', a: ' d="' + OLP[id] + '"', c: [] }); continue; }
+        out.push(n); continue;
+      }
+      if (n.c.length) n.c = fixOutlines(n.c, ids, phase);
+      if (n.n === 'g' && !n.c.length) continue;
+      var nx = list[i + 1];
+      if (phase === 1 && n.n === 'g' && n.c.length === 1 && n.c[0].n === 'use' && nx && nx.n === 'path' && /^ fill="[^"]*" stroke="[^"]*" stroke-width="[^"]*"$/.test(n.a)) {
+        var u = HREF.exec(n.c[0].a);
+        if (u && at(nx, 'id') === u[1] && !/ stroke=/.test(nx.a)) { nx.a += n.a.replace(/ fill="[^"]*"/, '') + ' paint-order="stroke"'; continue; }
+      }
+      if (phase === 1 && n.n === 'g' && n.c.length === 1 && n.c[0].n === 'use' && nx && nx.n === 'g' && nx.c.length === 1 && nx.c[0].n === 'path' && /^ fill="[^"]*" stroke="[^"]*" stroke-width="[^"]*"$/.test(n.a) && /^ fill="[^"]*"$/.test(nx.a)) {
+        var u2 = HREF.exec(n.c[0].a);
+        if (u2 && at(nx.c[0], 'id') === u2[1]) { nx.a += n.a.replace(/ fill="[^"]*"/, '') + ' paint-order="stroke"'; continue; }
+      }
+      out.push(n);
+    }
+    return out;
+  }
+  function idsIn(s) { var o = {}, m; IDRE.lastIndex = 0; while ((m = IDRE.exec(s))) o[m[1]] = 1; return o; }
+  // o.cull = [x,y,w,h] viewBox to cull against (omit to keep everything)
+  function finish(X, vb, w, h, body, extra, o) {
+    var ids = {}, tree = fixOutlines(parseTree(body, ids), ids, 0);
+    if (o && o.cull) { var v = o.cull; tree = cull(tree, [1, 0, 0, 1, 0, 0], [v[0], v[1], v[0] + v[2], v[1] + v[3]]); ids = idsIn(serial(tree)); }
+    tree = fixOutlines(tree, ids, 1);
+    body = serial(mergePaths(tree));
+    OLP = {};
+    var defs = liveDefs(X.defs, body);
+    return svgOpen(vb, w, h, ROUND + (extra || '')) + minify((defs.length ? '<defs>' + defs.join('').replace(/ d="([^"]*)"/g, compactD) + '</defs>' : '') + body) + '</svg>';
   }
   function safe(fn, fallback) {
     try { return fn(); } catch (e) { if (root.console) console.warn('[NG.art]', e && e.message); return fallback(); }
@@ -2401,19 +2870,20 @@
   }
 
   function bustSVG(c, w, h) {
-    var X = new Ctx('b' + (hash(cid(c)) % 46656).toString(36) + '_', 3);
+    var X = new Ctx(pfx('b', cid(c)), 3);
     var p = drawCharacter(c, X, 'bust');
     var ac = auraColor(c, artOf(c));
-    var body = renderAura(X, c, artOf(c), p.sil, p.silHead) + p.back + p.body + p.head + (p.beast ? '' : volume(X, p.silHeadV || [], ac, true, true)) + p.front;
+    var body = renderAura(X, c, artOf(c), p) + p.back + p.body + p.head + (p.hairSil ? volume(X, [], ac, true, true, p.hairSil) : '') + p.front;
     return finish(X, '0 0 560 640', w, h, body, ' preserveAspectRatio="xMidYMax meet"');
   }
   function avatarSVG(c, size) {
     var s = size / 280;
-    var X = new Ctx('a' + (hash(cid(c)) % 46656).toString(36) + '_', clamp(1.2 / s, 3, 6.5));
+    var X = new Ctx(pfx('a', cid(c)), clamp(1.2 / s, 3, 6.5));
+    X.av = true;
     var p = drawCharacter(c, X, 'avatar');
     var vb = p.avatarVB || '141 82 280 280';
     var body = p.back + p.body + p.head + p.front;
-    return finish(X, vb, size, size, body);
+    return finish(X, vb, size, size, body, '', { cull: vb.split(' ').map(Number) });
   }
 
   function toURL(svg) {
@@ -2439,9 +2909,9 @@
     var st = 'stroke="' + EK + '" ', sw = 'stroke-width="3" ';
     if (extra && /(^|\s)stroke="/.test(extra)) st = '';
     if (extra && /stroke-width="/.test(extra)) sw = '';
-    return '<path d="' + d + '" fill="' + fill + '" ' + st + sw + 'stroke-linejoin="round" stroke-linecap="round"' + (extra ? ' ' + extra : '') + '/>';
+    return '<path d="' + d + '" fill="' + fill + '" ' + (st + sw).replace(/ $/, '') + (extra ? ' ' + extra : '') + '/>';
   }
-  function EL(d, stroke, w, extra) { return '<path d="' + d + '" fill="none" stroke="' + stroke + '" stroke-width="' + w + '" stroke-linejoin="round" stroke-linecap="round"' + (extra ? ' ' + extra : '') + '/>'; }
+  function EL(d, stroke, w, extra) { return '<path d="' + d + '" fill="none" stroke="' + stroke + '" stroke-width="' + w + '"' + (extra ? ' ' + extra : '') + '/>'; }
   function eyeKindOf(c) {
     var a = artOf(c), k = [a.eyeL, a.eyeR, a.eyes];
     for (var i = 0; i < k.length; i++) if (k[i] && (DOJ[k[i]] || k[i] === 'sage' || k[i] === 'six_paths' || k[i] === 'kurama' || k[i] === 'rinne_sharingan')) return k[i];
@@ -2464,17 +2934,17 @@
       case 'wood': return E('M20,92L28,40L18,18L34,30L40,10L46,34L40,92Z', '#9a6a3a') + E('M52,92L58,30L52,8L66,26L74,12L72,38L66,92Z', '#b07a44') + E('M70,92L78,52L92,44L82,62L84,92Z', '#8a5a2a') + E('M30,40Q14,40 10,30Q24,26 30,34ZM72,38Q88,30 92,20Q78,22 70,32Z', '#7cc86a');
       case 'sand': return E('M6,80C22,50 46,70 62,46C70,34 86,30 94,38C84,40 76,50 70,62C56,86 28,72 6,88Z', X.lin([[0, '#fff0c8'], [1, '#d4a85a']])) + circ(30, 40, 4, '#fff0c8', 'stroke="' + EK + '" stroke-width="2"') + circ(44, 28, 3, '#fff0c8', 'stroke="' + EK + '" stroke-width="2"') + circ(22, 58, 3, '#fff0c8', 'stroke="' + EK + '" stroke-width="2"');
       case 'ice': for (var i = 0; i < 6; i++) o += E('M50,50L46,18L50,6L54,18Z', i % 2 ? '#e8f8ff' : '#bfe8ff', 'transform="rotate(' + i * 60 + ' 50 50)"'); return o + circ(50, 50, 8, '#fff', 'stroke="' + EK + '" stroke-width="2.5"');
-      case 'lava': return E('M14,46C14,24 34,14 50,16C70,16 86,28 86,46C86,58 80,62 78,72C76,82 70,82 70,72C70,64 64,64 62,74C60,90 52,92 50,80C48,68 42,70 40,78C38,86 30,86 30,76C30,66 14,64 14,46Z', X.lin([[0, '#ffd27a'], [0.5, '#ff6a1a'], [1, '#c8200a']])) + path('M30,40C34,30 44,26 52,28', 'none', 'stroke="#fff4c0" stroke-width="5" stroke-linecap="round"');
+      case 'lava': return E('M14,46C14,24 34,14 50,16C70,16 86,28 86,46C86,58 80,62 78,72C76,82 70,82 70,72C70,64 64,64 62,74C60,90 52,92 50,80C48,68 42,70 40,78C38,86 30,86 30,76C30,66 14,64 14,46Z', X.lin([[0, '#ffd27a'], [0.5, '#ff6a1a'], [1, '#c8200a']])) + path('M30,40C34,30 44,26 52,28', 'none', 'stroke="#fff4c0" stroke-width="5"');
       case 'boil': return circ(36, 62, 18, '#ffe0d6', 'stroke="' + EK + '" stroke-width="3"') + circ(64, 52, 14, '#fff', 'stroke="' + EK + '" stroke-width="3"') + circ(56, 78, 9, '#ffd0c0', 'stroke="' + EK + '" stroke-width="3"') + EL('M30,30C24,22 34,16 28,8M50,28C44,20 54,14 48,6M70,32C64,24 74,18 68,10', '#fff', 4);
       case 'scorch': return [[50, 26], [28, 66], [72, 66]].map(function (p) { return circ(p[0], p[1], 16, X.rad([[0, '#fffbe0'], [0.6, '#ffb000'], [1, '#ff6a00']]), 'stroke="' + EK + '" stroke-width="3"'); }).join('') + EL('M50,42L34,56M50,42L66,56M42,66H58', '#fff3e0', 3);
       case 'storm': return EL('M8,34Q30,24 50,34T92,34M8,52Q30,42 50,52T92,52M8,70Q30,60 50,70T92,70', EK, 9) + EL('M8,34Q30,24 50,34T92,34M8,52Q30,42 50,52T92,52M8,70Q30,60 50,70T92,70', '#e1f5fe', 5) + E('M54,14L40,46H52L46,86L66,40H54Z', '#fff');
-      case 'dust': return E('M50,10L86,30V70L50,90L14,70V30Z', '#ffffff', 'opacity="0.95"') + EL('M14,30L50,50L86,30M50,50V90', EK, 2.5) + E('M50,36L64,44V60L50,68L36,60V44Z', '#cfd8dc') + circ(50, 52, 5, '#fff', 'filter="' + X.blur(2) + '"');
+      case 'dust': return E('M50,10L86,30V70L50,90L14,70V30Z', '#ffffff', 'opacity="0.95"') + EL('M14,30L50,50L86,30M50,50V90', EK, 2.5) + E('M50,36L64,44V60L50,68L36,60V44Z', '#cfd8dc') + circ(50, 52, 10, X.rad([[0, '#ffffff'], [0.45, '#ffffff', 0.85], [1, '#ffffff', 0]]));
       case 'explosion': for (var e = 0; e < 12; e++) { var r = e % 2 ? 26 : 44, q = pol(50, 52, r, e * 30 - 90); o += (e ? 'L' : 'M') + PP(q); } return E(o + 'Z', X.rad([[0, '#ffffff'], [0.4, '#ffe066'], [1, '#ff6a3a']])) + circ(50, 52, 12, '#fff');
       case 'magnet': return E('M22,20H40V56A10,10 0 0,0 60,56V20H78V56A28,28 0 0,1 22,56Z', '#cfd8dc') + E('M22,20H40V32H22ZM60,20H78V32H60Z', '#e53935') + [18, 32, 68, 82].map(function (x, i) { return circ(x, 86 - (i % 2) * 6, 3, '#37474f'); }).join('');
       case 'yin': return E('M64,12A40,40 0 1,0 64,88A32,32 0 1,1 64,12Z', X.lin([[0, '#d1c4e9'], [1, '#5e35b1']])) + circ(66, 34, 4, '#fff') + circ(76, 56, 3, '#fff') + circ(62, 72, 2.5, '#fff');
       case 'yang': for (var y = 0; y < 12; y++) o += E('M50,6L54,20L46,20Z', '#fff8e1', 'transform="rotate(' + y * 30 + ' 50 50)"'); return o + circ(50, 50, 24, X.rad([[0, '#ffffff'], [0.6, '#fff176'], [1, '#ffb300']]), 'stroke="' + EK + '" stroke-width="3"');
       case 'genjutsu':
-        o += '<g transform="translate(50,50) scale(42)">' + '<path d="' + spiralD(3, 0.04, 1, 0) + '" fill="none" stroke="#f3e5f5" stroke-width="0.09" stroke-linecap="round"/></g>';
+        o += '<g transform="translate(50,50) scale(42)">' + '<path d="' + spiralD(3, 0.04, 1, 0) + '" fill="none" stroke="#f3e5f5" stroke-width="0.09"/></g>';
         return o + (ek && ek !== 'beast' ? '<g transform="translate(50,50) scale(0.5) translate(-50,-52)">' + bigEye(X, ek, artOf(c).eyeColor) + '</g>' : circ(50, 50, 9, '#fff', 'stroke="' + EK + '" stroke-width="3"'));
       case 'eye': return bigEye(X, ek && ek !== 'beast' ? ek : 'sharingan', artOf(c).eyeColor);
       case 'amaterasu': return E('M50,8C58,26 80,34 78,60C76,82 62,94 50,94C34,94 20,82 20,62C20,46 30,40 32,24C38,38 42,44 50,48C54,34 48,22 50,8Z', '#0a0a0a', 'stroke="#ce93d8" stroke-width="3.5"') + path('M50,44C56,58 64,64 62,76C60,86 54,90 50,90C42,90 38,84 38,76C38,68 44,66 46,58C48,64 50,62 50,44Z', '#2a0a3a') + '<g transform="translate(50,30) scale(0.32) translate(-50,-52)">' + bigEye(X, ek && /^ms_/.test(ek) ? ek : 'ms_itachi', artOf(c).eyeColor) + '</g>';
@@ -2538,7 +3008,7 @@
   }
   function skillIconSVG(c, key, size) {
     var fx = iconFx(c, key), F = own(NG.FX, fx) || { c1: '#607d8b', c2: '#cfd8dc', k: '忍' };
-    var X = new Ctx('i' + (hash(cid(c) + key) % 46656).toString(36) + '_', 3);
+    var X = new Ctx(pfx('i', cid(c) + key), 3);
     var c1 = F.c1, c2 = F.c2, dark = lum(c1) < 0.2;
     var bgA = dark ? mix(c1, c2, 0.35) : lt(c1, 0.15), bgB = dk(c1, 0.6);
     var rr = 'M16,2H84A14,14 0 0,1 98,16V84A14,14 0 0,1 84,98H16A14,14 0 0,1 2,84V16A14,14 0 0,1 16,2Z';
@@ -2548,7 +3018,8 @@
     inner += circ(50, 46, 46, X.rad([[0, lt(c2, 0.2), 0.75], [1, c2, 0]]));
     for (var i = 0; i < 10; i++) { var q0 = pol(50, 50, 80, i * 36 + 8), q1 = pol(50, 50, 80, i * 36 + 20); inner += path('M50,50L' + PP(q0) + 'L' + PP(q1) + 'Z', '#ffffff', 'opacity="0.08"'); }
     if (key === 'awaken') {
-      var A2 = new Ctx(X.p + 'p', 4.2), pp = drawCharacter(c, A2, 'avatar'); X.defs = X.defs.concat(A2.defs);
+      var A2 = new Ctx(X.p + '_', 4.2); A2.av = true;
+      var pp = drawCharacter(c, A2, 'avatar'); X.defs = X.defs.concat(A2.defs); CUR = X;
       var vb = (pp.avatarVB || '141 82 280 280').split(' ').map(Number), z = 0.82;
       var vb2 = r1(vb[0] + vb[2] * (1 - z) / 2) + ' ' + r1(vb[1] + vb[3] * 0.02) + ' ' + r1(vb[2] * z) + ' ' + r1(vb[3] * z);
       inner += '<svg x="0" y="0" width="100" height="100" viewBox="' + vb2 + '" preserveAspectRatio="xMidYMid slice">' + pp.back + pp.body + pp.head + pp.front + '</svg>';
@@ -2557,9 +3028,9 @@
       inner += '<g transform="translate(50,50) scale(0.8) translate(-50,-50)">' + fxEmblem(X, fx, c, F) + '</g>';
     }
     var glyph = '<text x="90" y="92" font-size="22" font-weight="900" text-anchor="end" fill="#fff" stroke="' + dk(c1, 0.7) + '" stroke-width="3" paint-order="stroke" opacity="0.92" font-family="' + FONT + '">' + esc(F.k || '') + '</text>';
-    var frame = path(rr, 'none', 'stroke="' + lt(c2, 0.3) + '" stroke-width="3" opacity="0.85"') + path('M16,6H84A10,10 0 0,1 94,16', 'none', 'stroke="#fff" stroke-width="2" opacity="0.45" stroke-linecap="round"') + path(rr, 'none', 'stroke="#0a0f24" stroke-width="2.5"');
+    var frame = path(rr, 'none', 'stroke="' + lt(c2, 0.3) + '" stroke-width="3" opacity="0.85"') + path('M16,6H84A10,10 0 0,1 94,16', 'none', 'stroke="#fff" stroke-width="2" opacity="0.45"') + path(rr, 'none', 'stroke="#0a0f24" stroke-width="2.5"');
     var body = b + '<g clip-path="' + cp + '">' + inner + path('M2,2H98V40Q50,30 2,46Z', '#ffffff', 'opacity="0.10"') + '</g>' + glyph + frame;
-    return finish(X, '0 0 100 100', size, size, body);
+    return finish(X, '0 0 100 100', size, size, body, '', { cull: [0, 0, 100, 100] });
   }
   A.skillIcon = function (c, key, size) {
     c = resolve(c); size = dim(size, 96); key = String(key || 's1');
@@ -2572,7 +3043,7 @@
    * ==================================================================== */
   var EMB_SYM = { konoha: 'konoha', suna: 'suna', kiri: 'kiri', kumo: 'kumo', iwa: 'iwa', oto: 'oto', ame: 'ame', taki: 'taki', allied: 'allied' };
   function emblemSVG(k, size) {
-    var X = new Ctx('e' + (hash(String(k)) % 46656).toString(36) + '_', 3);
+    var X = new Ctx(pfx('e', String(k)), 3);
     var FA = own(NG.FACTIONS, k), fc = (FA && FA.color) || '#9aa3ad';
     var s = '';
     var ring = X.lin([[0, lt(fc, 0.6)], [0.5, fc], [1, dk(fc, 0.55)]], 0, 0, 1, 1);
@@ -2595,16 +3066,16 @@
       sym = '<g transform="translate(0,-4)">' + sym + '</g>';
     } else if (k === 'senju') {
       s += circ(50, 50, 35, plate);
-      sym = '<path d="M30,30L50,22L70,30L70,50L50,78L30,50Z" fill="none" stroke="#2a303a" stroke-width="5" stroke-linejoin="round"/><path d="M50,30V66M38,44H62" stroke="#2a303a" stroke-width="4"/>';
+      sym = '<path d="M30,30L50,22L70,30L70,50L50,78L30,50Z" fill="none" stroke="#2a303a" stroke-width="5"/><path d="M50,30V66M38,44H62" stroke="#2a303a" stroke-width="4"/>';
     } else if (k === 'uzumaki') {
       s += circ(50, 50, 35, '#c62828');
-      sym = '<g transform="translate(50,50) scale(26)"><path d="' + spiralD(2, 0.04, 1, 0) + '" fill="none" stroke="#fff" stroke-width="0.14" stroke-linecap="round"/></g>';
+      sym = '<g transform="translate(50,50) scale(26)"><path d="' + spiralD(2, 0.04, 1, 0) + '" fill="none" stroke="#fff" stroke-width="0.14"/></g>';
     } else if (k === 'taka') {
       s += circ(50, 50, 35, X.rad([[0, '#8ea0c8'], [1, '#2a3450']]));
       sym = path('M14,44C30,40 42,30 50,22C58,30 70,40 86,44C72,46 62,52 58,62L66,80L50,70L34,80L42,62C38,52 28,46 14,44Z', '#f2f2f2', 'stroke="' + EK + '" stroke-width="2.5"') + circ(50, 34, 3, EK);
     } else if (k === 'samurai') {
       s += circ(50, 50, 35, plate);
-      sym = '<path d="M24,78L76,22M76,78L24,22" stroke="#2a303a" stroke-width="6" stroke-linecap="round"/><circle cx="50" cy="50" r="10" fill="#2a303a"/><path d="M30,66L36,72M70,66L64,72" stroke="#2a303a" stroke-width="10"/>';
+      sym = '<path d="M24,78L76,22M76,78L24,22" stroke="#2a303a" stroke-width="6"/><circle cx="50" cy="50" r="10" fill="#2a303a"/><path d="M30,66L36,72M70,66L64,72" stroke="#2a303a" stroke-width="10"/>';
     } else if (own(EMB_SYM, k)) {
       s += circ(50, 50, 35, plate);
       sym = '<g transform="translate(50,50) scale(22)">' + symbol(EMB_SYM[k], '#2a303a', 0.17) + '</g>';
@@ -2615,7 +3086,7 @@
         '<text x="50" y="63" font-size="36" font-weight="900" text-anchor="middle" fill="#2a303a" font-family="' + FONT + '">' + esc(kj) + '</text>';
     }
     s += sym;
-    s += path('M20,34A34,34 0 0,1 66,18', 'none', 'stroke="#fff" stroke-width="3" opacity="0.5" stroke-linecap="round"');
+    s += path('M20,34A34,34 0 0,1 66,18', 'none', 'stroke="#fff" stroke-width="3" opacity="0.5"');
     s += circ(50, 50, 35, 'none', 'stroke="' + EK + '" stroke-width="2"');
     return finish(X, '0 0 100 100', size, size, s);
   }
@@ -2623,12 +3094,12 @@
   A.emblemURL = function (k, size) { k = k == null ? 'other' : String(k); size = dim(size, 64); return urlMemo('em|' + k + '|' + size, function () { return A.emblem(k, size); }); };
 
   function elementSVG(k, size) {
-    var X = new Ctx('l' + (hash(String(k)) % 1296).toString(36) + '_', 3);
+    var X = new Ctx(pfx('l', String(k)), 3);
     var E_ = own(NG.ELEMENTS, k) || { name: '?', color: '#9e9e9e' };
     var c = E_.color, s = '';
     s += circ(50, 50, 48, '#0a0f24') + circ(50, 50, 44, X.lin([[0, lt(c, 0.45)], [0.5, c], [1, dk(c, 0.5)]], 0, 0, 1, 1));
     s += circ(50, 50, 38, 'none', 'stroke="#fff" stroke-width="2.5" opacity="0.55"');
-    s += path('M18,40A34,34 0 0,1 60,14', 'none', 'stroke="#fff" stroke-width="4" opacity="0.5" stroke-linecap="round"');
+    s += path('M18,40A34,34 0 0,1 60,14', 'none', 'stroke="#fff" stroke-width="4" opacity="0.5"');
     s += '<text x="50" y="66" font-size="46" font-weight="900" text-anchor="middle" fill="#fff" stroke="' + dk(c, 0.7) + '" stroke-width="6" paint-order="stroke" font-family="' + FONT + '">' + esc(E_.name) + '</text>';
     return finish(X, '0 0 100 100', size, size, s);
   }
@@ -2637,7 +3108,7 @@
 
   function frameSVG(r, size) {
     var R = own(NG.RARITIES, r) || { color: '#7fb2ff', color2: '#d8e8ff', order: 0 };
-    var X = new Ctx('f' + (hash(String(r)) % 1296).toString(36) + '_', 3);
+    var X = new Ctx(pfx('f', String(r)), 3);
     var gold = X.lin([[0, '#fff6c8'], [0.3, '#ffd25a'], [0.6, '#b8860b'], [1, '#ffe9a0']], 0, 0, 1, 1);
     var rc = X.lin([[0, R.color2], [0.5, R.color], [1, dk(R.color, 0.45)]], 0, 0, 1, 1);
     var s = '';
@@ -2655,7 +3126,7 @@
       for (var i = 0; i < 8; i++) { var p0 = pol(64, 64, 61, i * 45 + 22.5), p1 = pol(64, 64, 67, i * 45 + 22.5); s += line('M' + PP(p0) + 'L' + PP(p1), '#ff8a65', 3); }
       s += circ(64, 64, 57, 'none', 'stroke="#ff4d4d" stroke-width="1.5" stroke-dasharray="3 5" opacity="0.9"');
     }
-    s += path('M22,40A46,46 0 0,1 60,12', 'none', 'stroke="#fff" stroke-width="2" opacity="0.7" stroke-linecap="round"');
+    s += path('M22,40A46,46 0 0,1 60,12', 'none', 'stroke="#fff" stroke-width="2" opacity="0.7"');
     return finish(X, '0 0 128 128', size, size, s);
   }
   A.frame = function (r, size) { r = String(r); size = dim(size, 128); return memo('fr|' + r + '|' + size, function () { return safe(function () { return frameSVG(r, size); }, function () { return frameSVG('R', size); }); }); };
@@ -2678,7 +3149,7 @@
       'C' + P(x + w * 0.36, y - h * 1.2) + ' ' + P(x + w * 0.62, y - h * 1.2) + ' ' + P(x + w * 0.66, y - h * 0.6) +
       'C' + P(x + w * 0.78, y - h * 0.95) + ' ' + P(x + w * 1.02, y - h * 0.7) + ' ' + P(x + w, y) + 'Z';
   }
-  function stars(R, n, y1, c) { var o = ''; for (var i = 0; i < n; i++) o += circ(R() * 1280, R() * y1, 0.6 + R() * 1.6, c || '#fff', 'opacity="' + r1(0.3 + R() * 0.7) + '"'); return o; }
+  function stars(R, n, y1, c) { var l = []; for (var i = 0; i < n; i++) l.push([R() * 1280, R() * y1, 0.6 + R() * 1.6, 0.3 + R() * 0.7]); return dots(l, c || '#fff'); }
   function pine(x, y, h, c) {
     var w = h * 0.34, d = 'M' + P(x, y - h);
     for (var i = 1; i <= 4; i++) d += 'L' + P(x + w * i / 4, y - h + h * i / 4.4) + 'L' + P(x + w * i / 8, y - h + h * i / 4.4);
@@ -2786,7 +3257,8 @@
     o += path(rays, X.lin([[0, '#fffbd0', 0.35], [1, '#fffbd0', 0]]));
     o += path(ridge(R, 640, 40, 30, 0, 1280, 720), '#1e4a22') + path(ridge(R, 680, 30, 40, 0, 1280, 720, true), '#143418');
     o += rect(0, 520, 1280, 200, X.lin([[0, '#cfe8c8', 0], [0.6, '#cfe8c8', 0.18], [1, '#cfe8c8', 0]]));
-    for (var f = 0; f < 30; f++) o += circ(R() * 1280, 200 + R() * 500, 1.5 + R() * 2.5, '#eaffb0', 'opacity="' + r1(0.3 + R() * 0.6) + '"');
+    var ff = []; for (var f = 0; f < 30; f++) ff.push([R() * 1280, 200 + R() * 500, 1.5 + R() * 2.5, 0.3 + R() * 0.6]);
+    o += dots(ff, '#eaffb0');
     return o;
   }
   function statue(x, base, s, dir, c, hairSpiky) {
@@ -2875,15 +3347,18 @@
   }
   function bgBattle(X, R) {
     var o = rect(0, 0, 1280, 720, X.lin([[0, '#2a1218'], [0.45, '#8a3020'], [0.7, '#e0702a'], [1, '#3a2018']]));
-    var smoke = ''; for (var sm = 0; sm < 10; sm++) smoke += circ(R() * 1280, 180 + R() * 260, 70 + R() * 110, '#1a0a0a', 'opacity="' + r1(0.25 + R() * 0.25) + '"');
-    o += '<g filter="' + X.blur(26) + '">' + smoke + '</g>';
+    // soft smoke puffs: radial-gradient discs (radius grown by the old blur's reach) instead of a blur filter
+    var smoke = '', puff = X.rad([[0, '#1a0a0a'], [0.5, '#1a0a0a', 0.92], [0.75, '#1a0a0a', 0.5], [1, '#1a0a0a', 0]]);
+    for (var sm = 0; sm < 10; sm++) { var spx = R() * 1280, spy = 180 + R() * 260, spr = 70 + R() * 110; smoke += circ(spx, spy, spr + 40, puff, 'opacity="' + r1(0.25 + R() * 0.25) + '"'); }
+    o += smoke;
     o += circ(900, 330, 60, X.rad([[0, '#fff0b0', 0.9], [1, '#ff6a1a', 0]])) + circ(300, 360, 40, X.rad([[0, '#fff0b0', 0.7], [1, '#ff6a1a', 0]]));
     o += path(ridge(R, 470, 90, 9, 0, 1280, 720, true), '#2a1612') + path(ridge(R, 540, 50, 14, 0, 1280, 720, true), '#1e100e');
     for (var r = 0; r < 18; r++) { var rx = R() * 1280, ry = 580 + R() * 120, rs = 14 + R() * 30; o += path('M' + P(rx - rs, ry) + 'L' + P(rx - rs * 0.4, ry - rs * 0.9) + 'L' + P(rx + rs * 0.6, ry - rs * 0.7) + 'L' + P(rx + rs, ry) + 'Z', '#2e1a14', 'stroke="#140a08" stroke-width="2"'); }
     for (var w = 0; w < 9; w++) { var wx = 80 + R() * 1120, wy = 600 + R() * 80, an = -20 + R() * 40; o += '<g transform="translate(' + r1(wx) + ',' + r1(wy) + ') rotate(' + r1(an) + ')">' + rect(-2, -70, 4, 70, '#9aa4b0') + rect(-8, -6, 16, 4, '#3a2a20') + '</g>'; }
     o += path('M0,640L300,600L520,650L760,610L1000,660L1280,620V720H0Z', '#140a08');
     o += line('M200,660L320,690L420,670M760,640L840,700M980,680L1100,650', '#ff7a2a', 2.5, 'opacity="0.7"');
-    for (var e = 0; e < 40; e++) o += circ(R() * 1280, R() * 650, 1 + R() * 2.5, '#ffb04a', 'opacity="' + r1(0.3 + R() * 0.7) + '"');
+    var em = []; for (var e = 0; e < 40; e++) em.push([R() * 1280, R() * 650, 1 + R() * 2.5, 0.3 + R() * 0.7]);
+    o += dots(em, '#ffb04a');
     o += rect(0, 0, 1280, 720, X.rad([[0, '#000', 0], [0.7, '#000', 0.15], [1, '#000', 0.6]]));
     return o;
   }
@@ -2924,7 +3399,7 @@
   var BGS = { city_night: bgCity, village: bgVillage, forest: bgForest, valley: bgValley, desert: bgDesert, mist: bgMist, rain: bgRain, battlefield: bgBattle, summon: bgSummon, moon: bgMoon };
   function backgroundSVG(k, w, h) {
     var fn = own(BGS, k) || bgCity;
-    var X = new Ctx('g' + (hash(String(k)) % 1296).toString(36) + '_', 3);
+    var X = new Ctx(pfx('g', String(k)), 3);
     var body = fn(X, rng(hash('bg:' + k)));
     return finish(X, '0 0 1280 720', w, h, body, ' preserveAspectRatio="xMidYMid slice"');
   }

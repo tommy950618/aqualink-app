@@ -182,8 +182,8 @@
   U.icon = function (k, cls) { return '<img class="ic ' + (cls || '') + '" src="' + U.iconURL(k) + '" alt="" draggable="false">'; };
   U.CUR = {
     coins: { name: '铜币', icon: 'coin', tip: '铜币可通过冒险推图、挂机收益获得' },
-    gems: { name: '勾玉', icon: 'gem', tip: '勾玉可通过关卡首通获得，招募券不足时150勾玉/抽' },
-    tickets: { name: '招募券', icon: 'ticket', tip: '招募券用于召唤忍者，开局赠送1000张' },
+    gems: { name: '勾玉', icon: 'gem', tip: '勾玉可通过关卡首通与挂机收益获得，招募券不足时150勾玉/抽' },
+    tickets: { name: '招募券', icon: 'ticket', tip: '招募券用于召唤忍者，开局赠送1000张，关卡首通与挂机收益也会产出' },
     scrolls: { name: '忍术卷轴', icon: 'scroll', tip: '忍术卷轴用于升级技能，可通过冒险与挂机获得' },
     exp: { name: '经验', icon: 'exp', tip: '' }
   };
@@ -663,25 +663,30 @@
     leave: function () { clearInterval(afkTimer); },
     onChange: function () { this.show(this.el); }
   });
+  var AFK_KEYS = ['coins', 'tickets', 'gems', 'scrolls', 'exp'];
   function updAfk(el) {
-    var i = U.call('idle') || {}, ready = (i.coins || 0) > 0 || (i.scrolls || 0) > 0;
+    var i = U.call('idle') || {}, ready = AFK_KEYS.some(function (k) { return k !== 'exp' && (i[k] || 0) > 0; });
     var b = U.$('.home-afk', el); if (!b) return;
     b.classList.toggle('ready', ready);
-    U.$('.amt', b).innerHTML = U.icon('coin') + ' +' + U.fmt(i.coins || 0) + ' · ' + fmtDur(i.seconds || 0);
+    var extra = ['tickets', 'gems'].filter(function (k) { return (i[k] || 0) > 0; })
+      .map(function (k) { return U.icon(U.CUR[k].icon) + '+' + U.fmt(i[k]); }).join(' ');
+    U.$('.amt', b).innerHTML = U.icon('coin') + ' +' + U.fmt(i.coins || 0) + ' · ' + fmtDur(i.seconds || 0) +
+      (extra ? '<div style="font-size:13px;line-height:16px">' + extra + '</div>' : '');
   }
   function afkModal() {
     var i = U.call('idle') || {};
-    var rw = ['coins', 'exp', 'scrolls'].filter(function (k) { return i[k] > 0; }).map(function (k) { return U.rewardHTML(k, i[k]); }).join('');
+    var rw = AFK_KEYS.filter(function (k) { return i[k] > 0; }).map(function (k) { return U.rewardHTML(k, i[k]); }).join('');
     U.modal({
       title: '挂机收益', cls: 'afk',
       html: '<div class="confirm-text">已挂机 <b style="color:#ffe9a6">' + fmtDur(i.seconds || 0) + '</b>（最多累积12小时）</div>' +
         '<div class="cp-rw" style="justify-content:center;margin-top:18px">' + (rw || '<div class="muted">暂无收益，稍后再来吧</div>') + '</div>' +
-        '<div class="confirm-sub">推进冒险关卡可提升挂机收益</div>',
+        '<div class="confirm-sub">推进冒险关卡可提升挂机收益（含勾玉与招募券）</div>',
       buttons: [{ html: '领 取', cls: 'shine', fn: function () {
         var r = U.call('claimIdle');
         if (r && r.ok === false) { U.fail(r); return false; }
         var got = r && typeof r === 'object' ? r : i;
-        U.toast('领取成功：铜币 +' + U.fmt(got.coins || 0) + (got.scrolls ? '，卷轴 +' + U.fmt(got.scrolls) : ''), 'ok');
+        var parts = AFK_KEYS.filter(function (k) { return k !== 'exp' && (got[k] || 0) > 0; }).map(function (k) { return U.CUR[k].name + ' +' + U.fmt(got[k]); });
+        U.toast('领取成功：' + (parts.join('，') || '铜币 +0'), 'ok');
       } }]
     });
   }
