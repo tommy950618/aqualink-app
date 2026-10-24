@@ -888,15 +888,16 @@ function stageWinRates(g, nb, sims, seedBase) {
   function mk(ids, lv, dst) { var k = sk(lv); return ids.map(function (id, i) { return { id: id, lv: lv, star: Math.min(6, starFor(lv) + dst[i]), skills: { passive: k, s1: k, s2: k, ult: k, awaken: k } }; }); }
   function pw(t) { return t.reduce(function (a, e) { return a + g.power(e.id, e); }, 0); }
   return g.stages().map(function (st) {
-    var R = nb.battle.rng((seedBase || 0) + st.index + 1), w = 0, rounds = 0;
+    var R = nb.battle.rng((seedBase || 0) + st.index + 1), w = 0, rounds = 0, over = 0;
     for (var i = 0; i < sims; i++) {
       var ids = pickN(strong, 5, R), lo = 1, hi = 400, dst = [];
       for (var d = 0; d < 5; d++) { var x = R(); dst.push(x < 0.3 ? 0 : x < 0.8 ? 1 : 2); }
       while (lo < hi) { var m = (lo + hi + 1) >> 1; if (pw(mk(ids, m, dst)) <= st.power) lo = m; else hi = m - 1; }
+      if (lo === 1 && pw(mk(ids, 1, dst)) > st.power * 1.02) over++;
       var rec = nb.battle.simulate(mk(ids, lo, dst), JSON.parse(JSON.stringify(st.enemies)), { seed: (seedBase || 0) * 1000 + i });
       if (rec.winner === 'A') w++; rounds += rec.rounds;
     }
-    return { id: st.id, w: w / sims, r: rounds / sims };
+    return { id: st.id, w: w / sims, r: rounds / sims, over: over / sims };
   });
 }
 /* --calibrate [iters=6] [--calib-n N=120]: per-stage root finding on ln(STAGE_ADJ) so that a player-like team (above) at
@@ -913,6 +914,8 @@ if (ARGS.indexOf('--calibrate') >= 0) {
     I.setStageAdj(adj);
     var rows = stageWinRates(G, NG, calN, 4242);
     rows.forEach(function (x) {
+      // recommended power below what a Lv1 opening team already has (early ch1–2): nothing to fit, keep 1
+      if (x.over > 0.5) { adj[x.id] = 1; return; }
       var la = Math.log(adj[x.id] || 1), h = hist[x.id], slope = -2.2;
       if (h && Math.abs(la - h.la) > 0.005 && Math.abs(x.w - h.w) > 0.02) slope = Math.max(-6, Math.min(-0.8, (x.w - h.w) / (la - h.la)));
       hist[x.id] = { la: la, w: x.w };
@@ -920,8 +923,10 @@ if (ARGS.indexOf('--calibrate') >= 0) {
       if (Math.abs(x.w - CAL_TARGET) < 0.025) step = 0;            // within sampling noise: leave it
       adj[x.id] = Math.round(Math.min(2, Math.max(0.5, Math.exp(la + step))) * 100) / 100;
     });
-    var ws = rows.map(function (x) { return x.w; }).sort(function (a, b) { return a - b; });
-    var mad = rows.reduce(function (a, x) { return a + Math.abs(x.w - CAL_TARGET); }, 0) / rows.length;
+    var fit = rows.filter(function (x) { return x.over <= 0.5; });
+    var ws = fit.map(function (x) { return x.w; }).sort(function (a, b) { return a - b; });
+    var mad = fit.reduce(function (a, x) { return a + Math.abs(x.w - CAL_TARGET); }, 0) / fit.length;
+    if (!it) console.log('  not fitted (a Lv1 opening team already exceeds the recommended power): ' + rows.filter(function (x) { return x.over > 0.5; }).map(function (x) { return x.id; }).join(' '));
     console.log('  iter ' + (it + 1) + ' (n=' + calN + '): win% min ' + (ws[0] * 100).toFixed(0) + ' p10 ' + (ws[Math.floor(ws.length * 0.1)] * 100).toFixed(0) + ' median ' + (ws[ws.length >> 1] * 100).toFixed(0) +
       ' p90 ' + (ws[Math.floor(ws.length * 0.9)] * 100).toFixed(0) + ', mean |win−target| ' + (mad * 100).toFixed(1));
   }
@@ -953,7 +958,8 @@ section('per-stage difficulty (player-like UR team at exactly the recommended po
  * attempt is watched at ×2 (10 s intro/result + 0.55 s per action + 1 s per ult cut-in), retries are skipped
  * (12 s), each spending session costs a few seconds of taps. After 3 losses in a row the player goes away for
  * --afk hours (default 2, offline: AFK income keeps accruing, it is not active time), claims the chest,
- * spends and tries again. Reports active/wall-clock time per chapter. */
+ * spends and tries again; after the 2nd break on the same stage they also try other line-ups (5 of their best 8,
+ * levelled with the surplus coins). Reports active/wall-clock time per chapter. */
 function progressionSim(n) {
   var afkH = ARGS.indexOf('--afk') >= 0 ? parseFloat(ARGS[ARGS.indexOf('--afk') + 1]) || 2 : 2;
   var econ = ARGS.indexOf('--econ') >= 0 ? JSON.parse(ARGS[ARGS.indexOf('--econ') + 1]) : null;
@@ -969,7 +975,7 @@ function progressionSim(n) {
     if (chp) chp.forEach(function (v, i) { if (v) g._internal.CH_END_POWER[i] = v; });
     g._setClock(function () { return T; });
     g.reset(); g.state.rng = sd * 7919;
-    var R = NGc.battle.rng(sd), active = 0, afk = 0, fights = 0, losses = 0, attempts = 0, seen = {};
+    var R = NGc.battle.rng(sd), active = 0, afk = 0, fights = 0, losses = 0, attempts = 0, stuck = 0, seen = {};
     var play = function (sec) { active += sec; T += sec * 1000; };
     var battleSecs = function (rec, watched) {
       if (!watched) return 12;
@@ -977,15 +983,25 @@ function progressionSim(n) {
       rec.events.forEach(function (e) { if (e.t === 'act') { acts++; if (e.skill === 'ult') ults++; } });
       return 10 + acts * 0.55 + ults;
     };
+    var rankIds = function (k) {        // best k by power once levelled to the current team's top level
+      var s = g.state, top = Math.max.apply(null, s.team.map(function (id) { return g.owned(id) ? g.owned(id).lv : 1; }).concat([1]));
+      return g.ownedList().map(function (x) { var lv = Math.min(g.maxLevel(x.id), Math.max(x.e.lv, top)); return { id: x.id, p: g.power(x.id, { lv: lv, star: x.e.star, skills: x.e.skills }) }; })
+        .sort(function (a, b) { return b.p - a.p; }).slice(0, k).map(function (x) { return x.id; });
+    };
+    var otherTeam = function () {       // stuck for a while: try another five out of the best eight, level them up
+      var pool = rankIds(8), pick = [];
+      while (pick.length < 5 && pool.length) pick.push(pool.splice(Math.floor(R() * pool.length), 1)[0]);
+      g.setTeam(pick);
+      pick.forEach(function (id) { g.levelUp(id, 'max'); });
+      return 20;
+    };
     var spend = function () {
       var s = g.state, t = 0, q;
       while (s.tickets >= 100) { g.summon(100); t += 15; }
       while (s.tickets >= 10) { g.summon(10); t += 6; }
       while (s.gems >= 1500) { g.summon(10); t += 6; }
       Object.keys(s.roster).forEach(function (id) { while (g.starUp(id).ok) t += 2; });
-      var top = Math.max.apply(null, s.team.map(function (id) { return g.owned(id) ? g.owned(id).lv : 1; }).concat([1]));
-      var ranked = g.ownedList().map(function (x) { var lv = Math.min(g.maxLevel(x.id), Math.max(x.e.lv, top)); return { id: x.id, p: g.power(x.id, { lv: lv, star: x.e.star, skills: x.e.skills }) }; })
-        .sort(function (a, b) { return b.p - a.p; }).slice(0, 5).map(function (x) { return x.id; });
+      var ranked = rankIds(5);
       if (ranked.join() !== s.team.join()) { g.setTeam(ranked); t += 10; }
       for (q = 0; q < 300; q++) {
         var best = null;
@@ -1015,13 +1031,14 @@ function progressionSim(n) {
       play(battleSecs(rec, watched));
       var fin = g.finishStage(sid, rec);
       if (watched) { chFirst++; if (fin.win) chWin1++; }
-      if (fin.win) attempts = 0;
+      if (fin.win) { attempts = 0; stuck = 0; }
       else {
         losses++; chLoss++; stageLoss[sid] = (stageLoss[sid] || 0) + 1;
-        if (++attempts >= 3) { afk++; chAfk++; T += afkH * 3600e3; attempts = 0; }
+        if (++attempts >= 3) { afk++; chAfk++; stuck++; T += afkH * 3600e3; attempts = 0; }
       }
       if ((g.idle().seconds >= 600 || !fin.win) && g.claimIdle().ok) play(3);
       play(spend());
+      if (stuck >= 2) play(otherTeam());
     }
     close();
     var done = !g.nextStage();
